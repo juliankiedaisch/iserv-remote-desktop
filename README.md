@@ -25,10 +25,27 @@ This application provides remote desktop access via Kasm Workspaces in Docker co
 
 3. Ensure Docker is installed and running on the host
 
-4. Run the application:
+4. Pull the Kasm workspace image:
+   ```bash
+   docker pull kasmweb/ubuntu-focal-desktop:1.15.0
+   ```
+
+5. Test your installation:
+   ```bash
+   python3 scripts/test_installation.py
+   ```
+
+6. Run the application:
    ```bash
    python run.py
    ```
+   
+   Or use Docker Compose:
+   ```bash
+   docker-compose up
+   ```
+
+For detailed usage examples, see [USAGE.md](USAGE.md).
 
 ## API Endpoints
 
