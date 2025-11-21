@@ -62,7 +62,8 @@ def create_app(debug=False):
 
     # Register blueprints
     from app.routes.auth_routes import auth_bp
-    from app.routes.api_routes import api_bp
+    from app.routes.container_routes import container_bp
     app.register_blueprint(auth_bp, url_prefix='/')
+    app.register_blueprint(container_bp, url_prefix='/api')
 
     return app

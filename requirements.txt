@@ -14,3 +14,4 @@ SQLAlchemy
 Flask-SQLAlchemy
 itsdangerous
 psycopg2-binary
+docker
