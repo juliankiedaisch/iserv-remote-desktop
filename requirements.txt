@@ -1,0 +1,16 @@
+Flask
+Flask-Session
+Authlib
+requests
+dotenv
+gevent
+gevent-websocket
+gunicorn 
+eventlet
+flask-cors
+pytest
+Werkzeug
+SQLAlchemy
+Flask-SQLAlchemy
+itsdangerous
+psycopg2-binary
