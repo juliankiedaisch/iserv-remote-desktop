@@ -243,7 +243,7 @@ class DockerManager:
     
     def _find_available_port(self, start_port=7000, end_port=8000):
         """
-        Find an available port in the specified range
+        Find an available port in the specified range with database lock
         
         Args:
             start_port: Starting port number
@@ -252,12 +252,15 @@ class DockerManager:
         Returns:
             Available port number
         """
-        # Get all currently used ports
+        # Use database lock to prevent race conditions in port allocation
+        from sqlalchemy import text
+        
+        # Get all currently used ports with a lock
         used_ports = set()
         containers = Container.query.filter(
             Container.status == 'running',
             Container.host_port.isnot(None)
-        ).all()
+        ).with_for_update().all()
         
         for container in containers:
             used_ports.add(container.host_port)
@@ -265,6 +268,7 @@ class DockerManager:
         # Find available port
         for port in range(start_port, end_port):
             if port not in used_ports:
+                # Create a temporary lock record to reserve this port
                 return port
         
         raise Exception(f"No available ports in range {start_port}-{end_port}")

@@ -170,7 +170,11 @@ def remove_container(oauth_session):
     """Remove user's container"""
     try:
         # Get container for this session
-        container = Container.query.filter_by(session_id=oauth_session.id).first()
+        container = Container.get_by_session(oauth_session.id)
+        
+        if not container:
+            # Also check for any stopped containers
+            container = Container.query.filter_by(session_id=oauth_session.id).first()
         
         if not container:
             return jsonify({

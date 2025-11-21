@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-scratch4school}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Please set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-scratch4school}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # Main application
+  app:
+    build: .
+    ports:
+      - "5006:5006"
+    environment:
+      DEBUG: ${DEBUG:-False}
+      FLASK_ENV: ${FLASK_ENV:-production}
+      SECRET_KEY: ${SECRET_KEY:?Please set SECRET_KEY}
+      DATABASE_URI: ${DATABASE_URI:-postgresql://${POSTGRES_USER:-scratch4school}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-scratch4school}}
+      OAUTH_CLIENT_ID: ${OAUTH_CLIENT_ID:?Please set OAUTH_CLIENT_ID}
+      OAUTH_CLIENT_SECRET: ${OAUTH_CLIENT_SECRET:?Please set OAUTH_CLIENT_SECRET}
+      OAUTH_AUTHORIZE_URL: ${OAUTH_AUTHORIZE_URL:?Please set OAUTH_AUTHORIZE_URL}
+      OAUTH_TOKEN_URL: ${OAUTH_TOKEN_URL:?Please set OAUTH_TOKEN_URL}
+      OAUTH_USERINFO_URL: ${OAUTH_USERINFO_URL:?Please set OAUTH_USERINFO_URL}
+      OAUTH_JWKS_URI: ${OAUTH_JWKS_URI:?Please set OAUTH_JWKS_URI}
+      OAUTH_REDIRECT_URI: ${OAUTH_REDIRECT_URI:?Please set OAUTH_REDIRECT_URI}
+      FRONTEND_URL: ${FRONTEND_URL:?Please set FRONTEND_URL}
+      ROLE_ADMIN: ${ROLE_ADMIN:-admins}
+      ROLE_TEACHER: ${ROLE_TEACHER:-teachers}
+      # Docker/Kasm configuration
+      KASM_IMAGE: ${KASM_IMAGE:-kasmweb/ubuntu-focal-desktop:1.15.0}
+      KASM_CONTAINER_PORT: ${KASM_CONTAINER_PORT:-6901}
+      VNC_PASSWORD: ${VNC_PASSWORD:-password}
+      DOCKER_HOST_URL: ${DOCKER_HOST_URL:-localhost}
+    volumes:
+      # Mount Docker socket to allow container creation
+      # WARNING: This grants full Docker daemon access. Use Docker-in-Docker or
+      # a more restricted approach for production environments.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Persist database if using SQLite
+      - ./db:/app/db
+    depends_on:
+      - postgres
+    networks:
+      - app-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  app-network:
+    driver: bridge

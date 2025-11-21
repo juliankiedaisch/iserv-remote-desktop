@@ -60,3 +60,19 @@ Key Docker/Kasm settings:
 - `VNC_PASSWORD`: VNC password for accessing containers
 - `DOCKER_HOST_URL`: Host URL for generating access URLs
 
+## Security Considerations
+
+### Docker Socket Access
+The application requires access to the Docker socket (`/var/run/docker.sock`) to create and manage containers. This grants significant privileges. For production environments, consider:
+
+1. Using Docker-in-Docker (DinD) instead of socket mounting
+2. Implementing a separate container orchestration service with limited permissions
+3. Using Kubernetes with appropriate RBAC policies
+4. Running the application on a dedicated Docker host with network isolation
+
+### Secrets Management
+- Never commit `.env` files with real credentials
+- Use environment variables or secrets management tools (e.g., Docker secrets, Kubernetes secrets)
+- Rotate VNC passwords regularly
+- Use strong, unique passwords for all services
+
