@@ -2,6 +2,7 @@ from flask import Blueprint, request, Response, current_app
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+import urllib3
 from app.models.containers import Container
 from datetime import datetime, timezone
 from app import db
@@ -118,7 +119,6 @@ def proxy_to_container(proxy_path, subpath=''):
             
             # Suppress SSL warnings when verification is disabled
             if not verify_ssl:
-                import urllib3
                 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
             
             # Use longer timeout for desktop environments
