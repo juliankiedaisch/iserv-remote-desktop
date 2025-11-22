@@ -55,9 +55,10 @@ class DockerManager:
             container_name = f"kasm-{username}-{desktop_type}-{session_id[:8]}"
             
             # Check if container already exists for this session and desktop type in any state
-            # We check by session_id and desktop_type to ensure we only find containers for this user
+            # We check by session_id, user_id, and desktop_type to ensure we only find containers for this user
             existing = Container.query.filter_by(
                 session_id=session_id,
+                user_id=user_id,
                 desktop_type=desktop_type
             ).first()
             
@@ -73,20 +74,29 @@ class DockerManager:
                         f"Found existing container {existing.container_name} in state {existing.status}, cleaning up"
                     )
                     # Try to remove the Docker container if it exists
+                    docker_removed = False
                     if existing.container_id:
                         try:
                             container = self.client.containers.get(existing.container_id)
                             container.remove(force=True)
                             current_app.logger.info(f"Removed existing Docker container {existing.container_id}")
+                            docker_removed = True
                         except NotFound:
                             current_app.logger.info(f"Docker container {existing.container_id} not found")
+                            docker_removed = True  # Container doesn't exist, safe to remove DB record
                         except Exception as e:
                             current_app.logger.warning(f"Failed to remove Docker container: {str(e)}")
+                            # Don't remove DB record if Docker removal failed
+                            raise Exception(f"Cannot create new container: existing Docker container cannot be removed: {str(e)}")
+                    else:
+                        # No Docker container ID, safe to remove DB record
+                        docker_removed = True
                     
-                    # Remove the database record
-                    db.session.delete(existing)
-                    db.session.commit()
-                    current_app.logger.info(f"Removed database record for container {existing.container_name}")
+                    # Only remove the database record if Docker removal succeeded or container doesn't exist
+                    if docker_removed:
+                        db.session.delete(existing)
+                        db.session.commit()
+                        current_app.logger.info(f"Removed database record for container {existing.container_name}")
             
             # Create database record first
             container_record = Container(
@@ -143,25 +153,29 @@ class DockerManager:
             
         except APIError as e:
             current_app.logger.error(f"Docker API error: {str(e)}")
-            db.session.rollback()
             if container_record:
                 try:
+                    # Try to update status before rollback
                     container_record.status = 'error'
                     db.session.commit()
                 except Exception as commit_error:
                     current_app.logger.error(f"Failed to update container status after error: {str(commit_error)}")
                     db.session.rollback()
+            else:
+                db.session.rollback()
             raise
         except Exception as e:
             current_app.logger.error(f"Failed to create container: {str(e)}")
-            db.session.rollback()
             if container_record:
                 try:
+                    # Try to update status before rollback
                     container_record.status = 'error'
                     db.session.commit()
                 except Exception as commit_error:
                     current_app.logger.error(f"Failed to update container status after error: {str(commit_error)}")
                     db.session.rollback()
+            else:
+                db.session.rollback()
             raise
     
     def stop_container(self, container_record):
