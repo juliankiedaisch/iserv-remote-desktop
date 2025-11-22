@@ -136,13 +136,23 @@ Examples:
 4. Multiple users can access their containers simultaneously via unique proxy paths
 
 ### Production Deployment
-The application is configured for production use with nginx:
-1. Nginx handles SSL/TLS termination (required for port 443 access)
-2. Proper WebSocket support for noVNC connections
-3. Access the application through nginx on ports 80 (HTTP) and 443 (HTTPS)
-4. **SSL Setup**: See [SSL_SETUP.md](SSL_SETUP.md) for detailed SSL/HTTPS configuration
+The application supports two deployment options:
 
-**Important**: For production environments where only port 443 is accessible, SSL configuration is mandatory. See [SSL_SETUP.md](SSL_SETUP.md) for setup instructions.
+#### Option 1: With External Apache Proxy (Recommended for existing Apache servers)
+If you have an existing Apache server handling SSL/TLS:
+1. Apache handles SSL termination and WebSocket proxying on port 443
+2. Flask application runs on port 5020 (configured in docker-compose.yml)
+3. Access the application through Apache
+4. **Apache Setup**: See [APACHE_SETUP.md](APACHE_SETUP.md) for detailed Apache configuration
+
+#### Option 2: With Internal Nginx Proxy (Standalone deployment)
+For standalone deployments without external proxy:
+1. Uncomment the nginx service in `docker-compose.yml`
+2. Nginx handles SSL/TLS termination and WebSocket proxying
+3. Access the application through nginx on ports 80/443
+4. **Nginx Setup**: See [SSL_SETUP.md](SSL_SETUP.md) for detailed configuration
+
+**Important**: For production environments where only port 443 is accessible, proper proxy configuration with WebSocket support is mandatory.
 
 ## Security Considerations
 

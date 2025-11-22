@@ -17,11 +17,8 @@ services:
   # Main application
   app:
     build: .
-    expose:
-      - "5006"
-    # Only expose port for development/debugging if needed
-    # ports:
-    #   - "5006:5006"
+    ports:
+      - "5020:5006"  # Map container port 5006 to host port 5020 for Apache proxy
     environment:
       DEBUG: ${DEBUG:-False}
       FLASK_ENV: ${FLASK_ENV:-production}
@@ -56,21 +53,23 @@ services:
       - app-network
     restart: unless-stopped
 
-  # Nginx reverse proxy for production WebSocket support and SSL termination
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      # Mount SSL certificates here (create self-signed or use Let's Encrypt)
-      - ./ssl:/etc/nginx/ssl:ro
-    depends_on:
-      - app
-    networks:
-      - app-network
-    restart: unless-stopped
+  # Nginx reverse proxy (OPTIONAL - only if not using external proxy)
+  # Uncomment if you need nginx for local WebSocket support
+  # For production with Apache proxy, comment this out
+  # nginx:
+  #   image: nginx:alpine
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+  #     # Mount SSL certificates here (create self-signed or use Let's Encrypt)
+  #     - ./ssl:/etc/nginx/ssl:ro
+  #   depends_on:
+  #     - app
+  #   networks:
+  #     - app-network
+  #   restart: unless-stopped
 
 volumes:
   postgres_data:

@@ -1,6 +1,8 @@
-# SSL/HTTPS Setup Guide
+# SSL/HTTPS Setup Guide (Nginx)
 
-This guide explains how to configure SSL/HTTPS for the remote desktop application to ensure secure WebSocket connections and proper functionality when only port 443 is accessible.
+**Note**: This guide is for standalone deployments using the internal nginx reverse proxy. If you're using an external Apache proxy, see [APACHE_SETUP.md](APACHE_SETUP.md) instead.
+
+This guide explains how to configure SSL/HTTPS with nginx for the remote desktop application to ensure secure WebSocket connections.
 
 ## Why SSL/HTTPS is Important
 
