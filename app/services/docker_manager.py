@@ -87,7 +87,10 @@ class DockerManager:
                         except Exception as e:
                             current_app.logger.warning(f"Failed to remove Docker container: {str(e)}")
                             # Don't remove DB record if Docker removal failed
-                            raise Exception(f"Cannot cleanup existing container '{existing.container_name}' (status: {existing.status}): Docker container removal failed: {str(e)}")
+                            raise Exception(
+                                f"Cannot cleanup existing container '{existing.container_name}' (status: {existing.status}): "
+                                f"Docker container removal failed"
+                            ) from e
                     else:
                         # No Docker container ID, safe to remove DB record
                         docker_removed = True
