@@ -54,6 +54,9 @@ class DockerManager:
             # Generate unique container name with desktop type
             container_name = f"kasm-{username}-{desktop_type}-{session_id[:8]}"
             
+            # Generate unique proxy path for reverse proxy access
+            proxy_path = f"{username}-{desktop_type}"
+            
             # Check if container already exists for this session and desktop type in any state
             # We check by session_id, user_id, and desktop_type to ensure we only find containers for this user
             existing = Container.query.filter_by(
@@ -109,7 +112,8 @@ class DockerManager:
                 image_name=kasm_image,
                 desktop_type=desktop_type,
                 status='creating',
-                container_port=container_port
+                container_port=container_port,
+                proxy_path=proxy_path
             )
             db.session.add(container_record)
             db.session.commit()
@@ -344,7 +348,7 @@ class DockerManager:
     
     def get_container_url(self, container_record):
         """
-        Get the URL to access the container
+        Get the URL to access the container via reverse proxy
         
         Args:
             container_record: Container model instance
@@ -352,10 +356,11 @@ class DockerManager:
         Returns:
             URL string
         """
-        if not container_record.host_port:
+        if not container_record.proxy_path:
             return None
         
-        # Get host from environment or use localhost
+        # Get host from environment
         host = os.environ.get('DOCKER_HOST_URL', 'localhost')
         
-        return f"http://{host}:{container_record.host_port}"
+        # Use proxy path for access (reverse proxy will forward to the correct port)
+        return f"http://{host}/desktop/{container_record.proxy_path}"

@@ -65,9 +65,11 @@ def create_app(debug=False):
     from app.routes.container_routes import container_bp
     from app.routes.frontend_routes import frontend_bp
     from app.routes.admin_routes import admin_bp
+    from app.routes.proxy_routes import proxy_bp
     app.register_blueprint(auth_bp, url_prefix='/')
     app.register_blueprint(container_bp, url_prefix='/api')
     app.register_blueprint(frontend_bp, url_prefix='/')
     app.register_blueprint(admin_bp, url_prefix='/api')
+    app.register_blueprint(proxy_bp, url_prefix='/')
 
     return app
