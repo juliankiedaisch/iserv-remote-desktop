@@ -11,7 +11,7 @@ import re
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.routes.proxy_routes import ASSET_PREFIXES, is_asset_path
+from app.routes.proxy_routes import ASSET_PREFIXES, ASSET_EXTENSIONS, is_asset_path
 
 class TestAssetRouting(unittest.TestCase):
     """Test asset routing detection and handling"""
@@ -29,14 +29,26 @@ class TestAssetRouting(unittest.TestCase):
             ('static/index.html', True),
             ('dist/bundle.js', True),
             ('build/app.js', True),
+            ('locale/de.json', True),
+            # File extensions should also be detected as assets
+            ('package.json', True),
+            ('config.js', True),
+            ('Orbitron700-CZNJeYVv.ttf', True),
+            ('Orbitron700-DI3tXiXq.woff', True),
+            ('bell-BmA9-LrF.oga', True),
+            ('icon.svg', True),
+            # Container names should NOT be detected as assets
             ('user.name-ubuntu-vscode', False),
             ('admin.panel', False),
             ('container-123', False),
+            ('julian.kiedaisch-ubuntu-vscode', False),
             # False positives that should NOT match
             ('assetsfoo', False),
             ('assets-bar', False),
             ('my-assets', False),
             ('jsfoo', False),
+            # App path should NOT be treated as asset
+            ('app/locale/de.json', False),
         ]
         
         for path, expected_is_asset in test_cases:

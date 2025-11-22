@@ -18,6 +18,7 @@ PROXY_CONNECT_TIMEOUT = 10  # seconds to wait for initial connection
 PROXY_READ_TIMEOUT = 300  # seconds to wait for response (5 minutes for desktop operations)
 DEFAULT_RETRIES = 3  # number of retry attempts for transient failures
 DEFAULT_BACKOFF_FACTOR = 0.3  # exponential backoff factor (0.3s, 0.6s, 1.2s)
+PROXY_CHUNK_SIZE = 64 * 1024  # 64KB chunks for streaming responses (optimal for desktop streaming)
 # Hop-by-hop headers are connection-specific and should not be forwarded in proxy scenarios
 # They control the connection between the client and proxy, not between proxy and target server
 HOP_BY_HOP_HEADERS = frozenset([
@@ -30,23 +31,42 @@ ALLOWED_HTTP_METHODS = frozenset([
 DEFAULT_STATUS_FORCELIST = frozenset([500, 502, 503, 504])
 # Asset path prefixes that are commonly used in web applications
 # These paths should not be treated as container proxy paths
-ASSET_PREFIXES = ('assets', 'js', 'css', 'fonts', 'images', 'static', 'dist', 'build')
+# Note: 'app' is NOT included because Kasm uses /desktop/app/ for application files
+ASSET_PREFIXES = ('assets', 'js', 'css', 'fonts', 'images', 'static', 'dist', 'build', 'locale')
+
+# File extensions that indicate asset/configuration files (not container names)
+ASSET_EXTENSIONS = ('.json', '.css', '.js', '.svg', '.png', '.jpg', '.jpeg', '.gif', '.woff', '.woff2', '.ttf', '.eot', '.ico', '.oga', '.mp3', '.wav')
 
 
 def is_asset_path(path):
     """
-    Check if a path looks like an asset path (e.g., starts with 'assets/', 'js/', etc.)
+    Check if a path looks like an asset path or file request
     
-    Uses exact prefix matching on the first path component to avoid false positives
-    like 'assetsfoo' or 'assets-bar' which are not actual asset paths.
+    This checks both:
+    1. Path prefixes (e.g., 'assets/', 'js/', 'css/')
+    2. File extensions (e.g., '.json', '.css', '.js')
+    
+    This helps distinguish between container proxy paths (e.g., 'user.name-desktop')
+    and actual file/asset requests (e.g., 'package.json', 'assets/ui.js')
     
     Args:
-        path: The path to check (e.g., 'assets/ui.js', 'user.name-desktop')
+        path: The path to check (e.g., 'assets/ui.js', 'package.json', 'user.name-desktop')
         
     Returns:
-        True if the path starts with an asset prefix, False otherwise
+        True if the path starts with an asset prefix or has an asset file extension
     """
-    return any(path.split('/')[0] == prefix for prefix in ASSET_PREFIXES)
+    first_component = path.split('/')[0]
+    
+    # Check if it starts with a known asset prefix
+    if any(first_component == prefix for prefix in ASSET_PREFIXES):
+        return True
+    
+    # Check if the first component (or full path) has a file extension
+    # This catches cases like 'package.json' or 'config.js'
+    if any(first_component.endswith(ext) for ext in ASSET_EXTENSIONS):
+        return True
+    
+    return False
 
 
 def create_retry_session(retries=DEFAULT_RETRIES, backoff_factor=DEFAULT_BACKOFF_FACTOR, status_forcelist=DEFAULT_STATUS_FORCELIST, verify_ssl=True):
@@ -154,6 +174,11 @@ def proxy_to_container(proxy_path, subpath=''):
         # This allows users to access containers without entering credentials
         vnc_user = os.environ.get('VNC_USER', 'kasm_user')
         vnc_password = os.environ.get('VNC_PASSWORD', 'password')
+        
+        # Warn if using default password (security risk in production)
+        if vnc_password == 'password':
+            current_app.logger.warning("Using default VNC password - set VNC_PASSWORD environment variable for production")
+        
         credentials = f"{vnc_user}:{vnc_password}"
         encoded_credentials = base64.b64encode(credentials.encode('utf-8')).decode('utf-8')
         headers['Authorization'] = f"Basic {encoded_credentials}"
@@ -190,9 +215,8 @@ def proxy_to_container(proxy_path, subpath=''):
             ]
             
             # Stream the response back with larger chunks for better performance
-            # 64KB chunks are optimal for high-bandwidth desktop streaming
             response = Response(
-                resp.iter_content(chunk_size=64*1024),
+                resp.iter_content(chunk_size=PROXY_CHUNK_SIZE),
                 status=resp.status_code,
                 headers=response_headers
             )
@@ -231,6 +255,139 @@ def proxy_to_container(proxy_path, subpath=''):
     except Exception as e:
         current_app.logger.error(f"Proxy error: {str(e)}")
         return Response(f"Internal proxy error: {str(e)}", status=500)
+
+
+@proxy_bp.route('/websockify', methods=['GET'])
+def proxy_websocket_root():
+    """
+    Handle WebSocket connections at /websockify (without /desktop/ prefix)
+    
+    This occurs when Kasm containers make WebSocket requests from their UI.
+    We need to determine which container this request is for by checking the Referer header.
+    
+    Note: Flask will forward this to the reverse proxy (Apache/Nginx) which will 
+    handle the actual WebSocket upgrade.
+    """
+    referer = request.headers.get('Referer', '')
+    current_app.logger.debug(f"WebSocket request at /websockify with Referer: {referer}")
+    
+    if not referer:
+        current_app.logger.warning("WebSocket request without Referer header")
+        return Response("WebSocket request requires Referer header to identify container", status=400)
+    
+    # Validate Referer length to prevent ReDoS attacks
+    if len(referer) > 2048:  # Max reasonable URL length
+        current_app.logger.warning(f"Referer header too long: {len(referer)} bytes")
+        return Response("Invalid Referer header", status=400)
+    
+    # Extract the container proxy_path from the Referer URL
+    # Referer format: https://domain/desktop/username-desktoptype or similar
+    # Use a simple, non-backtracking pattern to prevent ReDoS
+    match = re.search(r'/desktop/([^/?#]+)', referer)
+    if not match:
+        current_app.logger.warning(f"Could not extract container path from Referer: {referer}")
+        return Response("Could not identify container from Referer", status=400)
+    
+    referer_proxy_path = match.group(1)
+    
+    # Validate extracted path length
+    if len(referer_proxy_path) > 255:  # Max reasonable proxy path length
+        current_app.logger.warning(f"Extracted proxy path too long: {len(referer_proxy_path)} chars")
+        return Response("Invalid container path", status=400)
+    
+    # Check if this referer path is NOT an asset path
+    if is_asset_path(referer_proxy_path):
+        current_app.logger.warning(f"Referer path looks like an asset: {referer_proxy_path}")
+        return Response("Invalid container reference", status=400)
+    
+    # Find the container
+    container = Container.get_by_proxy_path(referer_proxy_path)
+    
+    if not container:
+        current_app.logger.warning(f"No running container found for websocket referer path: {referer_proxy_path}")
+        return Response("Container not found or not running", status=404)
+    
+    if not container.host_port:
+        current_app.logger.error(f"Container {container.container_name} has no host port assigned")
+        return Response("Container port not available", status=500)
+    
+    # Update last accessed time
+    container.last_accessed = datetime.now(timezone.utc)
+    db.session.commit()
+    
+    # Determine protocol based on environment variable
+    container_protocol = os.environ.get('KASM_CONTAINER_PROTOCOL', 'https')
+    
+    # Build the target WebSocket URL for the container
+    target_url = f"{container_protocol}://localhost:{container.host_port}/websockify"
+    
+    # Forward query parameters
+    if request.query_string:
+        target_url = f"{target_url}?{request.query_string.decode('utf-8')}"
+    
+    current_app.logger.info(f"Proxying WebSocket to: {target_url}")
+    
+    # Prepare headers for forwarding
+    headers = {}
+    for key, value in request.headers:
+        if key.lower() not in HOP_BY_HOP_HEADERS:
+            headers[key] = value
+    
+    # Add HTTP Basic Auth for VNC password
+    # Note: VNC_PASSWORD should be set in environment for security
+    vnc_user = os.environ.get('VNC_USER', 'kasm_user')
+    vnc_password = os.environ.get('VNC_PASSWORD', 'password')
+    
+    # Warn if using default password (security risk in production)
+    if vnc_password == 'password':
+        current_app.logger.warning("Using default VNC password - set VNC_PASSWORD environment variable for production")
+    
+    credentials = f"{vnc_user}:{vnc_password}"
+    encoded_credentials = base64.b64encode(credentials.encode('utf-8')).decode('utf-8')
+    headers['Authorization'] = f"Basic {encoded_credentials}"
+    
+    # IMPORTANT: Flask/requests library cannot handle true WebSocket upgrades
+    # This code only forwards the initial HTTP upgrade request
+    # The actual WebSocket protocol upgrade MUST be handled by Apache/Nginx
+    # Apache RewriteRule converts this to ws:// and handles the upgrade
+    try:
+        verify_ssl = os.environ.get('KASM_VERIFY_SSL', 'false').lower() == 'true'
+        session = create_retry_session(verify_ssl=verify_ssl)
+        
+        if not verify_ssl:
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        
+        # Forward the initial WebSocket handshake request
+        # Apache will intercept this and upgrade the connection to WebSocket
+        resp = session.request(
+            method=request.method,
+            url=target_url,
+            headers=headers,
+            data=request.get_data(),
+            cookies=request.cookies,
+            allow_redirects=False,
+            stream=True,
+            timeout=(PROXY_CONNECT_TIMEOUT, PROXY_READ_TIMEOUT)
+        )
+        
+        # Create response with the same status code
+        excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
+        response_headers = [
+            (name, value) for (name, value) in resp.raw.headers.items()
+            if name.lower() not in excluded_headers
+        ]
+        
+        response = Response(
+            resp.iter_content(chunk_size=PROXY_CHUNK_SIZE),
+            status=resp.status_code,
+            headers=response_headers
+        )
+        
+        return response
+        
+    except Exception as e:
+        current_app.logger.error(f"Error proxying WebSocket: {str(e)}")
+        return Response(f"Error connecting to container WebSocket: {str(e)}", status=502)
 
 
 @proxy_bp.route('/desktop/<path:proxy_path>/websockify', methods=['GET'])
