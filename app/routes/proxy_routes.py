@@ -18,6 +18,7 @@ PROXY_CONNECT_TIMEOUT = 10  # seconds to wait for initial connection
 PROXY_READ_TIMEOUT = 300  # seconds to wait for response (5 minutes for desktop operations)
 DEFAULT_RETRIES = 3  # number of retry attempts for transient failures
 DEFAULT_BACKOFF_FACTOR = 0.3  # exponential backoff factor (0.3s, 0.6s, 1.2s)
+PROXY_CHUNK_SIZE = 64 * 1024  # 64KB chunks for streaming responses (optimal for desktop streaming)
 # Hop-by-hop headers are connection-specific and should not be forwarded in proxy scenarios
 # They control the connection between the client and proxy, not between proxy and target server
 HOP_BY_HOP_HEADERS = frozenset([
@@ -209,9 +210,8 @@ def proxy_to_container(proxy_path, subpath=''):
             ]
             
             # Stream the response back with larger chunks for better performance
-            # 64KB chunks are optimal for high-bandwidth desktop streaming
             response = Response(
-                resp.iter_content(chunk_size=64*1024),
+                resp.iter_content(chunk_size=PROXY_CHUNK_SIZE),
                 status=resp.status_code,
                 headers=response_headers
             )
@@ -354,7 +354,7 @@ def proxy_websocket_root():
         ]
         
         response = Response(
-            resp.iter_content(chunk_size=64*1024),
+            resp.iter_content(chunk_size=PROXY_CHUNK_SIZE),
             status=resp.status_code,
             headers=response_headers
         )
