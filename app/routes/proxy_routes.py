@@ -5,7 +5,6 @@ from requests.packages.urllib3.util.retry import Retry
 from app.models.containers import Container
 from datetime import datetime, timezone
 from app import db
-import time
 
 # Import DockerManager for status checks (avoid import overhead during error handling)
 from app.services.docker_manager import DockerManager
