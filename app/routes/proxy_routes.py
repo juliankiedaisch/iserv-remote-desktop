@@ -6,6 +6,8 @@ from app.models.containers import Container
 from datetime import datetime, timezone
 from app import db
 from app.services.docker_manager import DockerManager
+import os
+import base64
 
 proxy_bp = Blueprint('proxy', __name__)
 
@@ -26,7 +28,7 @@ ALLOWED_HTTP_METHODS = frozenset([
 DEFAULT_STATUS_FORCELIST = frozenset([500, 502, 503, 504])
 
 
-def create_retry_session(retries=DEFAULT_RETRIES, backoff_factor=DEFAULT_BACKOFF_FACTOR, status_forcelist=DEFAULT_STATUS_FORCELIST):
+def create_retry_session(retries=DEFAULT_RETRIES, backoff_factor=DEFAULT_BACKOFF_FACTOR, status_forcelist=DEFAULT_STATUS_FORCELIST, verify_ssl=True):
     """
     Create a requests session with retry logic
     
@@ -34,11 +36,13 @@ def create_retry_session(retries=DEFAULT_RETRIES, backoff_factor=DEFAULT_BACKOFF
         retries: Number of retries to attempt
         backoff_factor: Factor for exponential backoff (0.3 means 0.3s, 0.6s, 1.2s delays)
         status_forcelist: HTTP status codes to retry on
+        verify_ssl: Whether to verify SSL certificates (default: True)
         
     Returns:
         Configured requests.Session
     """
     session = requests.Session()
+    session.verify = verify_ssl
     retry = Retry(
         total=retries,
         read=retries,
@@ -77,8 +81,11 @@ def proxy_to_container(proxy_path, subpath=''):
         container.last_accessed = datetime.now(timezone.utc)
         db.session.commit()
         
+        # Determine protocol based on environment variable (default to HTTPS for Kasm containers)
+        container_protocol = os.environ.get('KASM_CONTAINER_PROTOCOL', 'https')
+        
         # Build the target URL for the container
-        target_url = f"http://localhost:{container.host_port}"
+        target_url = f"{container_protocol}://localhost:{container.host_port}"
         if subpath:
             target_url = f"{target_url}/{subpath}"
         
@@ -94,10 +101,25 @@ def proxy_to_container(proxy_path, subpath=''):
             if key.lower() not in HOP_BY_HOP_HEADERS:
                 headers[key] = value
         
+        # Add HTTP Basic Auth for VNC password to avoid manual authentication
+        # This allows users to access containers without entering credentials
+        vnc_user = os.environ.get('VNC_USER', 'kasm_user')
+        vnc_password = os.environ.get('VNC_PASSWORD', 'password')
+        credentials = f"{vnc_user}:{vnc_password}"
+        encoded_credentials = base64.b64encode(credentials.encode('utf-8')).decode('utf-8')
+        headers['Authorization'] = f"Basic {encoded_credentials}"
+        
         # Forward the request to the container with retry logic
         try:
             # Create session with retry logic for transient failures
-            session = create_retry_session()
+            # Disable SSL verification for localhost connections with self-signed certificates
+            verify_ssl = os.environ.get('KASM_VERIFY_SSL', 'false').lower() == 'true'
+            session = create_retry_session(verify_ssl=verify_ssl)
+            
+            # Suppress SSL warnings when verification is disabled
+            if not verify_ssl:
+                import urllib3
+                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
             
             # Use longer timeout for desktop environments
             # Desktop operations can involve large file transfers and rendering
