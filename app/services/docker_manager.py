@@ -4,6 +4,7 @@ from flask import current_app
 import os
 import random
 from datetime import datetime, timezone
+from sqlalchemy import or_
 from app import db
 from app.models.containers import Container
 
@@ -103,6 +104,58 @@ class DockerManager:
                         db.session.delete(existing)
                         db.session.commit()
                         current_app.logger.info(f"Removed database record for container {existing.container_name}")
+            
+            # Also check for any containers with conflicting proxy_path or container_name
+            # These could be from previous sessions that weren't properly cleaned up
+            conflicting_containers = Container.query.filter(
+                or_(
+                    Container.proxy_path == proxy_path,
+                    Container.container_name == container_name
+                ),
+                Container.user_id == user_id  # Only cleanup user's own containers
+            ).all()
+            
+            for conflicting in conflicting_containers:
+                current_app.logger.info(
+                    f"Found conflicting container {conflicting.container_name} "
+                    f"(proxy_path: {conflicting.proxy_path}, status: {conflicting.status}), cleaning up"
+                )
+                # Try to remove the Docker container if it exists
+                docker_removed = False
+                if conflicting.container_id:
+                    try:
+                        container = self.client.containers.get(conflicting.container_id)
+                        container.remove(force=True)
+                        current_app.logger.info(f"Removed conflicting Docker container {conflicting.container_id}")
+                        docker_removed = True
+                    except NotFound:
+                        current_app.logger.info(f"Conflicting Docker container {conflicting.container_id} not found")
+                        docker_removed = True
+                    except Exception as e:
+                        current_app.logger.warning(f"Failed to remove conflicting Docker container: {str(e)}")
+                        # Continue anyway - we'll try to remove the DB record
+                        docker_removed = True
+                else:
+                    docker_removed = True
+                
+                if docker_removed:
+                    db.session.delete(conflicting)
+                    db.session.commit()
+                    current_app.logger.info(f"Removed database record for conflicting container {conflicting.container_name}")
+            
+            # Also check if a Docker container with this name exists but isn't in our database
+            try:
+                existing_docker_container = self.client.containers.get(container_name)
+                current_app.logger.info(
+                    f"Found orphaned Docker container {container_name}, removing it"
+                )
+                existing_docker_container.remove(force=True)
+                current_app.logger.info(f"Removed orphaned Docker container {container_name}")
+            except NotFound:
+                # Container doesn't exist in Docker, which is what we want
+                pass
+            except Exception as e:
+                current_app.logger.warning(f"Error checking for orphaned Docker container: {str(e)}")
             
             # Create database record first
             container_record = Container(
