@@ -360,7 +360,7 @@ class DockerManager:
             return None
         
         # Get host from environment
-        host = os.environ.get('DOCKER_HOST_URL', 'localhost')
+        host = os.environ.get('DOCKER_HOST_URL', 'desktop.hub.mdg-hamburg.de')
         
         # Use proxy path for access (reverse proxy will forward to the correct port)
         return f"http://{host}/desktop/{container_record.proxy_path}"
