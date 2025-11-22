@@ -65,6 +65,37 @@ class DockerManager:
                 current_app.logger.info(f"Container already exists for session {session_id} and type {desktop_type}")
                 return existing
             
+            # Check if a container with this name exists in any state
+            existing_by_name = Container.query.filter_by(
+                container_name=container_name
+            ).first()
+            
+            if existing_by_name:
+                # If the existing container is in an error or stopped state, clean it up
+                if existing_by_name.status in ['error', 'stopped', 'creating']:
+                    current_app.logger.info(
+                        f"Found existing container {container_name} in state {existing_by_name.status}, cleaning up"
+                    )
+                    # Try to remove the Docker container if it exists
+                    if existing_by_name.container_id:
+                        try:
+                            container = self.client.containers.get(existing_by_name.container_id)
+                            container.remove(force=True)
+                            current_app.logger.info(f"Removed existing Docker container {existing_by_name.container_id}")
+                        except NotFound:
+                            current_app.logger.info(f"Docker container {existing_by_name.container_id} not found")
+                        except Exception as e:
+                            current_app.logger.warning(f"Failed to remove Docker container: {str(e)}")
+                    
+                    # Remove the database record
+                    db.session.delete(existing_by_name)
+                    db.session.commit()
+                    current_app.logger.info(f"Removed database record for container {container_name}")
+                else:
+                    # If it's running, return it
+                    current_app.logger.info(f"Container {container_name} already exists and is running")
+                    return existing_by_name
+            
             # Create database record first
             container_record = Container(
                 user_id=user_id,
@@ -120,15 +151,23 @@ class DockerManager:
             
         except APIError as e:
             current_app.logger.error(f"Docker API error: {str(e)}")
+            db.session.rollback()
             if container_record:
-                container_record.status = 'error'
-                db.session.commit()
+                try:
+                    container_record.status = 'error'
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
             raise
         except Exception as e:
             current_app.logger.error(f"Failed to create container: {str(e)}")
+            db.session.rollback()
             if container_record:
-                container_record.status = 'error'
-                db.session.commit()
+                try:
+                    container_record.status = 'error'
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
             raise
     
     def stop_container(self, container_record):
