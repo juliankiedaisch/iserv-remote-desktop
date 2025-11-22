@@ -14,6 +14,8 @@ PROXY_CONNECT_TIMEOUT = 10  # seconds to wait for initial connection
 PROXY_READ_TIMEOUT = 300  # seconds to wait for response (5 minutes for desktop operations)
 DEFAULT_RETRIES = 3  # number of retry attempts for transient failures
 DEFAULT_BACKOFF_FACTOR = 0.3  # exponential backoff factor (0.3s, 0.6s, 1.2s)
+# Hop-by-hop headers are connection-specific and should not be forwarded in proxy scenarios
+# They control the connection between the client and proxy, not between proxy and target server
 HOP_BY_HOP_HEADERS = frozenset([
     'host', 'connection', 'keep-alive', 'proxy-authenticate',
     'proxy-authorization', 'te', 'trailers', 'transfer-encoding', 'upgrade'
@@ -130,10 +132,11 @@ def proxy_to_container(proxy_path, subpath=''):
         except requests.exceptions.ConnectionError as e:
             current_app.logger.error(f"Connection error proxying to container: {str(e)}")
             # Check if container is still running
+            # get_container_status returns dict with 'status', 'docker_status', and optionally 'host_port', 'created_at', 'error'
             try:
                 manager = DockerManager()
                 status = manager.get_container_status(container)
-                if status['status'] != 'running':
+                if status.get('status') != 'running':
                     return Response(
                         "Container is not running. Please wait a moment and refresh, or restart the container.",
                         status=503
