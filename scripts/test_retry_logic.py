@@ -86,9 +86,6 @@ def test_proxy_route_imports():
     print("\nTesting proxy route imports...")
     try:
         from app.routes.proxy_routes import proxy_bp, create_retry_session
-        import requests
-        from requests.adapters import HTTPAdapter
-        from requests.packages.urllib3.util.retry import Retry
         
         print("✓ All imports successful")
         return True
