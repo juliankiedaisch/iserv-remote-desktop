@@ -9,6 +9,7 @@ from app import db
 from app.services.docker_manager import DockerManager
 import os
 import base64
+import re
 
 proxy_bp = Blueprint('proxy', __name__)
 
@@ -27,6 +28,25 @@ ALLOWED_HTTP_METHODS = frozenset([
     "HEAD", "GET", "PUT", "DELETE", "OPTIONS", "TRACE", "POST", "PATCH"
 ])
 DEFAULT_STATUS_FORCELIST = frozenset([500, 502, 503, 504])
+# Asset path prefixes that are commonly used in web applications
+# These paths should not be treated as container proxy paths
+ASSET_PREFIXES = ('assets', 'js', 'css', 'fonts', 'images', 'static', 'dist', 'build')
+
+
+def is_asset_path(path):
+    """
+    Check if a path looks like an asset path (e.g., starts with 'assets/', 'js/', etc.)
+    
+    Uses exact prefix matching on the first path component to avoid false positives
+    like 'assetsfoo' or 'assets-bar' which are not actual asset paths.
+    
+    Args:
+        path: The path to check (e.g., 'assets/ui.js', 'user.name-desktop')
+        
+    Returns:
+        True if the path starts with an asset prefix, False otherwise
+    """
+    return any(path.split('/')[0] == prefix for prefix in ASSET_PREFIXES)
 
 
 def create_retry_session(retries=DEFAULT_RETRIES, backoff_factor=DEFAULT_BACKOFF_FACTOR, status_forcelist=DEFAULT_STATUS_FORCELIST, verify_ssl=True):
@@ -67,8 +87,36 @@ def proxy_to_container(proxy_path, subpath=''):
     This handles the proxy routing from /desktop/username-desktoptype to the actual container port
     """
     try:
+        # Check if this is an asset request (common asset paths)
+        # Asset paths like 'assets', 'js', 'css', 'fonts', 'images', 'static' are not container names
+        is_potential_asset = is_asset_path(proxy_path)
+        
         # Find the container by proxy path
         container = Container.get_by_proxy_path(proxy_path)
+        
+        # If no container found and this looks like an asset path, try to find container from Referer
+        if not container and is_potential_asset:
+            referer = request.headers.get('Referer', '')
+            current_app.logger.debug(f"Asset request detected for {proxy_path}, checking Referer: {referer}")
+            
+            if referer:
+                # Extract the container proxy_path from the Referer URL
+                # Referer format: https://domain/desktop/username-desktoptype or similar
+                match = re.search(r'/desktop/([^/?#]+)', referer)
+                if match:
+                    referer_proxy_path = match.group(1)
+                    # Check if this referer path is NOT an asset path itself
+                    if not is_asset_path(referer_proxy_path):
+                        container = Container.get_by_proxy_path(referer_proxy_path)
+                        if container:
+                            current_app.logger.debug(f"Found container from Referer: {referer_proxy_path}")
+                            # Reconstruct the full asset path by combining proxy_path and subpath
+                            # The original proxy_path (e.g., 'assets') is actually part of the URL path to the container
+                            # Example: /desktop/assets/ui.js -> container from referer, path: assets/ui.js
+                            if subpath:
+                                subpath = f"{proxy_path}/{subpath}"
+                            else:
+                                subpath = proxy_path
         
         if not container:
             current_app.logger.warning(f"No running container found for proxy path: {proxy_path}")
