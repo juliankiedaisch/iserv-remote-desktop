@@ -18,7 +18,9 @@ services:
   app:
     build: .
     ports:
-      - "5020:5006"  # Map container port 5006 to host port 5020 for Apache proxy
+      # Expose port 5020 for external Apache proxy
+      # For nginx-only setups, you can change this to "expose: - 5006" instead
+      - "5020:5006"
     environment:
       DEBUG: ${DEBUG:-False}
       FLASK_ENV: ${FLASK_ENV:-production}
