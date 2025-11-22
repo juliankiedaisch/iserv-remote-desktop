@@ -2,6 +2,30 @@
 
 This document provides examples of how to use the IServ Remote Desktop application, both through the web interface and the API.
 
+## Container Access via Reverse Proxy
+
+This application uses a **reverse proxy architecture** for container access:
+
+### URL Format
+Containers are accessed via clean, user-friendly URLs:
+```
+http://{DOCKER_HOST_URL}/desktop/{username}-{desktop-type}
+```
+
+### Examples
+- `http://myserver.com/desktop/alice-ubuntu-vscode`
+- `http://myserver.com/desktop/bob-ubuntu-desktop`  
+- `http://myserver.com/desktop/charlie-ubuntu-chromium`
+
+### Benefits
+- ✅ Works for remote users (not localhost-only)
+- ✅ Multiple users can connect simultaneously
+- ✅ Clean, memorable URLs
+- ✅ Single entry point (standard HTTP port)
+- ✅ Better security (internal ports not exposed)
+
+For detailed architecture information, see [PROXY_DEPLOYMENT.md](PROXY_DEPLOYMENT.md).
+
 ## Using the Web Interface
 
 ### 1. Login
@@ -102,12 +126,17 @@ Response:
     "desktop_type": "ubuntu-vscode",
     "status": "running",
     "host_port": 7001,
+    "proxy_path": "username-ubuntu-vscode",
     "created_at": "2024-01-01T12:00:00",
     "started_at": "2024-01-01T12:00:05"
   },
-  "url": "http://localhost:7001"
+  "url": "http://your-domain.com/desktop/username-ubuntu-vscode"
 }
 ```
+
+**Note**: The URL now uses a reverse proxy path instead of direct port access. This allows multiple users to access their containers simultaneously through clean URLs like:
+- `http://your-domain.com/desktop/alice-ubuntu-vscode`
+- `http://your-domain.com/desktop/bob-ubuntu-desktop`
 
 ### Get Container Status
 
@@ -131,7 +160,7 @@ Response:
     "docker_status": "running",
     "host_port": 7001
   },
-  "url": "http://localhost:7001"
+  "url": "http://your-domain.com/desktop/username-ubuntu-vscode"
 }
 ```
 
@@ -181,10 +210,12 @@ Response:
   "containers": [
     {
       "id": "container-uuid",
-      "container_name": "kasm-username-session",
+      "container_name": "kasm-username-ubuntu-vscode-abc123",
+      "desktop_type": "ubuntu-vscode",
       "status": "running",
       "host_port": 7001,
-      "url": "http://localhost:7001"
+      "proxy_path": "username-ubuntu-vscode",
+      "url": "http://your-domain.com/desktop/username-ubuntu-vscode"
     }
   ]
 }
@@ -194,9 +225,15 @@ Response:
 
 Once a container is started, you can access the remote desktop by:
 
-1. Opening the URL returned in the response (e.g., `http://localhost:7001`)
+1. Opening the URL returned in the response (e.g., `http://your-domain.com/desktop/username-ubuntu-vscode`)
 2. Using the VNC password configured in your `.env` file (default: "password")
 3. The Kasm workspace will load in your browser
+
+**Note**: The URL uses a reverse proxy path format (`/desktop/{username}-{desktop-type}`) which:
+- Works for remote users (not localhost-only)
+- Supports multiple simultaneous users
+- Provides clean, memorable URLs
+- Example: `http://example.com/desktop/alice-ubuntu-vscode`
 
 ## Automated Cleanup
 
@@ -275,9 +312,10 @@ Response:
       "desktop_type": "ubuntu-vscode",
       "status": "running",
       "host_port": 7001,
+      "proxy_path": "john-ubuntu-vscode",
       "created_at": "2024-01-01T12:00:00",
       "last_accessed": "2024-01-01T14:30:00",
-      "url": "http://localhost:7001"
+      "url": "http://your-domain.com/desktop/john-ubuntu-vscode"
     }
   ]
 }
@@ -328,9 +366,10 @@ Response:
 ### Cannot access desktop URL
 
 1. Verify the container is running: `docker ps`
-2. Check port mapping: `docker port <container-name>`
-3. Ensure firewall allows the port
-4. Verify DOCKER_HOST_URL is set correctly in `.env`
+2. Check the proxy path in the database matches the URL
+3. Ensure DOCKER_HOST_URL is set correctly in `.env`
+4. Check Flask proxy route logs: `docker-compose logs -f app | grep proxy`
+5. For WebSocket issues, consider using nginx (see PROXY_DEPLOYMENT.md)
 
 ### Session expired errors
 
