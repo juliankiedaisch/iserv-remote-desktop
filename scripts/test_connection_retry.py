@@ -184,9 +184,18 @@ def main():
     if all_passed:
         print("✓ All tests passed!")
         print("\nThe proxy will now retry RemoteDisconnected errors with:")
-        print("  - 5 retry attempts")
-        print("  - Exponential backoff: 2s, 4s, 8s, 16s")
-        print("  - Total wait time: up to ~30 seconds")
+        
+        # Import constants to show actual configuration
+        from app.routes.proxy_routes import CONTAINER_STARTUP_RETRIES, CONTAINER_STARTUP_BACKOFF
+        
+        # Calculate backoff sequence
+        delays = [CONTAINER_STARTUP_BACKOFF * (2 ** i) for i in range(CONTAINER_STARTUP_RETRIES - 1)]
+        delay_str = ", ".join(f"{d:.0f}s" for d in delays)
+        total_wait = sum(delays)
+        
+        print(f"  - {CONTAINER_STARTUP_RETRIES} total attempts (1 initial + {CONTAINER_STARTUP_RETRIES - 1} retries)")
+        print(f"  - Exponential backoff: {delay_str}")
+        print(f"  - Total wait time: up to ~{total_wait:.0f} seconds")
         return 0
     else:
         print("✗ Some tests failed")
