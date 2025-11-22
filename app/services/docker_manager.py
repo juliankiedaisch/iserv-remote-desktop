@@ -54,16 +54,52 @@ class DockerManager:
             # Generate unique container name with desktop type
             container_name = f"kasm-{username}-{desktop_type}-{session_id[:8]}"
             
-            # Check if container already exists for this desktop type
+            # Check if container already exists for this session and desktop type in any state
+            # We check by session_id, user_id, and desktop_type to ensure we only find containers for this user
             existing = Container.query.filter_by(
                 session_id=session_id,
-                desktop_type=desktop_type,
-                status='running'
+                user_id=user_id,
+                desktop_type=desktop_type
             ).first()
             
             if existing:
-                current_app.logger.info(f"Container already exists for session {session_id} and type {desktop_type}")
-                return existing
+                # If it's running, return it
+                if existing.status == 'running':
+                    current_app.logger.info(f"Container already exists for session {session_id} and type {desktop_type}")
+                    return existing
+                
+                # If the existing container is in an error, stopped, or creating state, clean it up
+                if existing.status in ['error', 'stopped', 'creating']:
+                    current_app.logger.info(
+                        f"Found existing container {existing.container_name} in state {existing.status}, cleaning up"
+                    )
+                    # Try to remove the Docker container if it exists
+                    docker_removed = False
+                    if existing.container_id:
+                        try:
+                            container = self.client.containers.get(existing.container_id)
+                            container.remove(force=True)
+                            current_app.logger.info(f"Removed existing Docker container {existing.container_id}")
+                            docker_removed = True
+                        except NotFound:
+                            current_app.logger.info(f"Docker container {existing.container_id} not found")
+                            docker_removed = True  # Container doesn't exist, safe to remove DB record
+                        except Exception as e:
+                            current_app.logger.warning(f"Failed to remove Docker container: {str(e)}")
+                            # Don't remove DB record if Docker removal failed
+                            raise Exception(
+                                f"Cannot cleanup existing container '{existing.container_name}' (status: {existing.status}): "
+                                f"Docker container removal failed"
+                            ) from e
+                    else:
+                        # No Docker container ID, safe to remove DB record
+                        docker_removed = True
+                    
+                    # Only remove the database record if Docker removal succeeded or container doesn't exist
+                    if docker_removed:
+                        db.session.delete(existing)
+                        db.session.commit()
+                        current_app.logger.info(f"Removed database record for container {existing.container_name}")
             
             # Create database record first
             container_record = Container(
@@ -121,14 +157,28 @@ class DockerManager:
         except APIError as e:
             current_app.logger.error(f"Docker API error: {str(e)}")
             if container_record:
-                container_record.status = 'error'
-                db.session.commit()
+                try:
+                    # Try to update status before rollback
+                    container_record.status = 'error'
+                    db.session.commit()
+                except Exception as commit_error:
+                    current_app.logger.error(f"Failed to update container status after error: {str(commit_error)}")
+                    db.session.rollback()
+            else:
+                db.session.rollback()
             raise
         except Exception as e:
             current_app.logger.error(f"Failed to create container: {str(e)}")
             if container_record:
-                container_record.status = 'error'
-                db.session.commit()
+                try:
+                    # Try to update status before rollback
+                    container_record.status = 'error'
+                    db.session.commit()
+                except Exception as commit_error:
+                    current_app.logger.error(f"Failed to update container status after error: {str(commit_error)}")
+                    db.session.rollback()
+            else:
+                db.session.rollback()
             raise
     
     def stop_container(self, container_record):
@@ -164,6 +214,7 @@ class DockerManager:
             db.session.commit()
         except Exception as e:
             current_app.logger.error(f"Failed to stop container: {str(e)}")
+            db.session.rollback()
             raise
     
     def remove_container(self, container_record):
@@ -192,6 +243,7 @@ class DockerManager:
             
         except Exception as e:
             current_app.logger.error(f"Failed to remove container: {str(e)}")
+            db.session.rollback()
             raise
     
     def get_container_status(self, container_record):
@@ -234,6 +286,7 @@ class DockerManager:
             return {'status': 'stopped', 'docker_status': 'not_found'}
         except Exception as e:
             current_app.logger.error(f"Failed to get container status: {str(e)}")
+            db.session.rollback()
             return {'status': 'error', 'docker_status': 'error', 'error': str(e)}
     
     def cleanup_stopped_containers(self):
@@ -255,6 +308,7 @@ class DockerManager:
             
         except Exception as e:
             current_app.logger.error(f"Failed to cleanup containers: {str(e)}")
+            db.session.rollback()
     
     def _find_available_port(self, start_port=7000, end_port=8000):
         """
