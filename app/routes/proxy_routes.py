@@ -51,6 +51,8 @@ def proxy_to_container(proxy_path, subpath=''):
         
         # Forward the request to the container
         try:
+            # Use longer timeout for desktop environments (5 minutes)
+            # Desktop operations can involve large file transfers and rendering
             resp = requests.request(
                 method=request.method,
                 url=target_url,
@@ -59,7 +61,7 @@ def proxy_to_container(proxy_path, subpath=''):
                 cookies=request.cookies,
                 allow_redirects=False,
                 stream=True,
-                timeout=30
+                timeout=300
             )
             
             # Create response with the same status code
@@ -69,9 +71,10 @@ def proxy_to_container(proxy_path, subpath=''):
                 if name.lower() not in excluded_headers
             ]
             
-            # Stream the response back
+            # Stream the response back with larger chunks for better performance
+            # 64KB chunks are optimal for high-bandwidth desktop streaming
             response = Response(
-                resp.iter_content(chunk_size=10*1024),
+                resp.iter_content(chunk_size=64*1024),
                 status=resp.status_code,
                 headers=response_headers
             )

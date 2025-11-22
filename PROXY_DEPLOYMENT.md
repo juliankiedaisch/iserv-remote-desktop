@@ -39,11 +39,16 @@ http://myserver.com/desktop/charlie-ubuntu-chromium
 
 ### Components
 - **{DOCKER_HOST_URL}**: Your server's domain or IP (set in `.env`)
-- **{username}**: The authenticated user's username
+- **{username}**: The authenticated user's username (alphanumeric, dots, hyphens allowed)
 - **{desktop-type}**: One of:
   - `ubuntu-vscode` - Ubuntu with VSCode
   - `ubuntu-desktop` - Standard Ubuntu desktop
   - `ubuntu-chromium` - Ubuntu with Chromium browser
+
+**Note on Special Characters**: 
+- Usernames can contain dots (e.g., `john.doe`) and hyphens, which work correctly with Flask and nginx routing
+- The proxy path format `username-desktoptype` naturally separates username from desktop type
+- No URL encoding is needed for standard username characters (alphanumeric, dots, hyphens)
 
 ## Deployment Options
 

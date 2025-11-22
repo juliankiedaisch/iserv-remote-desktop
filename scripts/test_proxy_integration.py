@@ -33,6 +33,9 @@ def test_proxy_path_generation():
             'username': 'user.name',
             'desktop_type': 'ubuntu-vscode',
             'expected_path': 'user.name-ubuntu-vscode'
+            # Note: Dots in usernames are preserved in proxy paths.
+            # This works correctly with Flask routing and nginx.
+            # If using other web servers, URL encoding may be needed.
         }
     ]
     
