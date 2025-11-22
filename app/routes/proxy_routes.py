@@ -1,10 +1,40 @@
 from flask import Blueprint, request, Response, current_app
 import requests
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
 from app.models.containers import Container
 from datetime import datetime, timezone
 from app import db
+import time
 
 proxy_bp = Blueprint('proxy', __name__)
+
+
+def create_retry_session(retries=3, backoff_factor=0.3, status_forcelist=(500, 502, 503, 504)):
+    """
+    Create a requests session with retry logic
+    
+    Args:
+        retries: Number of retries to attempt
+        backoff_factor: Factor for exponential backoff (0.3 means 0.3s, 0.6s, 1.2s delays)
+        status_forcelist: HTTP status codes to retry on
+        
+    Returns:
+        Configured requests.Session
+    """
+    session = requests.Session()
+    retry = Retry(
+        total=retries,
+        read=retries,
+        connect=retries,
+        backoff_factor=backoff_factor,
+        status_forcelist=status_forcelist,
+        allowed_methods=["HEAD", "GET", "PUT", "DELETE", "OPTIONS", "TRACE", "POST", "PATCH"]
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    return session
 
 
 @proxy_bp.route('/desktop/<path:proxy_path>', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'])
@@ -49,11 +79,15 @@ def proxy_to_container(proxy_path, subpath=''):
                                    'proxy-authorization', 'te', 'trailers', 'transfer-encoding', 'upgrade']:
                 headers[key] = value
         
-        # Forward the request to the container
+        # Forward the request to the container with retry logic
         try:
+            # Create session with retry logic for transient failures
+            session = create_retry_session(retries=3, backoff_factor=0.5)
+            
             # Use longer timeout for desktop environments (5 minutes)
             # Desktop operations can involve large file transfers and rendering
-            resp = requests.request(
+            # First timeout is for connection, second is for reading response
+            resp = session.request(
                 method=request.method,
                 url=target_url,
                 headers=headers,
@@ -61,7 +95,7 @@ def proxy_to_container(proxy_path, subpath=''):
                 cookies=request.cookies,
                 allow_redirects=False,
                 stream=True,
-                timeout=300
+                timeout=(10, 300)  # (connect timeout, read timeout)
             )
             
             # Create response with the same status code
@@ -81,6 +115,32 @@ def proxy_to_container(proxy_path, subpath=''):
             
             return response
             
+        except requests.exceptions.ConnectionError as e:
+            current_app.logger.error(f"Connection error proxying to container: {str(e)}")
+            # Check if container is still running
+            try:
+                from app.services.docker_manager import DockerManager
+                manager = DockerManager()
+                status = manager.get_container_status(container)
+                if status['status'] != 'running':
+                    return Response(
+                        "Container is not running. Please wait a moment and refresh, or restart the container.",
+                        status=503
+                    )
+            except Exception as status_check_error:
+                current_app.logger.warning(f"Failed to check container status: {str(status_check_error)}")
+            
+            return Response(
+                "Unable to connect to container. The container may still be starting up. "
+                "Please wait a moment and refresh the page.",
+                status=503
+            )
+        except requests.exceptions.Timeout as e:
+            current_app.logger.error(f"Timeout proxying request to container: {str(e)}")
+            return Response(
+                "Connection to container timed out. The container may be overloaded or not responding.",
+                status=504
+            )
         except requests.exceptions.RequestException as e:
             current_app.logger.error(f"Error proxying request to container: {str(e)}")
             return Response(f"Error connecting to container: {str(e)}", status=502)

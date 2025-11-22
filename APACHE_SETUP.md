@@ -162,24 +162,59 @@ Should return the same response
 
 **Symptom**: Error when clicking desktop: `('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))`
 
-**Cause**: WebSocket not properly proxied
+**Root Causes**:
+1. Container is still starting up and not ready to accept connections
+2. Apache timeout settings are too low
+3. WebSocket not properly proxied
+4. CORS headers interfering with proxy requests
 
-**Solution**:
-1. Verify `mod_proxy_wstunnel` is enabled:
+**Solutions**:
+
+1. **Verify Apache Timeout Settings**:
+   Your Apache configuration must include proper timeout settings:
+   ```apache
+   Timeout 3600
+   ProxyTimeout 3600
+   KeepAlive On
+   MaxKeepAliveRequests 100
+   KeepAliveTimeout 5
+   ```
+
+2. **Check ProxyPass Configuration**:
+   Make sure your ProxyPass includes retry parameter:
+   ```apache
+   ProxyPass / http://localhost:5020/ retry=3 timeout=3600
+   ProxyPassReverse / http://localhost:5020/
+   ```
+
+3. **Remove Conflicting CORS Headers**:
+   If you have CORS headers in your Apache config that restrict origins to specific domains,
+   these may interfere with internal proxy requests. Remove or adjust:
+   ```apache
+   # REMOVE or comment out restrictive CORS headers like:
+   # Header always set Access-Control-Allow-Origin "https://specific-domain.com"
+   ```
+
+4. **Verify `mod_proxy_wstunnel` is enabled**:
    ```bash
    apache2ctl -M | grep proxy_wstunnel
    ```
 
-2. Check Apache configuration has WebSocket rewrite rules:
+5. **Check Apache configuration has WebSocket rewrite rules**:
    ```apache
    RewriteCond %{HTTP:Upgrade} =websocket [NC]
    RewriteRule /(.*)           ws://localhost:5020/$1 [P,L]
    ```
 
-3. Check Apache error logs:
+6. **Check Apache error logs**:
    ```bash
    sudo tail -f /var/log/apache2/iserv-remote-desktop-error.log
    ```
+
+7. **Wait for Container Startup**:
+   After starting a container, wait 10-15 seconds before accessing it to allow
+   the Kasm service to fully initialize. The application now includes automatic
+   retry logic, but very slow systems may need additional time.
 
 ### Issue: 502 Bad Gateway
 
