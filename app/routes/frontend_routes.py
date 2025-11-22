@@ -1,5 +1,4 @@
 from flask import Blueprint, render_template, redirect, url_for, request, jsonify, current_app
-from app.middlewares.auth import require_session
 from app.models.oauth_session import OAuthSession
 from app.models.containers import Container
 from app.models.users import User
