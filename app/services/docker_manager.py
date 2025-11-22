@@ -54,47 +54,39 @@ class DockerManager:
             # Generate unique container name with desktop type
             container_name = f"kasm-{username}-{desktop_type}-{session_id[:8]}"
             
-            # Check if container already exists for this desktop type
+            # Check if container already exists for this session and desktop type in any state
+            # We check by session_id and desktop_type to ensure we only find containers for this user
             existing = Container.query.filter_by(
                 session_id=session_id,
-                desktop_type=desktop_type,
-                status='running'
+                desktop_type=desktop_type
             ).first()
             
             if existing:
-                current_app.logger.info(f"Container already exists for session {session_id} and type {desktop_type}")
-                return existing
-            
-            # Check if a container with this name exists in any state
-            existing_by_name = Container.query.filter_by(
-                container_name=container_name
-            ).first()
-            
-            if existing_by_name:
-                # If the existing container is in an error or stopped state, clean it up
-                if existing_by_name.status in ['error', 'stopped', 'creating']:
+                # If it's running, return it
+                if existing.status == 'running':
+                    current_app.logger.info(f"Container already exists for session {session_id} and type {desktop_type}")
+                    return existing
+                
+                # If the existing container is in an error, stopped, or creating state, clean it up
+                if existing.status in ['error', 'stopped', 'creating']:
                     current_app.logger.info(
-                        f"Found existing container {container_name} in state {existing_by_name.status}, cleaning up"
+                        f"Found existing container {existing.container_name} in state {existing.status}, cleaning up"
                     )
                     # Try to remove the Docker container if it exists
-                    if existing_by_name.container_id:
+                    if existing.container_id:
                         try:
-                            container = self.client.containers.get(existing_by_name.container_id)
+                            container = self.client.containers.get(existing.container_id)
                             container.remove(force=True)
-                            current_app.logger.info(f"Removed existing Docker container {existing_by_name.container_id}")
+                            current_app.logger.info(f"Removed existing Docker container {existing.container_id}")
                         except NotFound:
-                            current_app.logger.info(f"Docker container {existing_by_name.container_id} not found")
+                            current_app.logger.info(f"Docker container {existing.container_id} not found")
                         except Exception as e:
                             current_app.logger.warning(f"Failed to remove Docker container: {str(e)}")
                     
                     # Remove the database record
-                    db.session.delete(existing_by_name)
+                    db.session.delete(existing)
                     db.session.commit()
-                    current_app.logger.info(f"Removed database record for container {container_name}")
-                else:
-                    # If it's running, return it
-                    current_app.logger.info(f"Container {container_name} already exists and is running")
-                    return existing_by_name
+                    current_app.logger.info(f"Removed database record for container {existing.container_name}")
             
             # Create database record first
             container_record = Container(
