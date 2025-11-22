@@ -12,6 +12,8 @@ import re
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from app.routes.proxy_routes import ASSET_PREFIXES
+
 class TestAssetRoutingIntegration(unittest.TestCase):
     """Integration test for asset routing with mocked Flask context"""
     
@@ -28,7 +30,6 @@ class TestAssetRoutingIntegration(unittest.TestCase):
         
     def test_asset_detection_logic(self):
         """Test the asset detection logic matches implementation"""
-        asset_prefixes = ('assets', 'js', 'css', 'fonts', 'images', 'static', 'dist', 'build')
         
         # Test paths that should be detected as assets
         asset_paths = [
@@ -40,7 +41,7 @@ class TestAssetRoutingIntegration(unittest.TestCase):
         ]
         
         for proxy_path in asset_paths:
-            is_potential_asset = any(proxy_path.split('/')[0] == prefix for prefix in asset_prefixes)
+            is_potential_asset = any(proxy_path.split('/')[0] == prefix for prefix in ASSET_PREFIXES)
             self.assertTrue(is_potential_asset, 
                           f"Path '{proxy_path}' should be detected as asset")
         
@@ -52,7 +53,7 @@ class TestAssetRoutingIntegration(unittest.TestCase):
         ]
         
         for proxy_path in container_paths:
-            is_potential_asset = any(proxy_path.split('/')[0] == prefix for prefix in asset_prefixes)
+            is_potential_asset = any(proxy_path.split('/')[0] == prefix for prefix in ASSET_PREFIXES)
             self.assertFalse(is_potential_asset, 
                            f"Path '{proxy_path}' should NOT be detected as asset")
     
@@ -116,15 +117,13 @@ class TestAssetRoutingIntegration(unittest.TestCase):
         # 1. User accesses /desktop/julian.kiedaisch-ubuntu-vscode
         # 2. Browser tries to load /desktop/assets/ui-D357AMxM.js with Referer header
         
-        asset_prefixes = ('assets', 'js', 'css', 'fonts', 'images', 'static', 'dist', 'build')
-        
         # Request details
         proxy_path = 'assets'
         subpath = 'ui-D357AMxM.js'
         referer = 'https://desktop.hub.mdg-hamburg.de/desktop/julian.kiedaisch-ubuntu-vscode'
         
         # Step 1: Check if this is an asset
-        is_potential_asset = any(proxy_path.split('/')[0] == prefix for prefix in asset_prefixes)
+        is_potential_asset = any(proxy_path.split('/')[0] == prefix for prefix in ASSET_PREFIXES)
         self.assertTrue(is_potential_asset, "Should detect 'assets' as potential asset")
         
         # Step 2: Extract container from Referer
@@ -134,7 +133,7 @@ class TestAssetRoutingIntegration(unittest.TestCase):
         self.assertEqual(referer_proxy_path, 'julian.kiedaisch-ubuntu-vscode')
         
         # Step 3: Check that referer path is not an asset
-        is_referer_asset = any(referer_proxy_path.split('/')[0] == prefix for prefix in asset_prefixes)
+        is_referer_asset = any(referer_proxy_path.split('/')[0] == prefix for prefix in ASSET_PREFIXES)
         self.assertFalse(is_referer_asset, "Referer path should not be an asset")
         
         # Step 4: Reconstruct the full asset path

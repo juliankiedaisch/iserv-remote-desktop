@@ -11,12 +11,13 @@ import re
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from app.routes.proxy_routes import ASSET_PREFIXES
+
 class TestAssetRouting(unittest.TestCase):
     """Test asset routing detection and handling"""
     
     def test_asset_prefix_detection(self):
         """Test that common asset prefixes are detected"""
-        asset_prefixes = ('assets', 'js', 'css', 'fonts', 'images', 'static', 'dist', 'build')
         
         test_cases = [
             ('assets/ui-D357AMxM.js', True),
@@ -39,7 +40,7 @@ class TestAssetRouting(unittest.TestCase):
         ]
         
         for path, expected_is_asset in test_cases:
-            is_potential_asset = any(path.split('/')[0] == prefix for prefix in asset_prefixes)
+            is_potential_asset = any(path.split('/')[0] == prefix for prefix in ASSET_PREFIXES)
             self.assertEqual(is_potential_asset, expected_is_asset, 
                            f"Path '{path}' should {'be' if expected_is_asset else 'not be'} detected as asset")
     
@@ -83,7 +84,6 @@ class TestAssetRouting(unittest.TestCase):
     
     def test_referer_is_not_asset(self):
         """Test that we don't use asset paths from Referer as container names"""
-        asset_prefixes = ('assets', 'js', 'css', 'fonts', 'images', 'static', 'dist', 'build')
         
         # These should NOT be considered valid container names
         invalid_referer_paths = [
@@ -100,12 +100,12 @@ class TestAssetRouting(unittest.TestCase):
         ]
         
         for path in invalid_referer_paths:
-            is_referer_asset = any(path.split('/')[0] == prefix for prefix in asset_prefixes)
+            is_referer_asset = any(path.split('/')[0] == prefix for prefix in ASSET_PREFIXES)
             self.assertTrue(is_referer_asset, 
                           f"Path '{path}' should be detected as asset in referer")
         
         for path in valid_referer_paths:
-            is_referer_asset = any(path.split('/')[0] == prefix for prefix in asset_prefixes)
+            is_referer_asset = any(path.split('/')[0] == prefix for prefix in ASSET_PREFIXES)
             self.assertFalse(is_referer_asset, 
                            f"Path '{path}' should NOT be detected as asset in referer")
 
