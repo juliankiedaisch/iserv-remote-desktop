@@ -40,8 +40,8 @@ def test_duplicate_container_handling():
             
             # Clean up any existing test containers
             existing = Container.query.filter_by(container_name=container_name).all()
-            for c in existing:
-                db.session.delete(c)
+            for container in existing:
+                db.session.delete(container)
             db.session.commit()
             
             # Create first container record (simulating a stopped/error state container)

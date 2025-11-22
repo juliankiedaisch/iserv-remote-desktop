@@ -148,7 +148,8 @@ class DockerManager:
                 try:
                     container_record.status = 'error'
                     db.session.commit()
-                except Exception:
+                except Exception as commit_error:
+                    current_app.logger.error(f"Failed to update container status after error: {str(commit_error)}")
                     db.session.rollback()
             raise
         except Exception as e:
@@ -158,7 +159,8 @@ class DockerManager:
                 try:
                     container_record.status = 'error'
                     db.session.commit()
-                except Exception:
+                except Exception as commit_error:
+                    current_app.logger.error(f"Failed to update container status after error: {str(commit_error)}")
                     db.session.rollback()
             raise
     
