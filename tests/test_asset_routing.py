@@ -11,7 +11,7 @@ import re
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.routes.proxy_routes import ASSET_PREFIXES
+from app.routes.proxy_routes import ASSET_PREFIXES, is_asset_path
 
 class TestAssetRouting(unittest.TestCase):
     """Test asset routing detection and handling"""
@@ -40,7 +40,7 @@ class TestAssetRouting(unittest.TestCase):
         ]
         
         for path, expected_is_asset in test_cases:
-            is_potential_asset = any(path.split('/')[0] == prefix for prefix in ASSET_PREFIXES)
+            is_potential_asset = is_asset_path(path)
             self.assertEqual(is_potential_asset, expected_is_asset, 
                            f"Path '{path}' should {'be' if expected_is_asset else 'not be'} detected as asset")
     
@@ -100,12 +100,12 @@ class TestAssetRouting(unittest.TestCase):
         ]
         
         for path in invalid_referer_paths:
-            is_referer_asset = any(path.split('/')[0] == prefix for prefix in ASSET_PREFIXES)
+            is_referer_asset = is_asset_path(path)
             self.assertTrue(is_referer_asset, 
                           f"Path '{path}' should be detected as asset in referer")
         
         for path in valid_referer_paths:
-            is_referer_asset = any(path.split('/')[0] == prefix for prefix in ASSET_PREFIXES)
+            is_referer_asset = is_asset_path(path)
             self.assertFalse(is_referer_asset, 
                            f"Path '{path}' should NOT be detected as asset in referer")
 

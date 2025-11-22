@@ -33,6 +33,22 @@ DEFAULT_STATUS_FORCELIST = frozenset([500, 502, 503, 504])
 ASSET_PREFIXES = ('assets', 'js', 'css', 'fonts', 'images', 'static', 'dist', 'build')
 
 
+def is_asset_path(path):
+    """
+    Check if a path looks like an asset path (e.g., starts with 'assets/', 'js/', etc.)
+    
+    Uses exact prefix matching on the first path component to avoid false positives
+    like 'assetsfoo' or 'assets-bar' which are not actual asset paths.
+    
+    Args:
+        path: The path to check (e.g., 'assets/ui.js', 'user.name-desktop')
+        
+    Returns:
+        True if the path starts with an asset prefix, False otherwise
+    """
+    return any(path.split('/')[0] == prefix for prefix in ASSET_PREFIXES)
+
+
 def create_retry_session(retries=DEFAULT_RETRIES, backoff_factor=DEFAULT_BACKOFF_FACTOR, status_forcelist=DEFAULT_STATUS_FORCELIST, verify_ssl=True):
     """
     Create a requests session with retry logic
@@ -73,7 +89,7 @@ def proxy_to_container(proxy_path, subpath=''):
     try:
         # Check if this is an asset request (common asset paths)
         # Asset paths like 'assets', 'js', 'css', 'fonts', 'images', 'static' are not container names
-        is_potential_asset = any(proxy_path.split('/')[0] == prefix for prefix in ASSET_PREFIXES)
+        is_potential_asset = is_asset_path(proxy_path)
         
         # Find the container by proxy path
         container = Container.get_by_proxy_path(proxy_path)
@@ -90,8 +106,7 @@ def proxy_to_container(proxy_path, subpath=''):
                 if match:
                     referer_proxy_path = match.group(1)
                     # Check if this referer path is NOT an asset path itself
-                    is_referer_asset = any(referer_proxy_path.split('/')[0] == prefix for prefix in ASSET_PREFIXES)
-                    if not is_referer_asset:
+                    if not is_asset_path(referer_proxy_path):
                         container = Container.get_by_proxy_path(referer_proxy_path)
                         if container:
                             current_app.logger.debug(f"Found container from Referer: {referer_proxy_path}")

@@ -12,7 +12,7 @@ import re
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.routes.proxy_routes import ASSET_PREFIXES
+from app.routes.proxy_routes import ASSET_PREFIXES, is_asset_path
 
 class TestAssetRoutingIntegration(unittest.TestCase):
     """Integration test for asset routing with mocked Flask context"""
@@ -41,7 +41,7 @@ class TestAssetRoutingIntegration(unittest.TestCase):
         ]
         
         for proxy_path in asset_paths:
-            is_potential_asset = any(proxy_path.split('/')[0] == prefix for prefix in ASSET_PREFIXES)
+            is_potential_asset = is_asset_path(proxy_path)
             self.assertTrue(is_potential_asset, 
                           f"Path '{proxy_path}' should be detected as asset")
         
@@ -53,7 +53,7 @@ class TestAssetRoutingIntegration(unittest.TestCase):
         ]
         
         for proxy_path in container_paths:
-            is_potential_asset = any(proxy_path.split('/')[0] == prefix for prefix in ASSET_PREFIXES)
+            is_potential_asset = is_asset_path(proxy_path)
             self.assertFalse(is_potential_asset, 
                            f"Path '{proxy_path}' should NOT be detected as asset")
     
@@ -123,7 +123,7 @@ class TestAssetRoutingIntegration(unittest.TestCase):
         referer = 'https://desktop.hub.mdg-hamburg.de/desktop/julian.kiedaisch-ubuntu-vscode'
         
         # Step 1: Check if this is an asset
-        is_potential_asset = any(proxy_path.split('/')[0] == prefix for prefix in ASSET_PREFIXES)
+        is_potential_asset = is_asset_path(proxy_path)
         self.assertTrue(is_potential_asset, "Should detect 'assets' as potential asset")
         
         # Step 2: Extract container from Referer
@@ -133,7 +133,7 @@ class TestAssetRoutingIntegration(unittest.TestCase):
         self.assertEqual(referer_proxy_path, 'julian.kiedaisch-ubuntu-vscode')
         
         # Step 3: Check that referer path is not an asset
-        is_referer_asset = any(referer_proxy_path.split('/')[0] == prefix for prefix in ASSET_PREFIXES)
+        is_referer_asset = is_asset_path(referer_proxy_path)
         self.assertFalse(is_referer_asset, "Referer path should not be an asset")
         
         # Step 4: Reconstruct the full asset path
