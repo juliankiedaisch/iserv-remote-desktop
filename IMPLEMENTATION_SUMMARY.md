@@ -121,6 +121,37 @@ Run `python3 scripts/test_installation.py` to verify:
 6. Access the returned URL
 7. Verify desktop loads correctly
 
+## Web Interface Implementation (Added)
+
+### New Features
+- **Desktop Selection UI**: Visual interface for choosing between desktop types
+- **Admin Panel**: Management interface for administrators
+- **Real-time Status**: Shows current container status and last access times
+- **Multiple Desktop Types**: Support for VSCode, Ubuntu Desktop, and Chromium environments
+
+### Files Added
+- `app/templates/base.html` - Base template with shared styles
+- `app/templates/index.html` - Desktop selection page
+- `app/templates/admin.html` - Admin panel interface
+- `app/routes/frontend_routes.py` - Routes for serving HTML pages
+- `app/routes/admin_routes.py` - Admin API endpoints
+- `app/static/css/style.css` - CSS styles
+
+### Models Updated
+- `app/models/containers.py` - Added `desktop_type` field
+
+### Services Updated  
+- `app/services/docker_manager.py` - Added support for multiple desktop images
+
+### Routes Updated
+- `app/routes/container_routes.py` - Added `desktop_type` parameter support
+- `app/__init__.py` - Registered frontend and admin blueprints
+
+### Desktop Types Supported
+1. **ubuntu-vscode** - `kasmweb/vs-code:1.15.0`
+2. **ubuntu-desktop** - `kasmweb/ubuntu-focal-desktop:1.15.0`
+3. **ubuntu-chromium** - `kasmweb/chromium:1.15.0`
+
 ## Files Created/Modified
 
 ### New Files
@@ -128,6 +159,12 @@ Run `python3 scripts/test_installation.py` to verify:
 - `app/services/__init__.py`
 - `app/services/docker_manager.py`
 - `app/routes/container_routes.py`
+- `app/routes/frontend_routes.py`
+- `app/routes/admin_routes.py`
+- `app/templates/base.html`
+- `app/templates/index.html`
+- `app/templates/admin.html`
+- `app/static/css/style.css`
 - `scripts/cleanup.py`
 - `scripts/entrypoint.sh`
 - `scripts/test_installation.py`
@@ -138,8 +175,12 @@ Run `python3 scripts/test_installation.py` to verify:
 ### Modified Files
 - `requirements.txt` - Added `docker` package
 - `.env.example` - Added Docker/Kasm configuration
-- `app/__init__.py` - Registered container blueprint
+- `app/__init__.py` - Registered container, frontend, and admin blueprints
+- `app/models/containers.py` - Added desktop_type field
+- `app/services/docker_manager.py` - Added desktop type support
+- `app/routes/container_routes.py` - Added desktop_type parameter
 - `README.md` - Updated with new features and security notes
+- `USAGE.md` - Added web interface documentation
 - `.gitignore` - Added Python-specific patterns
 
 ## Maintenance
@@ -161,16 +202,23 @@ Run `python3 scripts/test_installation.py` to verify:
 
 ## Future Enhancements
 
-### Potential Improvements
+### Implemented in This Update
+- ✅ **Web Interface**: Desktop selection page with visual cards
+- ✅ **Admin Dashboard**: Real-time monitoring and management interface
+- ✅ **Multiple Desktop Types**: VSCode, Ubuntu Desktop, and Chromium options
+- ✅ **Status Indicators**: Visual feedback for container status
+- ✅ **Last Access Tracking**: Display when desktops were last used
+
+### Potential Future Improvements
 1. **Container pooling**: Pre-create warm containers for faster startup
 2. **Resource limits**: Set CPU and memory limits per container
 3. **Auto-scaling**: Add/remove containers based on demand
 4. **Container persistence**: Allow saving container state between sessions
 5. **Custom images**: Support user-specific Docker images
 6. **Advanced networking**: Implement container-to-container communication
-7. **Metrics dashboard**: Real-time monitoring of containers
-8. **WebSocket support**: Real-time status updates to frontend
-9. **Container templates**: Pre-configured environments for different use cases
+7. **WebSocket support**: Real-time status updates without polling
+8. **Container snapshots**: Allow users to save and restore desktop states
+9. **Usage analytics**: Track container usage patterns and costs
 10. **Multi-host support**: Distribute containers across multiple Docker hosts
 
 ## Conclusion
