@@ -359,8 +359,9 @@ class DockerManager:
         if not container_record.proxy_path:
             return None
         
-        # Get host from environment
-        host = os.environ.get('DOCKER_HOST_URL', 'desktop.hub.mdg-hamburg.de')
+        # Get host and protocol from environment
+        host = os.environ.get('DOCKER_HOST_URL', 'localhost')
+        protocol = os.environ.get('DOCKER_HOST_PROTOCOL', 'https')  # Default to HTTPS for production
         
         # Use proxy path for access (reverse proxy will forward to the correct port)
-        return f"http://{host}/desktop/{container_record.proxy_path}"
+        return f"{protocol}://{host}/desktop/{container_record.proxy_path}"
