@@ -9,7 +9,12 @@ from sqlalchemy import inspect, text
 app = create_app(os.environ["DEBUG"])
 
 def run_migrations():
-    """Run SQL migration files from the migrations directory"""
+    """Run SQL migration files from the migrations directory
+    
+    NOTE: Migration files should only contain DDL statements (CREATE, ALTER, DROP).
+    Migrations are executed in sorted order by filename.
+    Each migration should be idempotent (safe to run multiple times).
+    """
     migrations_dir = os.path.join(os.path.dirname(__file__), 'migrations')
     
     if not os.path.exists(migrations_dir):
@@ -36,7 +41,7 @@ def run_migrations():
             print(f"✓ Executed migration: {migration_file}")
         except Exception as e:
             print(f"✗ Migration {migration_file} failed: {str(e)}")
-            # Don't rollback - let the migration handle its own transaction
+            # Rollback the failed migration to maintain database consistency
             db.session.rollback()
 
 # Create tables before the first request (Flask 2.0+ compatible approach)

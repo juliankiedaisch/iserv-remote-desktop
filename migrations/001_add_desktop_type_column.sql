@@ -6,7 +6,9 @@ DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'containers' AND column_name = 'desktop_type'
+        WHERE table_name = 'containers' 
+        AND column_name = 'desktop_type'
+        AND table_schema = current_schema()
     ) THEN
         ALTER TABLE containers ADD COLUMN desktop_type VARCHAR(50);
         RAISE NOTICE 'Added desktop_type column to containers table';
