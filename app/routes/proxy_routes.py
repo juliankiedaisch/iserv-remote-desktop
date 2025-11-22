@@ -78,7 +78,7 @@ def proxy_to_container(proxy_path, subpath=''):
         db.session.commit()
         
         # Build the target URL for the container
-        target_url = f"http://localhost:{container.host_port}"
+        target_url = f"https://localhost:{container.host_port}"
         if subpath:
             target_url = f"{target_url}/{subpath}"
         

@@ -38,16 +38,16 @@ class DockerManager:
         try:
             # Desktop type to image mapping
             DESKTOP_IMAGES = {
-                'ubuntu-vscode': 'kasmweb/vs-code:1.15.0',
-                'ubuntu-desktop': 'kasmweb/ubuntu-focal-desktop:1.15.0',
-                'ubuntu-chromium': 'kasmweb/chromium:1.15.0'
+                'ubuntu-vscode': 'kasmweb/vs-code:1.18.0',
+                'ubuntu-desktop': 'kasmweb/ubuntu-noble-desktop:1.18.0',
+                'ubuntu-only-office': 'kasmweb/only-office:1.18.0'
             }
             
             # Get image based on desktop type or use default
             if desktop_type and desktop_type in DESKTOP_IMAGES:
                 kasm_image = DESKTOP_IMAGES[desktop_type]
             else:
-                kasm_image = os.environ.get('KASM_IMAGE', 'kasmweb/ubuntu-focal-desktop:1.15.0')
+                kasm_image = os.environ.get('KASM_IMAGE', 'kasmweb/ubuntu-noble-desktop:1.18.0')
                 desktop_type = 'ubuntu-desktop'  # Default type
             
             container_port = int(os.environ.get('KASM_CONTAINER_PORT', 6901))
