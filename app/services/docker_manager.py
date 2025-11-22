@@ -203,6 +203,7 @@ class DockerManager:
             db.session.commit()
         except Exception as e:
             current_app.logger.error(f"Failed to stop container: {str(e)}")
+            db.session.rollback()
             raise
     
     def remove_container(self, container_record):
@@ -231,6 +232,7 @@ class DockerManager:
             
         except Exception as e:
             current_app.logger.error(f"Failed to remove container: {str(e)}")
+            db.session.rollback()
             raise
     
     def get_container_status(self, container_record):
@@ -273,6 +275,7 @@ class DockerManager:
             return {'status': 'stopped', 'docker_status': 'not_found'}
         except Exception as e:
             current_app.logger.error(f"Failed to get container status: {str(e)}")
+            db.session.rollback()
             return {'status': 'error', 'docker_status': 'error', 'error': str(e)}
     
     def cleanup_stopped_containers(self):
@@ -294,6 +297,7 @@ class DockerManager:
             
         except Exception as e:
             current_app.logger.error(f"Failed to cleanup containers: {str(e)}")
+            db.session.rollback()
     
     def _find_available_port(self, start_port=7000, end_port=8000):
         """
