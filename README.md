@@ -113,7 +113,34 @@ Key Docker/Kasm settings:
 - `KASM_IMAGE`: Docker image to use (default: kasmweb/ubuntu-focal-desktop:1.15.0)
 - `KASM_CONTAINER_PORT`: Container port (default: 6901)
 - `VNC_PASSWORD`: VNC password for accessing containers
-- `DOCKER_HOST_URL`: Host URL for generating access URLs
+- `DOCKER_HOST_URL`: Host URL for generating access URLs (e.g., `example.com` or `localhost`)
+
+## Container Access Architecture
+
+The application uses a **reverse proxy architecture** to provide seamless access to Kasm containers:
+
+### URL Structure
+Containers are accessed via: `http://{DOCKER_HOST_URL}/desktop/{username}-{desktop-type}`
+
+Examples:
+- `http://example.com/desktop/john-ubuntu-vscode`
+- `http://example.com/desktop/jane-ubuntu-desktop`
+- `http://example.com/desktop/bob-ubuntu-chromium`
+
+### How It Works
+1. Each container is assigned:
+   - A unique host port (7000-8000 range) for internal communication
+   - A unique proxy path (`{username}-{desktop-type}`) for external access
+2. The Flask application includes a reverse proxy route (`/desktop/<path>`)
+3. All requests to `/desktop/*` are forwarded to the appropriate container port
+4. Multiple users can access their containers simultaneously via unique proxy paths
+
+### Production Deployment
+For production environments with proper WebSocket support:
+1. Use the included `nginx.conf` for nginx reverse proxy configuration
+2. Uncomment the nginx service in `docker-compose.yml`
+3. Nginx will handle WebSocket connections for noVNC properly
+4. Access the application through nginx (port 80/443)
 
 ## Security Considerations
 

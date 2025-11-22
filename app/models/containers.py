@@ -25,6 +25,7 @@ class Container(db.Model):
     # Connection details
     host_port = db.Column(db.Integer, nullable=True)  # Port on host machine
     container_port = db.Column(db.Integer, nullable=False, default=6901)  # Default Kasm VNC port
+    proxy_path = db.Column(db.String(256), nullable=True, unique=True)  # Unique proxy path for reverse proxy access
     
     # Timestamps
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
@@ -49,6 +50,14 @@ class Container(db.Model):
         """Get all containers for a user"""
         return cls.query.filter_by(user_id=user_id).all()
     
+    @classmethod
+    def get_by_proxy_path(cls, proxy_path):
+        """Get container by proxy path"""
+        return cls.query.filter_by(
+            proxy_path=proxy_path,
+            status='running'
+        ).first()
+    
     def to_dict(self):
         """Convert container to dictionary"""
         return {
@@ -58,6 +67,7 @@ class Container(db.Model):
             'desktop_type': self.desktop_type,
             'status': self.status,
             'host_port': self.host_port,
+            'proxy_path': self.proxy_path,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'started_at': self.started_at.isoformat() if self.started_at else None,
             'last_accessed': self.last_accessed.isoformat() if self.last_accessed else None
