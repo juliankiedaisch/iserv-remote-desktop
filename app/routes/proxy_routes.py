@@ -5,11 +5,20 @@ from requests.packages.urllib3.util.retry import Retry
 from app.models.containers import Container
 from datetime import datetime, timezone
 from app import db
-
-# Import DockerManager for status checks (avoid import overhead during error handling)
 from app.services.docker_manager import DockerManager
 
 proxy_bp = Blueprint('proxy', __name__)
+
+# Configuration constants
+PROXY_CONNECT_TIMEOUT = 10  # seconds to wait for initial connection
+PROXY_READ_TIMEOUT = 300  # seconds to wait for response (5 minutes for desktop operations)
+HOP_BY_HOP_HEADERS = frozenset([
+    'host', 'connection', 'keep-alive', 'proxy-authenticate',
+    'proxy-authorization', 'te', 'trailers', 'transfer-encoding', 'upgrade'
+])
+ALLOWED_HTTP_METHODS = frozenset([
+    "HEAD", "GET", "PUT", "DELETE", "OPTIONS", "TRACE", "POST", "PATCH"
+])
 
 
 def create_retry_session(retries=3, backoff_factor=0.3, status_forcelist=(500, 502, 503, 504)):
@@ -31,7 +40,7 @@ def create_retry_session(retries=3, backoff_factor=0.3, status_forcelist=(500, 5
         connect=retries,
         backoff_factor=backoff_factor,
         status_forcelist=status_forcelist,
-        allowed_methods=["HEAD", "GET", "PUT", "DELETE", "OPTIONS", "TRACE", "POST", "PATCH"]
+        allowed_methods=list(ALLOWED_HTTP_METHODS)
     )
     adapter = HTTPAdapter(max_retries=retry)
     session.mount("http://", adapter)
@@ -77,8 +86,7 @@ def proxy_to_container(proxy_path, subpath=''):
         # Prepare headers (remove hop-by-hop headers)
         headers = {}
         for key, value in request.headers:
-            if key.lower() not in ['host', 'connection', 'keep-alive', 'proxy-authenticate', 
-                                   'proxy-authorization', 'te', 'trailers', 'transfer-encoding', 'upgrade']:
+            if key.lower() not in HOP_BY_HOP_HEADERS:
                 headers[key] = value
         
         # Forward the request to the container with retry logic
@@ -87,9 +95,8 @@ def proxy_to_container(proxy_path, subpath=''):
             # Using 3 retries with exponential backoff (0.3s, 0.6s, 1.2s)
             session = create_retry_session(retries=3)
             
-            # Use longer timeout for desktop environments (5 minutes)
+            # Use longer timeout for desktop environments
             # Desktop operations can involve large file transfers and rendering
-            # First timeout is for connection, second is for reading response
             resp = session.request(
                 method=request.method,
                 url=target_url,
@@ -98,7 +105,7 @@ def proxy_to_container(proxy_path, subpath=''):
                 cookies=request.cookies,
                 allow_redirects=False,
                 stream=True,
-                timeout=(10, 300)  # (connect timeout, read timeout)
+                timeout=(PROXY_CONNECT_TIMEOUT, PROXY_READ_TIMEOUT)
             )
             
             # Create response with the same status code
