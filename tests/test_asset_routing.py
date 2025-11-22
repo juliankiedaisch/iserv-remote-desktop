@@ -31,11 +31,15 @@ class TestAssetRouting(unittest.TestCase):
             ('user.name-ubuntu-vscode', False),
             ('admin.panel', False),
             ('container-123', False),
+            # False positives that should NOT match
+            ('assetsfoo', False),
+            ('assets-bar', False),
+            ('my-assets', False),
+            ('jsfoo', False),
         ]
         
         for path, expected_is_asset in test_cases:
-            is_potential_asset = any(path.startswith(prefix) or path.split('/')[0] == prefix 
-                                      for prefix in asset_prefixes)
+            is_potential_asset = any(path.split('/')[0] == prefix for prefix in asset_prefixes)
             self.assertEqual(is_potential_asset, expected_is_asset, 
                            f"Path '{path}' should {'be' if expected_is_asset else 'not be'} detected as asset")
     
@@ -96,14 +100,12 @@ class TestAssetRouting(unittest.TestCase):
         ]
         
         for path in invalid_referer_paths:
-            is_referer_asset = any(path.startswith(prefix) or path.split('/')[0] == prefix 
-                                   for prefix in asset_prefixes)
+            is_referer_asset = any(path.split('/')[0] == prefix for prefix in asset_prefixes)
             self.assertTrue(is_referer_asset, 
                           f"Path '{path}' should be detected as asset in referer")
         
         for path in valid_referer_paths:
-            is_referer_asset = any(path.startswith(prefix) or path.split('/')[0] == prefix 
-                                   for prefix in asset_prefixes)
+            is_referer_asset = any(path.split('/')[0] == prefix for prefix in asset_prefixes)
             self.assertFalse(is_referer_asset, 
                            f"Path '{path}' should NOT be detected as asset in referer")
 

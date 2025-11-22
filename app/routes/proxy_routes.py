@@ -71,8 +71,7 @@ def proxy_to_container(proxy_path, subpath=''):
         # Check if this is an asset request (common asset paths)
         # Asset paths like 'assets', 'js', 'css', 'fonts', 'images', 'static' are not container names
         asset_prefixes = ('assets', 'js', 'css', 'fonts', 'images', 'static', 'dist', 'build')
-        is_potential_asset = any(proxy_path.startswith(prefix) or proxy_path.split('/')[0] == prefix 
-                                  for prefix in asset_prefixes)
+        is_potential_asset = any(proxy_path.split('/')[0] == prefix for prefix in asset_prefixes)
         
         # Find the container by proxy path
         container = Container.get_by_proxy_path(proxy_path)
@@ -89,8 +88,7 @@ def proxy_to_container(proxy_path, subpath=''):
                 if match:
                     referer_proxy_path = match.group(1)
                     # Check if this referer path is NOT an asset path itself
-                    is_referer_asset = any(referer_proxy_path.startswith(prefix) or referer_proxy_path.split('/')[0] == prefix 
-                                           for prefix in asset_prefixes)
+                    is_referer_asset = any(referer_proxy_path.split('/')[0] == prefix for prefix in asset_prefixes)
                     if not is_referer_asset:
                         container = Container.get_by_proxy_path(referer_proxy_path)
                         if container:
