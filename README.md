@@ -6,9 +6,14 @@ This application provides remote desktop access via Kasm Workspaces in Docker co
 ## Features
 
 - OAuth/OIDC authentication (IServ compatible)
+- Web-based desktop selection interface
+- Multiple desktop types (Ubuntu with VSCode, Ubuntu Desktop, Ubuntu with Chromium)
 - Per-user Docker container management
 - Automatic Kasm workspace provisioning
 - Session-based container lifecycle
+- Admin panel for managing all containers
+- Real-time container status updates
+- Last access timestamps for each desktop
 - Automatic cleanup of stopped containers
 
 ## Setup
@@ -25,9 +30,11 @@ This application provides remote desktop access via Kasm Workspaces in Docker co
 
 3. Ensure Docker is installed and running on the host
 
-4. Pull the Kasm workspace image:
+4. Pull the Kasm workspace images:
    ```bash
    docker pull kasmweb/ubuntu-focal-desktop:1.15.0
+   docker pull kasmweb/vs-code:1.15.0
+   docker pull kasmweb/chromium:1.15.0
    ```
 
 5. Test your installation:
@@ -47,7 +54,32 @@ This application provides remote desktop access via Kasm Workspaces in Docker co
 
 For detailed usage examples, see [USAGE.md](USAGE.md).
 
+## User Interface
+
+### Desktop Selection Page
+After logging in, users are presented with a dashboard showing available desktop types:
+- **Ubuntu with VSCode** - Full Ubuntu desktop with Visual Studio Code pre-installed
+- **Ubuntu Desktop** - Standard Ubuntu desktop environment
+- **Ubuntu with Chromium** - Ubuntu desktop with Chromium browser
+
+Each desktop card shows:
+- Current status (running/stopped)
+- Last access timestamp
+- Click to start or connect to the desktop
+
+### Admin Panel
+Admin users have access to an admin panel (⚙️ icon in header) where they can:
+- View all running containers from all users
+- See container statistics (total, running, active users)
+- Stop individual containers
+- Stop all containers at once
+- Remove containers
+
 ## API Endpoints
+
+### Frontend Routes
+- `GET /` - Desktop selection page (main UI)
+- `GET /admin` - Admin panel page (admin users only)
 
 ### Authentication
 - `GET /login` - Initiate OAuth login
@@ -56,11 +88,17 @@ For detailed usage examples, see [USAGE.md](USAGE.md).
 - `POST /logout` - End session
 
 ### Container Management
-- `POST /api/container/start` - Start a new container
+- `POST /api/container/start?desktop_type=<type>` - Start a new container
 - `GET /api/container/status` - Get container status
 - `POST /api/container/stop` - Stop container
 - `POST /api/container/remove` - Remove container
 - `GET /api/container/list` - List user's containers
+
+### Admin API (Admin Only)
+- `GET /api/admin/containers` - List all containers from all users
+- `POST /api/admin/container/<id>/stop` - Stop any container
+- `DELETE /api/admin/container/<id>/remove` - Remove any container
+- `POST /api/admin/containers/stop-all` - Stop all running containers
 
 All container endpoints require a valid session ID via:
 - Query parameter: `?session_id=xxx`

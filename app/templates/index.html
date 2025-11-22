@@ -1,0 +1,374 @@
+{% extends "base.html" %}
+
+{% block title %}Remote Desktop - Select Desktop{% endblock %}
+
+{% block extra_css %}
+<style>
+    .desktop-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 20px;
+        margin-top: 20px;
+    }
+    
+    .desktop-card {
+        background: white;
+        border-radius: 10px;
+        padding: 25px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        cursor: pointer;
+        transition: all 0.3s;
+        position: relative;
+    }
+    
+    .desktop-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 12px rgba(0,0,0,0.15);
+    }
+    
+    .desktop-card.running {
+        border: 2px solid #28a745;
+    }
+    
+    .desktop-card.stopped {
+        border: 2px solid #6c757d;
+    }
+    
+    .desktop-icon {
+        font-size: 48px;
+        margin-bottom: 15px;
+        text-align: center;
+    }
+    
+    .desktop-name {
+        font-size: 20px;
+        font-weight: bold;
+        color: #333;
+        margin-bottom: 10px;
+        text-align: center;
+    }
+    
+    .desktop-description {
+        font-size: 14px;
+        color: #666;
+        margin-bottom: 15px;
+        text-align: center;
+    }
+    
+    .desktop-status {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+    
+    .status-indicator {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+    }
+    
+    .status-indicator.running {
+        background: #28a745;
+        animation: pulse 2s infinite;
+    }
+    
+    .status-indicator.stopped {
+        background: #6c757d;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+    
+    .desktop-meta {
+        font-size: 12px;
+        color: #999;
+        text-align: center;
+        margin-top: 10px;
+    }
+    
+    .loading {
+        text-align: center;
+        padding: 40px;
+        color: white;
+        font-size: 18px;
+    }
+    
+    .error-message {
+        background: white;
+        border-radius: 10px;
+        padding: 30px;
+        text-align: center;
+        color: #dc3545;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>🖥️ Remote Desktop</h1>
+    <div class="user-info">
+        <span class="username" id="username">Loading...</span>
+        {% if is_admin %}
+        <a href="/admin" class="admin-icon" title="Admin Panel">⚙️</a>
+        {% endif %}
+        <button class="btn btn-secondary" onclick="logout()">Logout</button>
+    </div>
+</div>
+
+<div id="error-container"></div>
+
+<div id="loading" class="loading">
+    <p>Loading desktops...</p>
+</div>
+
+<div id="desktop-container" style="display: none;">
+    <div class="desktop-grid" id="desktop-grid">
+        <!-- Desktop cards will be inserted here -->
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const API_BASE = window.location.origin + '/api';
+    let sessionId = localStorage.getItem('session_id');
+    let userData = null;
+    
+    // Desktop types configuration
+    const DESKTOP_TYPES = [
+        {
+            type: 'ubuntu-vscode',
+            name: 'Ubuntu with VSCode',
+            description: 'Full Ubuntu desktop with Visual Studio Code pre-installed',
+            icon: '💻',
+            image: 'kasmweb/vs-code:1.15.0'
+        },
+        {
+            type: 'ubuntu-desktop',
+            name: 'Ubuntu Desktop',
+            description: 'Standard Ubuntu desktop environment',
+            icon: '🖥️',
+            image: 'kasmweb/ubuntu-focal-desktop:1.15.0'
+        },
+        {
+            type: 'ubuntu-chromium',
+            name: 'Ubuntu with Chromium',
+            description: 'Ubuntu desktop with Chromium browser',
+            icon: '🌐',
+            image: 'kasmweb/chromium:1.15.0'
+        }
+    ];
+    
+    async function checkSession() {
+        if (!sessionId) {
+            window.location.href = '/login';
+            return false;
+        }
+        
+        try {
+            const response = await fetch(`/session?session_id=${sessionId}`);
+            const data = await response.json();
+            
+            if (!data.authenticated) {
+                localStorage.removeItem('session_id');
+                window.location.href = '/login';
+                return false;
+            }
+            
+            userData = data.user;
+            document.getElementById('username').textContent = userData.username;
+            
+            return true;
+        } catch (error) {
+            console.error('Session check failed:', error);
+            showError('Failed to validate session');
+            return false;
+        }
+    }
+    
+    async function loadDesktops() {
+        try {
+            // Get all user's containers
+            const response = await fetch(`${API_BASE}/container/list`, {
+                headers: {
+                    'X-Session-ID': sessionId
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to load desktops');
+            }
+            
+            renderDesktops(data.containers || []);
+            
+        } catch (error) {
+            console.error('Failed to load desktops:', error);
+            showError('Failed to load desktops: ' + error.message);
+        } finally {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('desktop-container').style.display = 'block';
+        }
+    }
+    
+    function renderDesktops(containers) {
+        const grid = document.getElementById('desktop-grid');
+        grid.innerHTML = '';
+        
+        // Create a map of containers by their image/type
+        const containerMap = {};
+        containers.forEach(container => {
+            containerMap[container.container_name] = container;
+        });
+        
+        // Render all desktop types
+        DESKTOP_TYPES.forEach(desktop => {
+            const card = createDesktopCard(desktop, containerMap);
+            grid.appendChild(card);
+        });
+    }
+    
+    function createDesktopCard(desktop, containerMap) {
+        // Find matching container
+        const container = Object.values(containerMap).find(c => 
+            c.container_name && c.container_name.includes(desktop.type)
+        );
+        
+        const isRunning = container && container.status === 'running';
+        
+        const card = document.createElement('div');
+        card.className = `desktop-card ${isRunning ? 'running' : 'stopped'}`;
+        card.onclick = () => handleDesktopClick(desktop, container);
+        
+        let lastAccessText = '';
+        if (container && container.last_accessed) {
+            const lastAccess = new Date(container.last_accessed);
+            lastAccessText = `Last accessed: ${formatRelativeTime(lastAccess)}`;
+        }
+        
+        card.innerHTML = `
+            <div class="desktop-icon">${desktop.icon}</div>
+            <div class="desktop-name">${desktop.name}</div>
+            <div class="desktop-description">${desktop.description}</div>
+            <div class="desktop-status">
+                <span class="status-indicator ${isRunning ? 'running' : 'stopped'}"></span>
+                <span>${isRunning ? 'Running' : 'Stopped'}</span>
+            </div>
+            ${lastAccessText ? `<div class="desktop-meta">${lastAccessText}</div>` : ''}
+        `;
+        
+        return card;
+    }
+    
+    async function handleDesktopClick(desktop, container) {
+        if (container && container.status === 'running' && container.url) {
+            // Container is running, open it
+            window.open(container.url, '_blank');
+            await updateLastAccess();
+            return;
+        }
+        
+        // Start new container
+        try {
+            showLoading();
+            
+            const response = await fetch(`${API_BASE}/container/start?desktop_type=${desktop.type}`, {
+                method: 'POST',
+                headers: {
+                    'X-Session-ID': sessionId
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (data.success && data.url) {
+                // Reload to show updated status
+                await loadDesktops();
+                
+                // Open in new tab after a brief delay to ensure UI updates
+                // 500ms allows the desktop list to refresh before opening VNC
+                setTimeout(() => {
+                    window.open(data.url, '_blank');
+                }, 500);
+            } else {
+                throw new Error(data.error || 'Failed to start desktop');
+            }
+            
+        } catch (error) {
+            console.error('Failed to start desktop:', error);
+            showError('Failed to start desktop: ' + error.message);
+        } finally {
+            hideLoading();
+        }
+    }
+    
+    async function updateLastAccess() {
+        // Reload desktops to update last access time
+        await loadDesktops();
+    }
+    
+    function formatRelativeTime(date) {
+        const now = new Date();
+        const seconds = Math.floor((now - date) / 1000);
+        
+        if (seconds < 60) return 'just now';
+        if (seconds < 3600) return Math.floor(seconds / 60) + ' minutes ago';
+        if (seconds < 86400) return Math.floor(seconds / 3600) + ' hours ago';
+        return Math.floor(seconds / 86400) + ' days ago';
+    }
+    
+    function showError(message) {
+        const container = document.getElementById('error-container');
+        container.innerHTML = `
+            <div class="alert alert-error">
+                <strong>Error:</strong> ${message}
+            </div>
+        `;
+    }
+    
+    function showLoading() {
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('loading').querySelector('p').textContent = 'Starting desktop...';
+    }
+    
+    function hideLoading() {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('loading').querySelector('p').textContent = 'Loading desktops...';
+    }
+    
+    async function logout() {
+        try {
+            await fetch('/logout', {
+                method: 'POST',
+                headers: {
+                    'X-Session-ID': sessionId
+                }
+            });
+        } catch (error) {
+            console.error('Logout error:', error);
+        }
+        
+        localStorage.removeItem('session_id');
+        window.location.href = '/login';
+    }
+    
+    // Initialize
+    async function init() {
+        const authenticated = await checkSession();
+        if (authenticated) {
+            await loadDesktops();
+            
+            // Refresh desktop status every 30 seconds to show current state
+            // Balance between responsiveness and server load
+            setInterval(loadDesktops, 30000);
+        }
+    }
+    
+    init();
+</script>
+{% endblock %}

@@ -17,6 +17,7 @@ class Container(db.Model):
     container_id = db.Column(db.String(128), nullable=True)  # Docker container ID
     container_name = db.Column(db.String(128), nullable=False, unique=True)
     image_name = db.Column(db.String(256), nullable=False)
+    desktop_type = db.Column(db.String(50), nullable=True)  # Desktop type identifier
     
     # Container status
     status = db.Column(db.String(50), nullable=False, default='creating')  # creating, running, stopped, error
@@ -54,6 +55,7 @@ class Container(db.Model):
             'id': self.id,
             'container_id': self.container_id,
             'container_name': self.container_name,
+            'desktop_type': self.desktop_type,
             'status': self.status,
             'host_port': self.host_port,
             'created_at': self.created_at.isoformat() if self.created_at else None,
