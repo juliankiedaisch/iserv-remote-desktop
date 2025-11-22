@@ -174,6 +174,11 @@ def proxy_to_container(proxy_path, subpath=''):
         # This allows users to access containers without entering credentials
         vnc_user = os.environ.get('VNC_USER', 'kasm_user')
         vnc_password = os.environ.get('VNC_PASSWORD', 'password')
+        
+        # Warn if using default password (security risk in production)
+        if vnc_password == 'password':
+            current_app.logger.warning("Using default VNC password - set VNC_PASSWORD environment variable for production")
+        
         credentials = f"{vnc_user}:{vnc_password}"
         encoded_credentials = base64.b64encode(credentials.encode('utf-8')).decode('utf-8')
         headers['Authorization'] = f"Basic {encoded_credentials}"
@@ -270,14 +275,25 @@ def proxy_websocket_root():
         current_app.logger.warning("WebSocket request without Referer header")
         return Response("WebSocket request requires Referer header to identify container", status=400)
     
+    # Validate Referer length to prevent ReDoS attacks
+    if len(referer) > 2048:  # Max reasonable URL length
+        current_app.logger.warning(f"Referer header too long: {len(referer)} bytes")
+        return Response("Invalid Referer header", status=400)
+    
     # Extract the container proxy_path from the Referer URL
     # Referer format: https://domain/desktop/username-desktoptype or similar
+    # Use a simple, non-backtracking pattern to prevent ReDoS
     match = re.search(r'/desktop/([^/?#]+)', referer)
     if not match:
         current_app.logger.warning(f"Could not extract container path from Referer: {referer}")
         return Response("Could not identify container from Referer", status=400)
     
     referer_proxy_path = match.group(1)
+    
+    # Validate extracted path length
+    if len(referer_proxy_path) > 255:  # Max reasonable proxy path length
+        current_app.logger.warning(f"Extracted proxy path too long: {len(referer_proxy_path)} chars")
+        return Response("Invalid container path", status=400)
     
     # Check if this referer path is NOT an asset path
     if is_asset_path(referer_proxy_path):
@@ -318,15 +334,22 @@ def proxy_websocket_root():
             headers[key] = value
     
     # Add HTTP Basic Auth for VNC password
+    # Note: VNC_PASSWORD should be set in environment for security
     vnc_user = os.environ.get('VNC_USER', 'kasm_user')
     vnc_password = os.environ.get('VNC_PASSWORD', 'password')
+    
+    # Warn if using default password (security risk in production)
+    if vnc_password == 'password':
+        current_app.logger.warning("Using default VNC password - set VNC_PASSWORD environment variable for production")
+    
     credentials = f"{vnc_user}:{vnc_password}"
     encoded_credentials = base64.b64encode(credentials.encode('utf-8')).decode('utf-8')
     headers['Authorization'] = f"Basic {encoded_credentials}"
     
-    # For WebSocket connections, we need to let the reverse proxy handle the upgrade
-    # We'll return a redirect or proxy the initial handshake
-    # The actual WebSocket upgrade will be handled by Apache/Nginx
+    # IMPORTANT: Flask/requests library cannot handle true WebSocket upgrades
+    # This code only forwards the initial HTTP upgrade request
+    # The actual WebSocket protocol upgrade MUST be handled by Apache/Nginx
+    # Apache RewriteRule converts this to ws:// and handles the upgrade
     try:
         verify_ssl = os.environ.get('KASM_VERIFY_SSL', 'false').lower() == 'true'
         session = create_retry_session(verify_ssl=verify_ssl)
@@ -334,7 +357,8 @@ def proxy_websocket_root():
         if not verify_ssl:
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         
-        # Forward the WebSocket handshake request
+        # Forward the initial WebSocket handshake request
+        # Apache will intercept this and upgrade the connection to WebSocket
         resp = session.request(
             method=request.method,
             url=target_url,
