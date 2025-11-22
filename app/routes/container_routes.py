@@ -57,13 +57,28 @@ def start_container(oauth_session):
     try:
         user = oauth_session.user
         
-        # Check if user already has a running container for this session
-        existing = Container.get_by_session(oauth_session.id)
+        # Get desktop_type from query params or request body
+        desktop_type = request.args.get('desktop_type')
+        if not desktop_type:
+            data = request.get_json() or {}
+            desktop_type = data.get('desktop_type', 'ubuntu-desktop')
+        
+        # Check if user already has a running container for this desktop type
+        existing = Container.query.filter_by(
+            session_id=oauth_session.id,
+            desktop_type=desktop_type,
+            status='running'
+        ).first()
+        
         if existing:
             docker_manager = DockerManager()
             status = docker_manager.get_container_status(existing)
             
             if status['status'] == 'running':
+                # Update last accessed time
+                existing.last_accessed = datetime.now(timezone.utc)
+                db.session.commit()
+                
                 url = docker_manager.get_container_url(existing)
                 return jsonify({
                     'success': True,
@@ -77,7 +92,8 @@ def start_container(oauth_session):
         container = docker_manager.create_container(
             user_id=user.id,
             session_id=oauth_session.id,
-            username=user.username
+            username=user.username,
+            desktop_type=desktop_type
         )
         
         url = docker_manager.get_container_url(container)

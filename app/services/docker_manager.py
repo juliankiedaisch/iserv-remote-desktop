@@ -20,7 +20,7 @@ class DockerManager:
             current_app.logger.error(f"Failed to connect to Docker: {str(e)}")
             raise
     
-    def create_container(self, user_id, session_id, username):
+    def create_container(self, user_id, session_id, username, desktop_type=None):
         """
         Create and start a Kasm workspace container for a user
         
@@ -28,27 +28,41 @@ class DockerManager:
             user_id: User's unique ID
             session_id: Session ID
             username: User's username
+            desktop_type: Type of desktop to create (optional)
             
         Returns:
             Container model instance
         """
         container_record = None
         try:
-            # Get configuration from environment
-            kasm_image = os.environ.get('KASM_IMAGE', 'kasmweb/ubuntu-focal-desktop:1.15.0')
+            # Desktop type to image mapping
+            DESKTOP_IMAGES = {
+                'ubuntu-vscode': 'kasmweb/vs-code:1.15.0',
+                'ubuntu-desktop': 'kasmweb/ubuntu-focal-desktop:1.15.0',
+                'ubuntu-chromium': 'kasmweb/chromium:1.15.0'
+            }
+            
+            # Get image based on desktop type or use default
+            if desktop_type and desktop_type in DESKTOP_IMAGES:
+                kasm_image = DESKTOP_IMAGES[desktop_type]
+            else:
+                kasm_image = os.environ.get('KASM_IMAGE', 'kasmweb/ubuntu-focal-desktop:1.15.0')
+                desktop_type = 'ubuntu-desktop'  # Default type
+            
             container_port = int(os.environ.get('KASM_CONTAINER_PORT', 6901))
             
-            # Generate unique container name
-            container_name = f"kasm-{username}-{session_id[:8]}"
+            # Generate unique container name with desktop type
+            container_name = f"kasm-{username}-{desktop_type}-{session_id[:8]}"
             
-            # Check if container already exists in database
+            # Check if container already exists for this desktop type
             existing = Container.query.filter_by(
                 session_id=session_id,
+                desktop_type=desktop_type,
                 status='running'
             ).first()
             
             if existing:
-                current_app.logger.info(f"Container already exists for session {session_id}")
+                current_app.logger.info(f"Container already exists for session {session_id} and type {desktop_type}")
                 return existing
             
             # Create database record first
@@ -57,6 +71,7 @@ class DockerManager:
                 session_id=session_id,
                 container_name=container_name,
                 image_name=kasm_image,
+                desktop_type=desktop_type,
                 status='creating',
                 container_port=container_port
             )
