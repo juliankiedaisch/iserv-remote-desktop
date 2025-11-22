@@ -65,23 +65,29 @@ def test_duplicate_container_handling():
             print(f"✓ Verified container exists with name: {container_name}")
             
             # Now simulate the scenario from the error:
-            # Try to check for existing containers by name (not just by running status)
-            existing_by_name = Container.query.filter_by(
-                container_name=container_name
+            # Try to check for existing containers by session_id, user_id, and desktop_type
+            existing_by_session = Container.query.filter_by(
+                session_id=test_session_id,
+                user_id=test_user_id,
+                desktop_type='ubuntu-vscode'
             ).first()
             
-            if existing_by_name:
-                print(f"✓ Found existing container with name '{container_name}' in state '{existing_by_name.status}'")
+            if existing_by_session:
+                print(f"✓ Found existing container with name '{existing_by_session.container_name}' in state '{existing_by_session.status}'")
                 
-                if existing_by_name.status in ['error', 'stopped', 'creating']:
-                    print(f"✓ Container is in cleanup-eligible state: {existing_by_name.status}")
+                if existing_by_session.status in ['error', 'stopped', 'creating']:
+                    print(f"✓ Container is in cleanup-eligible state: {existing_by_session.status}")
                     # Clean it up
-                    db.session.delete(existing_by_name)
+                    db.session.delete(existing_by_session)
                     db.session.commit()
                     print(f"✓ Successfully cleaned up existing container record")
                     
                     # Verify it's gone
-                    check = Container.query.filter_by(container_name=container_name).first()
+                    check = Container.query.filter_by(
+                        session_id=test_session_id,
+                        user_id=test_user_id,
+                        desktop_type='ubuntu-vscode'
+                    ).first()
                     assert check is None, "Container should be deleted"
                     print(f"✓ Verified container was removed from database")
                     
