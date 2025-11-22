@@ -112,8 +112,12 @@ See `.env.example` for all available configuration options.
 Key Docker/Kasm settings:
 - `KASM_IMAGE`: Docker image to use (default: kasmweb/ubuntu-focal-desktop:1.15.0)
 - `KASM_CONTAINER_PORT`: Container port (default: 6901)
-- `VNC_PASSWORD`: VNC password for accessing containers
+- `KASM_CONTAINER_PROTOCOL`: Protocol for container connections - `http` or `https` (default: https)
+- `KASM_VERIFY_SSL`: Verify SSL certificates when connecting to containers - `true` or `false` (default: false, recommended for self-signed certificates)
+- `VNC_USER`: VNC username for authentication (default: kasm_user)
+- `VNC_PASSWORD`: VNC password for accessing containers (automatically passed to avoid manual authentication)
 - `DOCKER_HOST_URL`: Host URL for generating access URLs (e.g., `example.com` or `localhost`)
+- `DOCKER_HOST_PROTOCOL`: Protocol to use for container URLs - `http` or `https` (default: https)
 
 ## Container Access Architecture
 
@@ -155,6 +159,12 @@ For standalone deployments without external proxy:
 **Important**: For production environments where only port 443 is accessible, proper proxy configuration with WebSocket support is mandatory.
 
 ## Security Considerations
+
+### Container SSL/HTTPS and Authentication
+Kasm containers typically run with HTTPS and self-signed certificates. The application handles this automatically:
+- **SSL Certificate Verification**: By default, SSL certificate verification is disabled for localhost container connections (`KASM_VERIFY_SSL=false`) to support self-signed certificates
+- **Automatic VNC Authentication**: VNC credentials are automatically passed via HTTP Basic Auth headers, eliminating the need for users to manually enter passwords
+- **Configuration**: Set `KASM_CONTAINER_PROTOCOL=https` (default) and `VNC_PASSWORD` in your `.env` file
 
 ### SSL/HTTPS
 - **Required for production**: When only port 443 is accessible from the internet

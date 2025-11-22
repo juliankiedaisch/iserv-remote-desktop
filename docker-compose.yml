@@ -39,6 +39,9 @@ services:
       # Docker/Kasm configuration
       KASM_IMAGE: ${KASM_IMAGE:-kasmweb/ubuntu-focal-desktop:1.15.0}
       KASM_CONTAINER_PORT: ${KASM_CONTAINER_PORT:-6901}
+      KASM_CONTAINER_PROTOCOL: ${KASM_CONTAINER_PROTOCOL:-https}
+      KASM_VERIFY_SSL: ${KASM_VERIFY_SSL:-false}
+      VNC_USER: ${VNC_USER:-kasm_user}
       VNC_PASSWORD: ${VNC_PASSWORD:-password}
       DOCKER_HOST_URL: ${DOCKER_HOST_URL:-localhost}
       DOCKER_HOST_PROTOCOL: ${DOCKER_HOST_PROTOCOL:-https}
