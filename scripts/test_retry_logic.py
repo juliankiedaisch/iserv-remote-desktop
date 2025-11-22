@@ -51,8 +51,8 @@ def test_retry_session_custom_params():
     try:
         from app.routes.proxy_routes import create_retry_session
         
-        # Create a session with custom parameters
-        session = create_retry_session(retries=5, backoff_factor=1.0, status_forcelist=(500, 503))
+        # Create a session with custom parameters (using frozenset)
+        session = create_retry_session(retries=5, backoff_factor=1.0, status_forcelist=frozenset([500, 503]))
         
         # Verify configuration
         adapter = session.adapters['http://']
@@ -65,7 +65,9 @@ def test_retry_session_custom_params():
             print(f"✗ Expected backoff factor 1.0, got {adapter.max_retries.backoff_factor}")
             return False
         
-        if set(adapter.max_retries.status_forcelist) != {500, 503}:
+        # Direct frozenset comparison for efficiency
+        expected_status_forcelist = frozenset([500, 503])
+        if adapter.max_retries.status_forcelist != expected_status_forcelist:
             print(f"✗ Unexpected status forcelist: {adapter.max_retries.status_forcelist}")
             return False
         

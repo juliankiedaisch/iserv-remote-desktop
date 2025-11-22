@@ -12,6 +12,8 @@ proxy_bp = Blueprint('proxy', __name__)
 # Configuration constants
 PROXY_CONNECT_TIMEOUT = 10  # seconds to wait for initial connection
 PROXY_READ_TIMEOUT = 300  # seconds to wait for response (5 minutes for desktop operations)
+DEFAULT_RETRIES = 3  # number of retry attempts for transient failures
+DEFAULT_BACKOFF_FACTOR = 0.3  # exponential backoff factor (0.3s, 0.6s, 1.2s)
 HOP_BY_HOP_HEADERS = frozenset([
     'host', 'connection', 'keep-alive', 'proxy-authenticate',
     'proxy-authorization', 'te', 'trailers', 'transfer-encoding', 'upgrade'
@@ -19,9 +21,10 @@ HOP_BY_HOP_HEADERS = frozenset([
 ALLOWED_HTTP_METHODS = frozenset([
     "HEAD", "GET", "PUT", "DELETE", "OPTIONS", "TRACE", "POST", "PATCH"
 ])
+DEFAULT_STATUS_FORCELIST = frozenset([500, 502, 503, 504])
 
 
-def create_retry_session(retries=3, backoff_factor=0.3, status_forcelist=(500, 502, 503, 504)):
+def create_retry_session(retries=DEFAULT_RETRIES, backoff_factor=DEFAULT_BACKOFF_FACTOR, status_forcelist=DEFAULT_STATUS_FORCELIST):
     """
     Create a requests session with retry logic
     
@@ -92,8 +95,7 @@ def proxy_to_container(proxy_path, subpath=''):
         # Forward the request to the container with retry logic
         try:
             # Create session with retry logic for transient failures
-            # Using 3 retries with exponential backoff (0.3s, 0.6s, 1.2s)
-            session = create_retry_session(retries=3)
+            session = create_retry_session()
             
             # Use longer timeout for desktop environments
             # Desktop operations can involve large file transfers and rendering
