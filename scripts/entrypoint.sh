@@ -1,0 +1,36 @@
+#!/bin/bash
+set -e
+
+echo "Starting IServ Remote Desktop application..."
+
+# Wait for database to be ready
+if [[ "$DATABASE_URI" == postgresql* ]]; then
+    echo "Waiting for PostgreSQL to be ready..."
+    until pg_isready -h postgres -U scratch4school; do
+        echo "PostgreSQL is unavailable - sleeping"
+        sleep 2
+    done
+    echo "PostgreSQL is ready!"
+fi
+
+# Run database migrations synchronously
+echo "Running database migrations..."
+python3 << 'PYTHON_SCRIPT'
+import os
+from app import create_app, db
+
+app = create_app(os.environ.get("DEBUG", "False") == "True")
+with app.app_context():
+    db.create_all()
+    print("Database tables created successfully")
+PYTHON_SCRIPT
+
+# Start the application with gunicorn
+echo "Starting application server..."
+exec gunicorn --bind 0.0.0.0:5006 \
+    --workers 4 \
+    --worker-class eventlet \
+    --timeout 120 \
+    --access-logfile - \
+    --error-logfile - \
+    run:app
