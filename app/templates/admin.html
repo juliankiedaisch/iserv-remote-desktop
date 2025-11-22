@@ -460,6 +460,7 @@
                 <strong>Error:</strong> ${message}
             </div>
         `;
+        // Auto-dismiss error after 5 seconds to keep UI clean
         setTimeout(() => {
             container.innerHTML = '';
         }, 5000);
@@ -472,6 +473,7 @@
                 <strong>Success:</strong> ${message}
             </div>
         `;
+        // Auto-dismiss success after 3 seconds (shorter than errors)
         setTimeout(() => {
             container.innerHTML = '';
         }, 3000);
@@ -507,7 +509,8 @@
         if (authenticated) {
             await loadAllContainers();
             
-            // Auto-refresh every 10 seconds
+            // Auto-refresh every 10 seconds for admin panel
+            // More frequent than user view (30s) to quickly catch container state changes
             setInterval(loadAllContainers, 10000);
         }
     }

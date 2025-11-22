@@ -290,7 +290,8 @@
                 // Reload to show updated status
                 await loadDesktops();
                 
-                // Open in new tab
+                // Open in new tab after a brief delay to ensure UI updates
+                // 500ms allows the desktop list to refresh before opening VNC
                 setTimeout(() => {
                     window.open(data.url, '_blank');
                 }, 500);
@@ -362,7 +363,8 @@
         if (authenticated) {
             await loadDesktops();
             
-            // Refresh desktop status every 30 seconds
+            // Refresh desktop status every 30 seconds to show current state
+            // Balance between responsiveness and server load
             setInterval(loadDesktops, 30000);
         }
     }
