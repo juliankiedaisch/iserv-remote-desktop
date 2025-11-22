@@ -4,6 +4,7 @@ Test script to verify retry logic in proxy routes
 """
 import sys
 import os
+import traceback
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -41,7 +42,6 @@ def test_retry_session_creation():
         return True
     except Exception as e:
         print(f"✗ Failed to create retry session: {e}")
-        import traceback
         traceback.print_exc()
         return False
 
@@ -77,7 +77,6 @@ def test_retry_session_custom_params():
         return True
     except Exception as e:
         print(f"✗ Failed with custom parameters: {e}")
-        import traceback
         traceback.print_exc()
         return False
 

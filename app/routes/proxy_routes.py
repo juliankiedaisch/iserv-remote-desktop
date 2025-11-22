@@ -1,7 +1,7 @@
 from flask import Blueprint, request, Response, current_app
 import requests
 from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
+from urllib3.util.retry import Retry
 from app.models.containers import Container
 from datetime import datetime, timezone
 from app import db
