@@ -109,7 +109,6 @@ class TestAssetRouting(unittest.TestCase):
             self.assertFalse(is_referer_asset, 
                            f"Path '{path}' should NOT be detected as asset in referer")
 
-
 if __name__ == '__main__':
     print("=" * 60)
     print("Asset Routing Tests")

@@ -149,7 +149,6 @@ class TestAssetRoutingIntegration(unittest.TestCase):
         # - Use container 'julian.kiedaisch-ubuntu-vscode'
         # - Request path 'assets/ui-D357AMxM.js' from that container
 
-
 if __name__ == '__main__':
     print("=" * 60)
     print("Asset Routing Integration Tests")
