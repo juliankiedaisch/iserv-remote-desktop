@@ -64,16 +64,18 @@ def test_is_container_startup_error():
                 print("  ✗ RemoteDisconnected ConnectionError incorrectly identified as non-startup error")
                 return False
         
-        # Test 3: ConnectionError with ProtocolError (should return True)
+        # Test 3: ConnectionError with ProtocolError as __cause__ (should return True)
         try:
             protocol_error = ProtocolError("Connection aborted.")
-            raise requests.exceptions.ConnectionError(protocol_error)
+            conn_error = requests.exceptions.ConnectionError("Connection failed")
+            conn_error.__cause__ = protocol_error
+            raise conn_error
         except requests.exceptions.ConnectionError as e:
             result = is_container_startup_error(e)
             if result:
-                print("  ✓ ProtocolError ConnectionError correctly identified as startup error")
+                print("  ✓ ProtocolError (via __cause__) correctly identified as startup error")
             else:
-                print("  ✗ ProtocolError ConnectionError incorrectly identified as non-startup error")
+                print("  ✗ ProtocolError (via __cause__) incorrectly identified as non-startup error")
                 return False
         
         print("✓ All is_container_startup_error tests passed")
@@ -117,10 +119,16 @@ def test_retry_configuration():
                 all_passed = False
         
         # Calculate total retry time
+        # Note: We use RETRIES - 1 because the first attempt has no delay
+        # Only retry attempts (not the initial attempt) have backoff delays
         total_retry_time = sum(CONTAINER_STARTUP_BACKOFF * (2 ** i) 
                               for i in range(CONTAINER_STARTUP_RETRIES - 1))
         print(f"\n  Total retry time (excluding initial attempt): {total_retry_time:.1f}s")
-        print(f"  With 5 retries: 2s + 4s + 8s + 16s = {total_retry_time:.1f}s")
+        
+        # Show the actual delay sequence
+        delays = [CONTAINER_STARTUP_BACKOFF * (2 ** i) for i in range(CONTAINER_STARTUP_RETRIES - 1)]
+        delay_str = " + ".join(f"{d:.0f}s" for d in delays)
+        print(f"  With {CONTAINER_STARTUP_RETRIES} retries: {delay_str} = {total_retry_time:.1f}s")
         
         if total_retry_time >= 20:
             print("  ✓ Total retry time is sufficient for container startup")

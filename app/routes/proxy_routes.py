@@ -19,7 +19,7 @@ DEFAULT_RETRIES = 3  # number of retry attempts for transient failures
 DEFAULT_BACKOFF_FACTOR = 0.3  # exponential backoff factor (0.3s, 0.6s, 1.2s)
 # Retry settings for container startup scenarios
 CONTAINER_STARTUP_RETRIES = 5  # number of retries for container startup issues
-CONTAINER_STARTUP_BACKOFF = 2.0  # initial backoff in seconds (2s, 4s, 8s, 16s, 32s)
+CONTAINER_STARTUP_BACKOFF = 2.0  # initial backoff in seconds (2s, 4s, 8s, 16s for retries 1-4)
 # Hop-by-hop headers are connection-specific and should not be forwarded in proxy scenarios
 # They control the connection between the client and proxy, not between proxy and target server
 HOP_BY_HOP_HEADERS = frozenset([
@@ -71,11 +71,17 @@ def is_container_startup_error(exception):
     """
     # Check for RemoteDisconnected errors (connection closed before response)
     if isinstance(exception, requests.exceptions.ConnectionError):
-        # Check if the underlying cause is a ProtocolError or RemoteDisconnected
-        cause = exception.args[0] if exception.args else None
-        if isinstance(cause, ProtocolError):
+        # Check the underlying cause via __cause__ attribute
+        cause = exception.__cause__
+        if cause and isinstance(cause, ProtocolError):
             return True
-        # Check the string representation for RemoteDisconnected
+        
+        # Also check __context__ for wrapped exceptions
+        context = exception.__context__
+        if context and isinstance(context, ProtocolError):
+            return True
+            
+        # Check the string representation for RemoteDisconnected as fallback
         error_str = str(exception)
         if 'RemoteDisconnected' in error_str or 'Remote end closed connection' in error_str:
             return True
