@@ -25,12 +25,12 @@ def create_app(debug=False):
     app.config['SESSION_COOKIE_DOMAIN'] = f'.{urlparse(app.config["FRONTEND_URL"]).hostname}'
     app.config['SESSION_COOKIE_SECURE'] = False
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-    app.config['SESSION_COOKIE_PATH'] = '/backend'
+    app.config['SESSION_COOKIE_PATH'] = '/'
     
     # Important: Set the correct server name if using subdomain session cookies
     app.config['SERVER_NAME'] = urlparse(app.config["FRONTEND_URL"]).hostname  # Adjust to your domain
     #app.config['PREFERRED_URL_SCHEME'] = 'https'
-    app.config['APPLICATION_ROOT'] = '/backend'
+    app.config['APPLICATION_ROOT'] = '/'
     
     # Fix for proxied requests
     app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1, x_port=1, x_prefix=1)

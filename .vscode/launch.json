@@ -1,0 +1,24 @@
+                                                                                     
+{
+  "version": "0.2.0",
+  "compounds": [
+    {
+      "name": "Scratch + Backend",
+      "configurations": ["Run Backend (Python)", "Run Scratch (npm)"],
+      "stopAll": true,
+      "preLaunchTask": ""
+    }
+  ],
+  "configurations": [
+    {
+      "name": "Run Backend (Python)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/run.py", // passe den Pfad ggf. an
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}
+
+

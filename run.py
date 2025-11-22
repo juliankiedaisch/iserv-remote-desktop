@@ -18,4 +18,4 @@ with app.app_context():
 run_migrations()
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5006 , debug=True)
+    app.run(host='0.0.0.0', port=5020 , debug=True)
