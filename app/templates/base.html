@@ -136,10 +136,10 @@
     <script>
         // Get session ID from URL parameters
         const urlParams = new URLSearchParams(window.location.search);
-        const sessionId = urlParams.get('session_id') || localStorage.getItem('session_id');
+        const sessionIdurl = urlParams.get('session_id') || localStorage.getItem('session_id');
         
-        if (sessionId && !localStorage.getItem('session_id')) {
-            localStorage.setItem('session_id', sessionId);
+        if (sessionIdurl && !localStorage.getItem('session_id')) {
+            localStorage.setItem('session_id', sessionIdurl);
             // Clean URL
             window.history.replaceState({}, document.title, window.location.pathname);
         }

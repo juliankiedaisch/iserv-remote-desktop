@@ -59,7 +59,7 @@ def create_app(debug=False):
         token_endpoint_auth_method='client_secret_post',
         
     )
-
+    print(app.config['OAUTH_REDIRECT_URI'])
     # Register blueprints
     from app.routes.auth_routes import auth_bp
     from app.routes.container_routes import container_bp
