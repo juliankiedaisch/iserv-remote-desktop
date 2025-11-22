@@ -32,6 +32,12 @@ db/
 *.sqlite3
 flask_session/
 
+# SSL certificates (use your own certificates, don't commit them)
+ssl/
+*.pem
+*.crt
+*.key
+
 # User-specific files
 *.rsuser
 *.suo

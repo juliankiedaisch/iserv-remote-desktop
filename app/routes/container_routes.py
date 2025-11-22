@@ -230,11 +230,13 @@ def list_containers(oauth_session):
         container_list = []
         
         for container in containers:
-            status = docker_manager.get_container_status(container)
+            status_info = docker_manager.get_container_status(container)
             url = docker_manager.get_container_url(container)
             
             container_info = container.to_dict()
-            container_info['status'] = status
+            # Update status from actual Docker state
+            container_info['status'] = status_info.get('status', container.status)
+            container_info['docker_status'] = status_info.get('docker_status', 'unknown')
             container_info['url'] = url
             container_list.append(container_info)
         

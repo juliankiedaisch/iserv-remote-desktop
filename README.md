@@ -117,32 +117,40 @@ Key Docker/Kasm settings:
 
 ## Container Access Architecture
 
-The application uses a **reverse proxy architecture** to provide seamless access to Kasm containers:
+The application uses a **reverse proxy architecture** with nginx to provide seamless access to Kasm containers:
 
 ### URL Structure
-Containers are accessed via: `http://{DOCKER_HOST_URL}/desktop/{username}-{desktop-type}`
+Containers are accessed via: `https://{DOCKER_HOST_URL}/desktop/{username}-{desktop-type}`
 
 Examples:
-- `http://example.com/desktop/john-ubuntu-vscode`
-- `http://example.com/desktop/jane-ubuntu-desktop`
-- `http://example.com/desktop/bob-ubuntu-chromium`
+- `https://example.com/desktop/john-ubuntu-vscode`
+- `https://example.com/desktop/jane-ubuntu-desktop`
+- `https://example.com/desktop/bob-ubuntu-chromium`
 
 ### How It Works
 1. Each container is assigned:
    - A unique host port (7000-8000 range) for internal communication
    - A unique proxy path (`{username}-{desktop-type}`) for external access
-2. The Flask application includes a reverse proxy route (`/desktop/<path>`)
-3. All requests to `/desktop/*` are forwarded to the appropriate container port
+2. Nginx acts as a reverse proxy with proper WebSocket support
+3. All requests to `/desktop/*` are forwarded through Flask to the appropriate container port
 4. Multiple users can access their containers simultaneously via unique proxy paths
 
 ### Production Deployment
-For production environments with proper WebSocket support:
-1. Use the included `nginx.conf` for nginx reverse proxy configuration
-2. Uncomment the nginx service in `docker-compose.yml`
-3. Nginx will handle WebSocket connections for noVNC properly
-4. Access the application through nginx (port 80/443)
+The application is configured for production use with nginx:
+1. Nginx handles SSL/TLS termination (required for port 443 access)
+2. Proper WebSocket support for noVNC connections
+3. Access the application through nginx on ports 80 (HTTP) and 443 (HTTPS)
+4. **SSL Setup**: See [SSL_SETUP.md](SSL_SETUP.md) for detailed SSL/HTTPS configuration
+
+**Important**: For production environments where only port 443 is accessible, SSL configuration is mandatory. See [SSL_SETUP.md](SSL_SETUP.md) for setup instructions.
 
 ## Security Considerations
+
+### SSL/HTTPS
+- **Required for production**: When only port 443 is accessible from the internet
+- Ensures secure WebSocket connections for noVNC
+- See [SSL_SETUP.md](SSL_SETUP.md) for setup instructions
+- Use Let's Encrypt for free, automated certificates
 
 ### Docker Socket Access
 The application requires access to the Docker socket (`/var/run/docker.sock`) to create and manage containers. This grants significant privileges. For production environments, consider:

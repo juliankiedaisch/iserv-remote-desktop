@@ -19,8 +19,9 @@ services:
     build: .
     expose:
       - "5006"
-    ports:
-      - "5006:5006"  # Keep direct access for development
+    # Only expose port for development/debugging if needed
+    # ports:
+    #   - "5006:5006"
     environment:
       DEBUG: ${DEBUG:-False}
       FLASK_ENV: ${FLASK_ENV:-production}
@@ -41,6 +42,7 @@ services:
       KASM_CONTAINER_PORT: ${KASM_CONTAINER_PORT:-6901}
       VNC_PASSWORD: ${VNC_PASSWORD:-password}
       DOCKER_HOST_URL: ${DOCKER_HOST_URL:-localhost}
+      DOCKER_HOST_PROTOCOL: ${DOCKER_HOST_PROTOCOL:-https}
     volumes:
       # Mount Docker socket to allow container creation
       # WARNING: This grants full Docker daemon access. Use Docker-in-Docker or
@@ -54,20 +56,21 @@ services:
       - app-network
     restart: unless-stopped
 
-  # Nginx reverse proxy (optional, recommended for production)
-  # Uncomment to enable nginx with proper WebSocket support
-  # nginx:
-  #   image: nginx:alpine
-  #   ports:
-  #     - "80:80"
-  #     - "443:443"
-  #   volumes:
-  #     - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-  #   depends_on:
-  #     - app
-  #   networks:
-  #     - app-network
-  #   restart: unless-stopped
+  # Nginx reverse proxy for production WebSocket support and SSL termination
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # Mount SSL certificates here (create self-signed or use Let's Encrypt)
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - app
+    networks:
+      - app-network
+    restart: unless-stopped
 
 volumes:
   postgres_data:
