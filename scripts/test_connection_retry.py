@@ -128,7 +128,7 @@ def test_retry_configuration():
         # Show the actual delay sequence
         delays = [CONTAINER_STARTUP_BACKOFF * (2 ** i) for i in range(CONTAINER_STARTUP_RETRIES - 1)]
         delay_str = " + ".join(f"{d:.0f}s" for d in delays)
-        print(f"  With {CONTAINER_STARTUP_RETRIES} retries: {delay_str} = {total_retry_time:.1f}s")
+        print(f"  With {CONTAINER_STARTUP_RETRIES} total attempts ({CONTAINER_STARTUP_RETRIES - 1} retries): {delay_str} = {total_retry_time:.1f}s")
         
         if total_retry_time >= 20:
             print("  ✓ Total retry time is sufficient for container startup")

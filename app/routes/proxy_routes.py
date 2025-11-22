@@ -18,8 +18,8 @@ PROXY_READ_TIMEOUT = 300  # seconds to wait for response (5 minutes for desktop 
 DEFAULT_RETRIES = 3  # number of retry attempts for transient failures
 DEFAULT_BACKOFF_FACTOR = 0.3  # exponential backoff factor (0.3s, 0.6s, 1.2s)
 # Retry settings for container startup scenarios
-CONTAINER_STARTUP_RETRIES = 5  # number of retries for container startup issues
-CONTAINER_STARTUP_BACKOFF = 2.0  # initial backoff in seconds (2s, 4s, 8s, 16s for retries 1-4)
+CONTAINER_STARTUP_RETRIES = 5  # total attempts (1 initial + 4 retries)
+CONTAINER_STARTUP_BACKOFF = 2.0  # initial backoff in seconds (delays: 2s, 4s, 8s, 16s for attempts 2-5)
 # Hop-by-hop headers are connection-specific and should not be forwarded in proxy scenarios
 # They control the connection between the client and proxy, not between proxy and target server
 HOP_BY_HOP_HEADERS = frozenset([
