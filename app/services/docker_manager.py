@@ -115,30 +115,39 @@ class DockerManager:
                 Container.user_id == user_id  # Only cleanup user's own containers
             ).all()
             
+            # Track which container IDs we've already cleaned up to avoid duplicates
+            cleaned_container_ids = set()
+            
             for conflicting in conflicting_containers:
+                # Skip if we already cleaned up this container
+                if conflicting.id in cleaned_container_ids:
+                    continue
+                
+                cleaned_container_ids.add(conflicting.id)
+                
                 current_app.logger.info(
                     f"Found conflicting container {conflicting.container_name} "
                     f"(proxy_path: {conflicting.proxy_path}, status: {conflicting.status}), cleaning up"
                 )
                 # Try to remove the Docker container if it exists
-                docker_removed = False
+                proceed_with_db_cleanup = False
                 if conflicting.container_id:
                     try:
                         container = self.client.containers.get(conflicting.container_id)
                         container.remove(force=True)
                         current_app.logger.info(f"Removed conflicting Docker container {conflicting.container_id}")
-                        docker_removed = True
+                        proceed_with_db_cleanup = True
                     except NotFound:
                         current_app.logger.info(f"Conflicting Docker container {conflicting.container_id} not found")
-                        docker_removed = True
+                        proceed_with_db_cleanup = True
                     except Exception as e:
                         current_app.logger.warning(f"Failed to remove conflicting Docker container: {str(e)}")
                         # Continue anyway - we'll try to remove the DB record
-                        docker_removed = True
+                        proceed_with_db_cleanup = True
                 else:
-                    docker_removed = True
+                    proceed_with_db_cleanup = True
                 
-                if docker_removed:
+                if proceed_with_db_cleanup:
                     db.session.delete(conflicting)
                     db.session.commit()
                     current_app.logger.info(f"Removed database record for conflicting container {conflicting.container_name}")

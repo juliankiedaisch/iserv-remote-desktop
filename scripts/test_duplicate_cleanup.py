@@ -34,7 +34,7 @@ def test_proxy_path_conflict():
             test_user_id = str(uuid.uuid4())
             test_session_id_1 = str(uuid.uuid4())
             test_session_id_2 = str(uuid.uuid4())
-            test_username = "julian.kiedaisch"
+            test_username = "test.user1"
             desktop_type = "ubuntu-vscode"
             
             # Generate the proxy path that would be used
@@ -132,7 +132,7 @@ def test_container_name_conflict():
             # Create test data
             test_user_id = str(uuid.uuid4())
             test_session_id = str(uuid.uuid4())
-            test_username = "julian.kiedaisch"
+            test_username = "test.user2"
             desktop_type = "ubuntu-desktop"
             
             # Generate the container name that would be used
