@@ -7,6 +7,9 @@ from datetime import datetime, timezone
 from app import db
 import time
 
+# Import DockerManager for status checks (avoid import overhead during error handling)
+from app.services.docker_manager import DockerManager
+
 proxy_bp = Blueprint('proxy', __name__)
 
 
@@ -82,7 +85,8 @@ def proxy_to_container(proxy_path, subpath=''):
         # Forward the request to the container with retry logic
         try:
             # Create session with retry logic for transient failures
-            session = create_retry_session(retries=3, backoff_factor=0.5)
+            # Using 3 retries with exponential backoff (0.3s, 0.6s, 1.2s)
+            session = create_retry_session(retries=3)
             
             # Use longer timeout for desktop environments (5 minutes)
             # Desktop operations can involve large file transfers and rendering
@@ -119,7 +123,6 @@ def proxy_to_container(proxy_path, subpath=''):
             current_app.logger.error(f"Connection error proxying to container: {str(e)}")
             # Check if container is still running
             try:
-                from app.services.docker_manager import DockerManager
                 manager = DockerManager()
                 status = manager.get_container_status(container)
                 if status['status'] != 'running':
