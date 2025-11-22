@@ -131,8 +131,7 @@ def proxy_to_container(proxy_path, subpath=''):
             
         except requests.exceptions.ConnectionError as e:
             current_app.logger.error(f"Connection error proxying to container: {str(e)}")
-            # Check if container is still running
-            # get_container_status returns dict with 'status', 'docker_status', and optionally 'host_port', 'created_at', 'error'
+            # Check if container is still running before returning error
             try:
                 manager = DockerManager()
                 status = manager.get_container_status(container)

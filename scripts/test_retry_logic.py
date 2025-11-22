@@ -65,7 +65,7 @@ def test_retry_session_custom_params():
             print(f"✗ Expected backoff factor 1.0, got {adapter.max_retries.backoff_factor}")
             return False
         
-        # Direct frozenset comparison (immutability benefit, not performance)
+        # Use frozenset for comparison as that's what Retry uses internally
         expected_status_forcelist = frozenset([500, 503])
         if adapter.max_retries.status_forcelist != expected_status_forcelist:
             print(f"✗ Unexpected status forcelist: {adapter.max_retries.status_forcelist}")
