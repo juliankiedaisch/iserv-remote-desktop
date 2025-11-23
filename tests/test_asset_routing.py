@@ -30,6 +30,7 @@ class TestAssetRouting(unittest.TestCase):
             ('dist/bundle.js', True),
             ('build/app.js', True),
             ('locale/de.json', True),
+            ('app/locale/de.json', True),  # app path should be treated as asset
             # File extensions should also be detected as assets
             ('package.json', True),
             ('config.js', True),
@@ -47,8 +48,6 @@ class TestAssetRouting(unittest.TestCase):
             ('assets-bar', False),
             ('my-assets', False),
             ('jsfoo', False),
-            # App path should NOT be treated as asset
-            ('app/locale/de.json', False),
         ]
         
         for path, expected_is_asset in test_cases:

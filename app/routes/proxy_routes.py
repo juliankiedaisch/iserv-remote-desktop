@@ -1,4 +1,4 @@
-from flask import Blueprint, request, Response, current_app
+from flask import Blueprint, request, Response, current_app, session
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -31,8 +31,8 @@ ALLOWED_HTTP_METHODS = frozenset([
 DEFAULT_STATUS_FORCELIST = frozenset([500, 502, 503, 504])
 # Asset path prefixes that are commonly used in web applications
 # These paths should not be treated as container proxy paths
-# Note: 'app' is NOT included because Kasm uses /desktop/app/ for application files
-ASSET_PREFIXES = ('assets', 'js', 'css', 'fonts', 'images', 'static', 'dist', 'build', 'locale')
+# Note: 'app' IS included because Kasm uses /desktop/app/ for application files (like locale files)
+ASSET_PREFIXES = ('assets', 'js', 'css', 'fonts', 'images', 'static', 'dist', 'build', 'locale', 'app')
 
 # File extensions that indicate asset/configuration files (not container names)
 ASSET_EXTENSIONS = ('.json', '.css', '.js', '.svg', '.png', '.jpg', '.jpeg', '.gif', '.woff', '.woff2', '.ttf', '.eot', '.ico', '.oga', '.mp3', '.wav')
@@ -137,6 +137,21 @@ def proxy_to_container(proxy_path, subpath=''):
                                 subpath = f"{proxy_path}/{subpath}"
                             else:
                                 subpath = proxy_path
+            
+            # If still no container found from Referer, try to get from session
+            # This handles nested asset references where the Referer itself is an asset
+            if not container:
+                session_container_name = session.get('current_container')
+                if session_container_name:
+                    current_app.logger.debug(f"Trying container from session: {session_container_name}")
+                    container = Container.get_by_proxy_path(session_container_name)
+                    if container:
+                        current_app.logger.debug(f"Found container from session: {session_container_name}")
+                        # Reconstruct the full asset path
+                        if subpath:
+                            subpath = f"{proxy_path}/{subpath}"
+                        else:
+                            subpath = proxy_path
         
         if not container:
             current_app.logger.warning(f"No running container found for proxy path: {proxy_path}")
@@ -145,6 +160,12 @@ def proxy_to_container(proxy_path, subpath=''):
         if not container.host_port:
             current_app.logger.error(f"Container {container.container_name} has no host port assigned")
             return Response("Container port not available", status=500)
+        
+        # Store container in session for future asset requests
+        # Only update session for non-asset requests (actual desktop page access)
+        if not is_potential_asset:
+            session['current_container'] = container.proxy_path
+            current_app.logger.debug(f"Stored container in session: {container.proxy_path}")
         
         # Update last accessed time
         container.last_accessed = datetime.now(timezone.utc)
@@ -188,7 +209,7 @@ def proxy_to_container(proxy_path, subpath=''):
             # Create session with retry logic for transient failures
             # Disable SSL verification for localhost connections with self-signed certificates
             verify_ssl = os.environ.get('KASM_VERIFY_SSL', 'false').lower() == 'true'
-            session = create_retry_session(verify_ssl=verify_ssl)
+            requests_session = create_retry_session(verify_ssl=verify_ssl)
             
             # Suppress SSL warnings when verification is disabled
             if not verify_ssl:
@@ -196,7 +217,7 @@ def proxy_to_container(proxy_path, subpath=''):
             
             # Use longer timeout for desktop environments
             # Desktop operations can involve large file transfers and rendering
-            resp = session.request(
+            resp = requests_session.request(
                 method=request.method,
                 url=target_url,
                 headers=headers,
@@ -352,14 +373,14 @@ def proxy_websocket_root():
     # Apache RewriteRule converts this to ws:// and handles the upgrade
     try:
         verify_ssl = os.environ.get('KASM_VERIFY_SSL', 'false').lower() == 'true'
-        session = create_retry_session(verify_ssl=verify_ssl)
+        requests_session = create_retry_session(verify_ssl=verify_ssl)
         
         if not verify_ssl:
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         
         # Forward the initial WebSocket handshake request
         # Apache will intercept this and upgrade the connection to WebSocket
-        resp = session.request(
+        resp = requests_session.request(
             method=request.method,
             url=target_url,
             headers=headers,
