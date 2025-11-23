@@ -304,9 +304,9 @@ If the fix causes issues, rollback:
 ## Documentation
 
 For more information, see:
-- [WEBSOCKET_HEADER_FIX.md](../WEBSOCKET_HEADER_FIX.md) - Detailed explanation of the fix
-- [APACHE_SETUP.md](../APACHE_SETUP.md) - Complete Apache setup guide
-- [WEBSOCKET_FIX.md](../WEBSOCKET_FIX.md) - Original WebSocket implementation
+- [WEBSOCKET_HEADER_FIX.md](WEBSOCKET_HEADER_FIX.md) - Detailed explanation of the fix
+- [APACHE_SETUP.md](APACHE_SETUP.md) - Complete Apache setup guide
+- [WEBSOCKET_FIX.md](WEBSOCKET_FIX.md) - Original WebSocket implementation
 
 ## Support
 
