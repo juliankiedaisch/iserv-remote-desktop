@@ -186,3 +186,35 @@ The application requires access to the Docker socket (`/var/run/docker.sock`) to
 - Rotate VNC passwords regularly
 - Use strong, unique passwords for all services
 
+## Troubleshooting
+
+### WebSocket Connection Issues (Code 1006/1005)
+
+If you see errors like "Connection closed (code: 1006)" or "Failed when connecting", this is typically caused by Apache not forwarding WebSocket upgrade headers to Flask.
+
+**Quick Fix:**
+1. Update your Apache configuration with WebSocket header forwarding (see `apache.conf`)
+2. Run the validation script: `./scripts/validate_apache_websocket.sh`
+3. Reload Apache: `sudo systemctl reload apache2`
+
+**Detailed Information:**
+- [WEBSOCKET_HEADER_FIX.md](WEBSOCKET_HEADER_FIX.md) - Complete explanation and fix
+- [TESTING_WEBSOCKET_FIX.md](TESTING_WEBSOCKET_FIX.md) - Testing procedures
+- [APACHE_SETUP.md](APACHE_SETUP.md) - Full Apache configuration guide
+
+**Check if headers are being forwarded:**
+```bash
+# Watch Flask logs
+docker-compose logs -f app | grep websockify
+
+# Expected (GOOD): "WebSocket upgrade request detected"
+# Problem (BAD): "NOT a WebSocket upgrade request"
+```
+
+### Other Common Issues
+
+For other issues, see:
+- [APACHE_SETUP.md](APACHE_SETUP.md) - Apache configuration troubleshooting
+- [USAGE.md](USAGE.md) - Usage examples and common scenarios
+- [TESTING_GUIDE.md](TESTING_GUIDE.md) - Testing procedures
+
