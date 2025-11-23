@@ -26,10 +26,12 @@ with app.app_context():
 PYTHON_SCRIPT
 
 # Start the application with gunicorn
+# Using gevent worker with gevent-websocket for WebSocket support
+# This provides wsgi.websocket in request.environ for WebSocket routes
 echo "Starting application server..."
 exec gunicorn --bind 0.0.0.0:5006 \
     --workers 4 \
-    --worker-class eventlet \
+    --worker-class geventwebsocket.gunicorn.workers.GeventWebSocketWorker \
     --timeout 120 \
     --access-logfile - \
     --error-logfile - \
