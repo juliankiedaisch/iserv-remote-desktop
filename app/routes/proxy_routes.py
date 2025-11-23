@@ -321,7 +321,8 @@ def proxy_websocket_root():
     """
     referer = request.headers.get('Referer', '')
     current_app.logger.info(f"WebSocket request at /websockify with Referer: {referer}")
-    current_app.logger.debug(f"Request headers: {dict(request.headers)}")
+    # Log minimal information for debugging without exposing sensitive session data
+    current_app.logger.debug(f"Session has current_container: {bool(session.get('current_container'))}")
     
     # Check if this is a WebSocket upgrade request
     ws = request.environ.get('wsgi.websocket')
@@ -335,7 +336,7 @@ def proxy_websocket_root():
         if ws:
             current_app.logger.info("wsgi.websocket object is available")
         else:
-            current_app.logger.info("wsgi.websocket object is NOT available (may be handled by Apache)")
+            current_app.logger.warning("wsgi.websocket object is NOT available (may be handled by Apache)")
     else:
         current_app.logger.info("NOT a WebSocket upgrade request")
     
@@ -354,6 +355,7 @@ def proxy_websocket_root():
         match = re.search(r'/desktop/([^/?#]+)', referer)
         if match:
             referer_proxy_path = match.group(1)
+            current_app.logger.info(f"Extracted proxy_path from Referer: {referer_proxy_path}")
             
             # Validate extracted path length
             if len(referer_proxy_path) > 255:  # Max reasonable proxy path length
@@ -365,22 +367,55 @@ def proxy_websocket_root():
                 # Find the container
                 container = Container.get_by_proxy_path(referer_proxy_path)
                 if container:
-                    current_app.logger.debug(f"Found container from Referer: {referer_proxy_path}")
+                    current_app.logger.info(f"Found container from Referer: {referer_proxy_path} -> {container.container_name}")
+                else:
+                    current_app.logger.warning(f"Container not found for proxy_path from Referer: {referer_proxy_path}")
             else:
                 current_app.logger.debug(f"Referer path is an asset: {referer_proxy_path}, trying session")
+        else:
+            current_app.logger.warning(f"Could not extract proxy_path from Referer: {referer}")
+    else:
+        current_app.logger.warning("No Referer header in WebSocket request")
     
     # If no container found from Referer, try session
     if not container:
         session_container_name = session.get('current_container')
+        current_app.logger.info(f"Trying to find container from session: {session_container_name}")
         if session_container_name:
             current_app.logger.debug(f"Trying container from session for WebSocket: {session_container_name}")
             container = Container.get_by_proxy_path(session_container_name)
             if container:
-                current_app.logger.debug(f"Found container from session for WebSocket: {session_container_name}")
+                current_app.logger.info(f"Found container from session for WebSocket: {session_container_name} -> {container.container_name}")
+            else:
+                current_app.logger.warning(f"Container not found for proxy_path from session: {session_container_name}")
+        else:
+            current_app.logger.warning("No current_container in session")
     
     if not container:
-        current_app.logger.warning(f"No running container found for websocket (Referer: {referer})")
-        return Response("Container not found or not running. Please access the desktop page first.", status=404)
+        session_container = session.get('current_container')
+        error_msg = f"No running container found for websocket (Referer: {referer}, Session container: {'present' if session_container else 'missing'})"
+        current_app.logger.warning(error_msg)
+        
+        # For WebSocket requests, return a proper error response
+        # Use code 1011 (server error) when container is not found
+        # Code 1002 would be for protocol errors, which this is not
+        if is_websocket:
+            # If we have a ws object, close it properly with an error code
+            if ws:
+                try:
+                    ws.close(1011, "Container not found")
+                except Exception as e:
+                    current_app.logger.error(f"Error closing WebSocket: {e}")
+                return None
+            else:
+                # No ws object, return HTTP error
+                return Response(
+                    "Container not found or not running. Please access the desktop page first to establish a session.",
+                    status=404,
+                    mimetype='text/plain'
+                )
+        else:
+            return Response("Container not found or not running. Please access the desktop page first.", status=404)
     
     if not container.host_port:
         current_app.logger.error(f"Container {container.container_name} has no host port assigned")
@@ -396,10 +431,10 @@ def proxy_websocket_root():
     
     current_app.logger.info(f"Proxying WebSocket to container {container.container_name} on port {container.host_port}")
     
-    # If this is a WebSocket upgrade request and we have a WebSocket object from eventlet/gunicorn
+    # If this is a WebSocket upgrade request and we have a WebSocket object from gevent-websocket
     if ws:
-        current_app.logger.info("Handling WebSocket with eventlet")
-        return _proxy_websocket_with_eventlet(ws, container, use_ssl)
+        current_app.logger.info("Handling WebSocket with gevent-websocket")
+        return _proxy_websocket_with_gevent(ws, container, use_ssl)
     elif is_websocket:
         # WebSocket upgrade request but no ws object (e.g., running with Werkzeug dev server)
         # Return a proper WebSocket handshake response that Apache/Nginx can intercept
@@ -416,13 +451,13 @@ def proxy_websocket_root():
         )
 
 
-def _proxy_websocket_with_eventlet(ws, container, use_ssl):
+def _proxy_websocket_with_gevent(ws, container, use_ssl):
     """
     Proxy WebSocket connection between client and container using gevent
     
-    Note: Despite the function name referencing 'eventlet', this implementation
-    uses gevent-websocket which is the proper WebSocket handler when running with
-    gunicorn + GeventWebSocketWorker or the gevent-websocket development server.
+    This implementation uses gevent-websocket which provides the WebSocket handler
+    when running with gunicorn + GeventWebSocketWorker or the gevent-websocket 
+    development server (pywsgi.WSGIServer with WebSocketHandler).
     
     Why Manual WebSocket Upgrade is Necessary:
     ==========================================
@@ -669,29 +704,62 @@ def _return_websocket_handshake(container, use_ssl):
 @proxy_bp.route('/desktop/<path:proxy_path>/websockify', methods=['GET'])
 def proxy_websocket(proxy_path):
     """
-    Special handler for WebSocket connections (used by Kasm/noVNC)
+    Special handler for WebSocket connections at /desktop/<proxy_path>/websockify
     
-    Note: This is a simplified version. For production, use a proper 
-    WebSocket proxy like nginx or a Flask-SocketIO implementation.
+    This handles WebSocket connections that include the container path in the URL.
+    This is more reliable than the root /websockify endpoint because the container
+    is explicitly specified in the URL rather than inferred from Referer/session.
     """
+    current_app.logger.info(f"WebSocket request at /desktop/{proxy_path}/websockify")
+    
     container = Container.get_by_proxy_path(proxy_path)
     
     if not container:
         current_app.logger.warning(f"No running container found for websocket proxy path: {proxy_path}")
         return Response("Container not found or not running", status=404)
     
-    # For WebSocket connections, we need a proper WebSocket proxy
-    # This is a placeholder that redirects to the direct WebSocket endpoint
-    # In production, use nginx or another proper WebSocket proxy
-    current_app.logger.warning(
-        f"WebSocket proxy requested for {proxy_path}. "
-        f"Consider using nginx for WebSocket proxying in production."
+    if not container.host_port:
+        current_app.logger.error(f"Container {container.container_name} has no host port assigned")
+        return Response("Container port not available", status=500)
+    
+    # Update last accessed time
+    container.last_accessed = datetime.now(timezone.utc)
+    db.session.commit()
+    
+    # Determine protocol based on environment variable
+    container_protocol = os.environ.get('KASM_CONTAINER_PROTOCOL', 'https')
+    use_ssl = container_protocol == 'https'
+    
+    current_app.logger.info(f"Proxying WebSocket to container {container.container_name} on port {container.host_port}")
+    
+    # Check if this is a WebSocket upgrade request
+    ws = request.environ.get('wsgi.websocket')
+    is_websocket = ws is not None or (
+        request.headers.get('Upgrade', '').lower() == 'websocket' and
+        'upgrade' in request.headers.get('Connection', '').lower()
     )
     
-    # Return information about where the WebSocket should connect
-    # This is handled by nginx or the client needs to connect differently
-    return Response(
-        f"WebSocket endpoint: ws://localhost:{container.host_port}/websockify",
-        status=200,
-        mimetype='text/plain'
-    )
+    # If this is a WebSocket upgrade request and we have a WebSocket object
+    if ws:
+        current_app.logger.info("Handling WebSocket with gevent-websocket")
+        return _proxy_websocket_with_gevent(ws, container, use_ssl)
+    elif is_websocket:
+        # WebSocket upgrade request but no ws object
+        current_app.logger.error(
+            "WebSocket upgrade request detected but wsgi.websocket is not available! "
+            "This indicates a server configuration issue."
+        )
+        return Response(
+            "WebSocket not supported - server configuration error.",
+            status=500,
+            mimetype='text/plain'
+        )
+    else:
+        # Regular HTTP request (for testing/debugging)
+        current_app.logger.debug(f"Regular HTTP request to /desktop/{proxy_path}/websockify (not WebSocket)")
+        return Response(
+            f"This endpoint is for WebSocket connections only. "
+            f"Container: {container.container_name}, Port: {container.host_port}",
+            status=200,
+            mimetype='text/plain'
+        )
