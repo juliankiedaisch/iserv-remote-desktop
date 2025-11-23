@@ -19,6 +19,8 @@ proxy_bp = Blueprint('proxy', __name__)
 # Configuration constants
 PROXY_CONNECT_TIMEOUT = 10  # seconds to wait for initial connection
 PROXY_READ_TIMEOUT = 300  # seconds to wait for response (5 minutes for desktop operations)
+WEBSOCKET_PROXY_TIMEOUT = 3600  # seconds to wait for WebSocket proxy to complete (1 hour for desktop sessions)
+GREENLET_CLEANUP_WAIT = 0.1  # seconds to wait for greenlet cleanup after kill (100ms)
 DEFAULT_RETRIES = 3  # number of retry attempts for transient failures
 DEFAULT_BACKOFF_FACTOR = 0.3  # exponential backoff factor (0.3s, 0.6s, 1.2s)
 PROXY_CHUNK_SIZE = 64 * 1024  # 64KB chunks for streaming responses (optimal for desktop streaming)
@@ -489,7 +491,7 @@ def _proxy_websocket_with_eventlet(ws, container, use_ssl):
             current_app.logger.error(f"Failed to connect to container port {container.host_port}: {connect_error}")
             try:
                 ws.close(1011, "Cannot connect to container")
-            except:
+            except Exception:
                 pass
             return None
         # Remove timeout after connection is established
@@ -533,7 +535,7 @@ def _proxy_websocket_with_eventlet(ws, container, use_ssl):
                 # Close the client WebSocket with a proper close frame
                 try:
                     ws.close(1011, "Container connection failed")
-                except:
+                except Exception:
                     pass
                 return None
             response += chunk
@@ -541,7 +543,7 @@ def _proxy_websocket_with_eventlet(ws, container, use_ssl):
                 current_app.logger.error("WebSocket handshake response too large")
                 try:
                     ws.close(1009, "Handshake too large")
-                except:
+                except Exception:
                     pass
                 return None
         
@@ -551,7 +553,7 @@ def _proxy_websocket_with_eventlet(ws, container, use_ssl):
             # Close the client WebSocket with a proper close frame
             try:
                 ws.close(1002, "Container rejected connection")
-            except:
+            except Exception:
                 pass
             return None
         
@@ -572,7 +574,7 @@ def _proxy_websocket_with_eventlet(ws, container, use_ssl):
             finally:
                 try:
                     sock.shutdown(green_socket.SHUT_WR)
-                except:
+                except Exception:
                     pass
         
         def proxy_container_to_client():
@@ -586,26 +588,41 @@ def _proxy_websocket_with_eventlet(ws, container, use_ssl):
                     ws.send(data)
             except Exception as e:
                 current_app.logger.debug(f"Container to client proxy ended: {e}")
-            finally:
-                try:
-                    ws.close()
-                except:
-                    pass
         
         # Start bidirectional proxying in separate greenlets
         client_to_container = gevent.spawn(proxy_client_to_container)
         container_to_client = gevent.spawn(proxy_container_to_client)
         
-        # Wait for either direction to finish
-        gevent.wait([client_to_container, container_to_client], count=1)
+        # Wait for BOTH directions to complete with timeout (WEBSOCKET_PROXY_TIMEOUT)
+        # Note: joinall with timeout will stop waiting but NOT interrupt the greenlets
+        # This ensures proper cleanup before closing while preventing indefinite hangs
+        gevent.joinall([client_to_container, container_to_client], timeout=WEBSOCKET_PROXY_TIMEOUT)
         
-        # Clean up
+        # Check if any greenlet is still running after timeout
+        # If so, kill them and wait briefly for cleanup to complete
+        if not client_to_container.ready():
+            current_app.logger.warning("Client to container greenlet timed out, killing...")
+            client_to_container.kill(block=False)
+            gevent.sleep(GREENLET_CLEANUP_WAIT)
+        if not container_to_client.ready():
+            current_app.logger.warning("Container to client greenlet timed out, killing...")
+            container_to_client.kill(block=False)
+            gevent.sleep(GREENLET_CLEANUP_WAIT)
+        
+        # Close WebSocket with proper status code (1000 = normal closure)
+        # This prevents code 1005 ("no status received")
         try:
-            sock.close()
-        except:
+            ws.close(1000, "Connection closed normally")
+        except Exception:
             pass
         
-        current_app.logger.info("WebSocket proxy connection closed")
+        # Clean up container socket
+        try:
+            sock.close()
+        except Exception:
+            pass
+        
+        current_app.logger.info("WebSocket proxy connection closed normally")
         # Don't return an HTTP response after WebSocket is closed
         # The connection is already closed, just return None
         return None
@@ -616,13 +633,13 @@ def _proxy_websocket_with_eventlet(ws, container, use_ssl):
         try:
             # Try to close the WebSocket with an error code
             ws.close(1011, "Internal server error")
-        except:
+        except Exception:
             pass
         # Clean up socket if it was created
         if sock:
             try:
                 sock.close()
-            except:
+            except Exception:
                 pass
 
 
