@@ -322,9 +322,9 @@ def proxy_websocket_root():
     referer = request.headers.get('Referer', '')
     current_app.logger.info(f"WebSocket request at /websockify with Referer: {referer}")
     current_app.logger.debug(f"Request headers: {dict(request.headers)}")
-    # Log only session keys, not values, to avoid exposing sensitive data
+    # Log only presence of session data, not actual values, to protect sensitive information
     current_app.logger.debug(f"Session keys: {list(session.keys())}")
-    current_app.logger.debug(f"Session current_container: {session.get('current_container')}")
+    current_app.logger.debug(f"Session has current_container: {bool(session.get('current_container'))}")
     
     # Check if this is a WebSocket upgrade request
     ws = request.environ.get('wsgi.websocket')
@@ -394,7 +394,8 @@ def proxy_websocket_root():
             current_app.logger.warning("No current_container in session")
     
     if not container:
-        error_msg = f"No running container found for websocket (Referer: {referer}, Session: {session.get('current_container')})"
+        session_container = session.get('current_container')
+        error_msg = f"No running container found for websocket (Referer: {referer}, Session container: {'present' if session_container else 'missing'})"
         current_app.logger.warning(error_msg)
         
         # For WebSocket requests, return a proper error response
