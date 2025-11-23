@@ -12,6 +12,7 @@ import base64
 import re
 import socket
 import ssl
+import traceback
 
 proxy_bp = Blueprint('proxy', __name__)
 
@@ -289,12 +290,36 @@ def proxy_websocket_root():
     We need to determine which container this request is for by checking the Referer header,
     or falling back to the session if Referer is unavailable or points to an asset.
     
+    Physical Architecture:
+    =====================
+    SERVER 1 (Apache):           SERVER 2 (Docker Host):
+    - Browser → Apache           - Container 1: user1-vscode (port 7001)
+    - Let's Encrypt cert         - Container 2: user1-chromium (port 7002)
+    - Apache → Flask (ws://)     - Container 3: user2-vscode (port 7005)
+                                 - Container N: userN-desktop (port 700X)
+    Flask bridges between servers via network connection
+    
+    SSL Certificate Chain:
+    =====================
+    - Public: Browser → Apache (Let's Encrypt wildcard - TRUSTED)
+    - Internal: Apache → Flask (unencrypted localhost ws://)
+    - Container: Flask → Docker Host (self-signed cert - UNTRUSTED, verify disabled)
+    
+    Why Flask Cannot Be Bypassed:
+    =============================
+    1. Physical separation: Apache and containers on different servers
+    2. Multi-user routing: Multiple containers, multiple users, simultaneous access
+    3. Dynamic port lookup: Container ports determined from database query
+    4. SSL verification handling: Must disable cert verification for self-signed certs
+    5. Session/authentication: Must verify user has access to requested container
+    
     When running with gunicorn + GeventWebSocketWorker or gevent-websocket development server,
     WebSocket connections are available via request.environ.get('wsgi.websocket'). 
     This function handles both regular HTTP requests and WebSocket upgrade requests.
     """
     referer = request.headers.get('Referer', '')
-    current_app.logger.debug(f"WebSocket request at /websockify with Referer: {referer}")
+    current_app.logger.info(f"WebSocket request at /websockify with Referer: {referer}")
+    current_app.logger.debug(f"Request headers: {dict(request.headers)}")
     
     # Check if this is a WebSocket upgrade request
     ws = request.environ.get('wsgi.websocket')
@@ -304,7 +329,13 @@ def proxy_websocket_root():
     )
     
     if is_websocket:
-        current_app.logger.debug("WebSocket upgrade request detected")
+        current_app.logger.info("WebSocket upgrade request detected")
+        if ws:
+            current_app.logger.info("wsgi.websocket object is available")
+        else:
+            current_app.logger.info("wsgi.websocket object is NOT available (may be handled by Apache)")
+    else:
+        current_app.logger.info("NOT a WebSocket upgrade request")
     
     container = None
     
@@ -391,10 +422,47 @@ def _proxy_websocket_with_eventlet(ws, container, use_ssl):
     uses gevent-websocket which is the proper WebSocket handler when running with
     gunicorn + GeventWebSocketWorker or the gevent-websocket development server.
     
+    Why Manual WebSocket Upgrade is Necessary:
+    ==========================================
+    This function manually implements WebSocket upgrade to the container because:
+    
+    1. **Physical Server Separation**:
+       - Apache runs on one physical server (web server)
+       - Docker containers run on another physical server (Docker host)
+       - Flask bridges the communication between these servers
+       - Apache cannot directly access container ports
+    
+    2. **Multi-User Container Orchestration**:
+       - Multiple users with multiple containers simultaneously
+       - Example: user1-ubuntu-vscode (port 7001), user2-chromium (port 7005)
+       - Each container runs on a dynamically assigned port (7000-8000 range)
+       - Port assignment stored in database, queried by Flask
+    
+    3. **SSL Certificate Mismatch**: 
+       - Public-facing: Apache uses Let's Encrypt (trusted wildcard certificate)
+       - Container: Kasm uses self-signed certificate (untrusted)
+       - Flask acts as SSL termination point between trusted and untrusted certificates
+    
+    4. **Dynamic Port Mapping**:
+       - Port determined by database lookup: username + desktop_type → container_id → port
+       - Apache has no database access or knowledge of container ports
+       - Only Flask can route to the correct container
+    
+    5. **Security**:
+       - SSL verification must be disabled for container connections (self-signed certs)
+       - This is safe because containers are on isolated Docker host
+       - KASM_VERIFY_SSL=false allows this while maintaining public SSL security
+    
+    Architecture:
+    =============
+    Browser → Apache (wss:// with Let's Encrypt cert) → 
+    Flask (ws:// localhost) → [Network] →
+    Docker Host: Container (wss:// with self-signed cert)
+    
     Args:
         ws: gevent-websocket WebSocket object from request.environ['wsgi.websocket']
         container: Container object with connection details
-        use_ssl: Whether to use SSL for container connection
+        use_ssl: Whether to use SSL for container connection (based on KASM_CONTAINER_PROTOCOL)
     """
     import gevent
     from gevent import socket as green_socket
@@ -405,11 +473,27 @@ def _proxy_websocket_with_eventlet(ws, container, use_ssl):
     vnc_user = os.environ.get('VNC_USER', 'kasm_user')
     vnc_password = os.environ.get('VNC_PASSWORD', 'password')
     
+    sock = None
+    
     # Connect to the container's WebSocket endpoint
     try:
         # Create socket connection to container
+        current_app.logger.info(f"Attempting to connect to container at localhost:{container.host_port}")
         sock = green_socket.socket(green_socket.AF_INET, green_socket.SOCK_STREAM)
-        sock.connect(('localhost', container.host_port))
+        # Set socket timeout for connection
+        sock.settimeout(10)
+        try:
+            sock.connect(('localhost', container.host_port))
+            current_app.logger.info(f"Successfully connected to container port {container.host_port}")
+        except Exception as connect_error:
+            current_app.logger.error(f"Failed to connect to container port {container.host_port}: {connect_error}")
+            try:
+                ws.close(1011, "Cannot connect to container")
+            except:
+                pass
+            return None
+        # Remove timeout after connection is established
+        sock.settimeout(None)
         
         # Wrap with SSL if needed
         if use_ssl:
@@ -445,16 +529,31 @@ def _proxy_websocket_with_eventlet(ws, container, use_ssl):
         while b"\r\n\r\n" not in response:
             chunk = sock.recv(4096)
             if not chunk:
-                raise Exception("Container closed connection during WebSocket handshake")
+                current_app.logger.error("Container closed connection during WebSocket handshake")
+                # Close the client WebSocket with a proper close frame
+                try:
+                    ws.close(1011, "Container connection failed")
+                except:
+                    pass
+                return None
             response += chunk
             if len(response) > MAX_HANDSHAKE_SIZE:
-                raise Exception("WebSocket handshake response too large")
+                current_app.logger.error("WebSocket handshake response too large")
+                try:
+                    ws.close(1009, "Handshake too large")
+                except:
+                    pass
+                return None
         
         # Check if upgrade was successful
         if b"101" not in response.split(b"\r\n")[0]:
             current_app.logger.error(f"Container did not accept WebSocket upgrade: {response[:200]}")
-            ws.close()
-            return Response("Container did not accept WebSocket connection", status=502)
+            # Close the client WebSocket with a proper close frame
+            try:
+                ws.close(1002, "Container rejected connection")
+            except:
+                pass
+            return None
         
         current_app.logger.info("WebSocket upgrade successful, starting bidirectional proxy")
         
@@ -465,6 +564,7 @@ def _proxy_websocket_with_eventlet(ws, container, use_ssl):
                 while True:
                     message = ws.receive()
                     if message is None:
+                        current_app.logger.debug("Client closed WebSocket connection")
                         break
                     sock.sendall(message)
             except Exception as e:
@@ -481,6 +581,7 @@ def _proxy_websocket_with_eventlet(ws, container, use_ssl):
                 while True:
                     data = sock.recv(4096)
                     if not data:
+                        current_app.logger.debug("Container closed connection")
                         break
                     ws.send(data)
             except Exception as e:
@@ -505,15 +606,24 @@ def _proxy_websocket_with_eventlet(ws, container, use_ssl):
             pass
         
         current_app.logger.info("WebSocket proxy connection closed")
-        return Response("", status=200)
+        # Don't return an HTTP response after WebSocket is closed
+        # The connection is already closed, just return None
+        return None
         
     except Exception as e:
         current_app.logger.error(f"Error in WebSocket proxy: {str(e)}")
+        current_app.logger.error(f"Traceback: {traceback.format_exc()}")
         try:
-            ws.close()
+            # Try to close the WebSocket with an error code
+            ws.close(1011, "Internal server error")
         except:
             pass
-        return Response(f"WebSocket proxy error: {str(e)}", status=502)
+        # Clean up socket if it was created
+        if sock:
+            try:
+                sock.close()
+            except:
+                pass
 
 
 def _return_websocket_handshake(container, use_ssl):
