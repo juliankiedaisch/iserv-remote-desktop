@@ -158,37 +158,48 @@ Should return the same response
 
 ## Troubleshooting
 
-### Issue: WebSocket Connection Closes Immediately (Code 1005)
+### Issue: WebSocket Connection Closes Immediately (Code 1006 or 1005)
 
-**Symptom**: Browser shows `Failed when connecting: Connection closed (code: 1005)` after successful HTTP 101 upgrade
+**Symptom**: Browser shows `Failed when connecting: Connection closed (code: 1006)` or `(code: 1005)`, or Flask logs show "NOT a WebSocket upgrade request"
 
-**Root Cause**: WebSocket connection closes without a proper close frame, typically when:
-1. The container is not accessible or hasn't started yet
-2. The container rejects the WebSocket connection
-3. Error handling in the proxy tries to return HTTP responses after WebSocket is established
+**Root Cause**: WebSocket connection fails, typically when:
+1. Apache is not forwarding the `Upgrade` and `Connection` headers to Flask (most common)
+2. The container is not accessible or hasn't started yet
+3. The container rejects the WebSocket connection
+4. Error handling in the proxy tries to return HTTP responses after WebSocket is established
 
 **Solutions**:
 
-1. **Ensure Container is Running**:
+1. **Ensure WebSocket Headers Are Forwarded** (MOST COMMON ISSUE):
+   - Apache's mod_proxy strips hop-by-hop headers by default, including `Upgrade` and `Connection`
+   - Your apache.conf MUST include these lines to preserve the headers:
+     ```apache
+     RewriteCond %{HTTP:Upgrade} =websocket [NC]
+     RewriteCond %{HTTP:Connection} upgrade [NC]
+     RewriteRule ^/(.*) http://localhost:5020/$1 [P,L,E=UPGRADE:%{HTTP:Upgrade},E=CONNECTION:%{HTTP:Connection}]
+     RequestHeader set Upgrade %{UPGRADE}e env=UPGRADE
+     RequestHeader set Connection %{CONNECTION}e env=CONNECTION
+     ```
+   - See WEBSOCKET_HEADER_FIX.md for detailed explanation
+   - After updating, reload Apache: `sudo systemctl reload apache2`
+
+2. **Ensure Container is Running**:
    - Wait 10-15 seconds after starting a container before connecting
    - Check container logs: `docker logs <container_name>`
    - Verify container port is accessible: `curl -k https://localhost:<port>/websockify`
 
-2. **Check Application Logs**:
+3. **Check Application Logs**:
    ```bash
    docker-compose logs -f app | grep websockify
    ```
    Look for:
+   - "WebSocket upgrade request detected" (good - headers are being forwarded)
+   - "NOT a WebSocket upgrade request" (bad - headers are not being forwarded, fix Apache config)
    - "Attempting to connect to container at localhost:XXXX"
    - "Successfully connected to container port XXXX"
    - "Failed to connect to container port XXXX" (indicates container issue)
 
-3. **Verify WebSocket Configuration**:
-   - Ensure apache.conf has the WebSocket rewrite rule:
-     ```apache
-     RewriteCond %{HTTP:Upgrade} =websocket [NC]
-     RewriteRule /(.*) http://localhost:5020/$1 [P,L]
-     ```
+4. **Verify WebSocket Configuration**:
    - Note: Use `http://` not `ws://` - Flask's gevent-websocket expects HTTP with Upgrade header
    - Ensure mod_proxy_wstunnel is enabled: `apache2ctl -M | grep proxy_wstunnel`
 
