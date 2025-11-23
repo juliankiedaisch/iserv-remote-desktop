@@ -22,6 +22,77 @@ The WebSocket proxy implementation had several issues:
 
 4. **Apache Configuration Conflicts**: The Apache configuration had redundant WebSocket handling rules that could potentially conflict.
 
+## Why Manual WebSocket Proxying is Necessary
+
+### SSL Certificate Architecture
+
+The application uses a multi-tier SSL architecture:
+
+```
+Browser                   Apache                    Flask                     Container
+[Trusted Client]  -wss://->  [Let's Encrypt    -ws://->  [Localhost      -wss://->  [Kasm Self-Signed
+                            Wildcard Cert]             No SSL]                      Certificate]
+                            (Trusted)                                               (Untrusted)
+```
+
+**Key Points**:
+
+1. **Public-Facing SSL (Trusted)**: 
+   - Apache terminates SSL with Let's Encrypt wildcard certificate
+   - Browser sees valid, trusted certificate
+   - Connection: `wss://domain.com/websockify`
+
+2. **Internal Communication (Unencrypted)**:
+   - Apache to Flask is unencrypted localhost communication
+   - No SSL needed for local communication
+   - Connection: `ws://localhost:5020/websockify`
+
+3. **Container SSL (Self-Signed)**:
+   - Kasm containers use HTTPS with self-signed certificates
+   - Flask must disable SSL verification for these connections
+   - Connection: `wss://localhost:PORT/websockify` with `KASM_VERIFY_SSL=false`
+
+### Why Flask Cannot Be Bypassed
+
+Flask must be in the middle because:
+
+1. **Multi-User Container Orchestration**: 
+   - Multiple users accessing different containers simultaneously
+   - Each user has their own container(s) for different desktop types
+   - Example: `user1-ubuntu-vscode` on port 7001, `user2-chromium` on port 7005, etc.
+   - Apache has no knowledge of which container belongs to which user
+
+2. **Physical Server Separation**:
+   - **CRITICAL**: Apache runs on a different physical server than the Docker containers
+   - Apache cannot directly access container ports
+   - Flask acts as the bridge between the Apache server and the Docker host
+   - All container communication must go through Flask's dynamic routing
+
+3. **Dynamic Port Mapping**: 
+   - Each container runs on a different port (7000-8000 range)
+   - Port assignment is dynamic and stored in the database
+   - Flask performs database lookup: `username + desktop_type → container_id → host_port`
+   - Apache cannot query the database or know which ports are in use
+
+4. **SSL Certificate Handling**: Flask must connect to containers with SSL verification disabled (for self-signed certificates). This is safe because:
+   - Containers are on localhost only (from Flask's perspective)
+   - No network traffic leaves the Docker host
+   - Public-facing SSL is still fully trusted (Let's Encrypt)
+
+5. **Authentication & Authorization**: Flask validates that the user has permission to access the requested container via session and database checks.
+
+6. **Session Management**: Flask tracks which container each user is connected to for proper routing of assets and WebSocket connections.
+
+### Why Manual WebSocket Upgrade
+
+The manual WebSocket upgrade implementation is necessary because:
+
+1. **Cannot use standard HTTP proxy**: Standard proxying doesn't handle the SSL certificate mismatch between public (trusted) and container (self-signed).
+
+2. **Must control SSL verification**: Flask needs to explicitly disable certificate verification when connecting to containers while maintaining security for public connections.
+
+3. **WebSocket client libraries**: Most WebSocket client libraries don't integrate well with WSGI servers for bidirectional proxying.
+
 ## Solution
 
 ### 1. Fixed WebSocket Error Handling
@@ -148,13 +219,68 @@ ProxyPassReverse / http://localhost:5020/
 
 ## How the Fix Works
 
+### SSL Certificate Flow Diagram
+
+```
+                    PHYSICAL SERVER 1                              PHYSICAL SERVER 2
+                   (Apache Server)                                 (Docker Host)
+┌─────────────────────────────────────────────┐     ┌──────────────────────────────────────────┐
+│                                             │     │                                          │
+│  ┌─────────────┐                            │     │  ┌──────────────┐  Port 7001            │
+│  │   Browser   │                            │     │  │ Container 1  │  user1-ubuntu-vscode  │
+│  │             │                            │     │  │ (Kasm)       │  Self-Signed Cert     │
+│  └──────┬──────┘                            │     │  └──────────────┘                        │
+│         │                                   │     │                                          │
+│         │ wss://domain.com/websockify       │     │  ┌──────────────┐  Port 7002            │
+│         │ (Let's Encrypt - TRUSTED)         │     │  │ Container 2  │  user1-chromium       │
+│         │                                   │     │  │ (Kasm)       │  Self-Signed Cert     │
+│         ▼                                   │     │  └──────────────┘                        │
+│  ┌────────────────────────────────────┐    │     │                                          │
+│  │           Apache                   │    │     │  ┌──────────────┐  Port 7005            │
+│  │  - SSL Termination                 │    │     │  │ Container 3  │  user2-ubuntu-vscode  │
+│  │  - Let's Encrypt Wildcard Cert     │    │     │  │ (Kasm)       │  Self-Signed Cert     │
+│  │  - Port 443 → 5020                 │    │     │  └──────────────┘                        │
+│  └──────┬─────────────────────────────┘    │     │                                          │
+│         │                                   │     │  ┌──────────────┐  Port 7008            │
+│         │ ws://localhost:5020/websockify    │     │  │ Container N  │  userN-desktop        │
+│         │ (Unencrypted Localhost - SAFE)   │     │  │ (Kasm)       │  Self-Signed Cert     │
+│         │                                   │     │  └──────────────┘                        │
+│         ▼                                   │     │         ▲                                │
+│  ┌────────────────────────────────────┐    │     │         │                                │
+│  │           Flask App                │    │──────────────┼────────────────────────────────┤
+│  │  - WebSocket Proxy                 │◄═══╡═════════════╪════════════════════════════════╡
+│  │  - Dynamic Port Lookup             │    │             │  wss://dockerhost:PORT/websockify│
+│  │  - Database Query:                 │    │             │  (SSL verify disabled)           │
+│  │    * user1-ubuntu-vscode → 7001    │    │             │  Manual WebSocket Upgrade        │
+│  │    * user1-chromium → 7002         │    │             │  with SSL Context                │
+│  │    * user2-ubuntu-vscode → 7005    │    │             │  (verify_mode=CERT_NONE)         │
+│  │    * userN-desktop → 7008          │    │             │                                │
+│  │  - SSL Verification Disabled       │    │             └─────────────────────────────────┘
+│  │  - Multi-User Session Management   │    │                                          │
+│  └────────────────────────────────────┘    │                                          │
+│                                             │                                          │
+└─────────────────────────────────────────────┘                                          │
+                                                                                         │
+                    Network Connection Between Servers ═════════════════════════════════┘
+
+Flow Summary:
+1. Browser → Apache: Uses trusted Let's Encrypt cert (validated)
+2. Apache → Flask: Forwards unencrypted WebSocket on localhost
+3. Flask queries database: Looks up which container port for this user/desktop
+4. Flask → Docker Host: Connects to specific container port over network
+5. Manual WebSocket upgrade necessary because:
+   - SSL certificate mismatch (trusted Let's Encrypt vs self-signed Kasm)
+   - Physical server separation (Apache can't reach containers directly)
+   - Dynamic multi-user routing (Apache doesn't know port mappings)
+```
+
 ### Request Flow
 
 1. **Browser → Apache**: WebSocket upgrade request to `wss://domain/websockify`
 2. **Apache → Flask**: Proxies as `ws://localhost:5020/websockify` (via RewriteRule)
 3. **Flask receives**: gevent-websocket provides `request.environ['wsgi.websocket']`
-4. **Flask determines container**: From Referer header or session
-5. **Flask connects to container**: Opens socket to `localhost:<container_port>`
+4. **Flask determines container**: From Referer header or session (dynamic port lookup)
+5. **Flask connects to container**: Opens SSL socket to `localhost:<container_port>` with cert verification disabled
 6. **Error handling**:
    - If connection fails: Send WebSocket close frame with code 1011
    - If handshake fails: Send WebSocket close frame with code 1002 or 1009
