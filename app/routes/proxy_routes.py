@@ -592,18 +592,20 @@ def _proxy_websocket_with_eventlet(ws, container, use_ssl):
         client_to_container = gevent.spawn(proxy_client_to_container)
         container_to_client = gevent.spawn(proxy_container_to_client)
         
-        # Wait for BOTH directions to complete with a reasonable timeout
+        # Wait for BOTH directions to complete with timeout (WEBSOCKET_PROXY_TIMEOUT)
         # This ensures proper cleanup before closing while preventing indefinite hangs
         gevent.joinall([client_to_container, container_to_client], timeout=WEBSOCKET_PROXY_TIMEOUT)
         
         # Check if any greenlet is still running after timeout
-        # If so, kill them gracefully to prevent resource leaks
+        # If so, kill them and wait briefly for cleanup to complete
         if not client_to_container.ready():
             current_app.logger.warning("Client to container greenlet timed out, killing...")
             client_to_container.kill(block=False)
+            gevent.sleep(0.1)  # Brief wait for cleanup
         if not container_to_client.ready():
             current_app.logger.warning("Container to client greenlet timed out, killing...")
             container_to_client.kill(block=False)
+            gevent.sleep(0.1)  # Brief wait for cleanup
         
         # Close WebSocket with proper status code (1000 = normal closure)
         # This prevents code 1005 ("no status received")
