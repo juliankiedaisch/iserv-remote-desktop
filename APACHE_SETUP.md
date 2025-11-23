@@ -174,6 +174,17 @@ Should return the same response
    - Apache's mod_proxy strips hop-by-hop headers by default, including `Upgrade` and `Connection`
    - Your apache.conf MUST include these lines to preserve the headers:
      ```apache
+     # Detect WebSocket upgrade requests and set an environment variable
+     SetEnvIf Upgrade "(?i)websocket" IS_WEBSOCKET=1
+     SetEnvIf Connection "(?i)upgrade" IS_UPGRADE=1
+     
+     # Preserve WebSocket headers for requests that have them
+     RequestHeader set Upgrade "websocket" env=IS_WEBSOCKET
+     RequestHeader set Connection "Upgrade" env=IS_UPGRADE
+     ```
+   - Alternative approach using RewriteRules (if SetEnvIf doesn't work):
+     ```apache
+     RewriteEngine On
      RewriteCond %{HTTP:Upgrade} =websocket [NC]
      RewriteCond %{HTTP:Connection} upgrade [NC]
      RewriteRule ^/(.*) http://localhost:5020/$1 [P,L,E=UPGRADE:%{HTTP:Upgrade},E=CONNECTION:%{HTTP:Connection}]
@@ -181,7 +192,8 @@ Should return the same response
      RequestHeader set Connection %{CONNECTION}e env=CONNECTION
      ```
    - See WEBSOCKET_HEADER_FIX.md for detailed explanation
-   - After updating, reload Apache: `sudo systemctl reload apache2`
+   - After updating, test config with: `sudo apache2ctl configtest`
+   - Then reload Apache: `sudo systemctl reload apache2`
 
 2. **Ensure Container is Running**:
    - Wait 10-15 seconds after starting a container before connecting
