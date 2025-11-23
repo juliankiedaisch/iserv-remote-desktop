@@ -19,6 +19,7 @@ proxy_bp = Blueprint('proxy', __name__)
 # Configuration constants
 PROXY_CONNECT_TIMEOUT = 10  # seconds to wait for initial connection
 PROXY_READ_TIMEOUT = 300  # seconds to wait for response (5 minutes for desktop operations)
+WEBSOCKET_PROXY_TIMEOUT = 3600  # seconds to wait for WebSocket proxy to complete (1 hour for desktop sessions)
 DEFAULT_RETRIES = 3  # number of retry attempts for transient failures
 DEFAULT_BACKOFF_FACTOR = 0.3  # exponential backoff factor (0.3s, 0.6s, 1.2s)
 PROXY_CHUNK_SIZE = 64 * 1024  # 64KB chunks for streaming responses (optimal for desktop streaming)
@@ -593,8 +594,16 @@ def _proxy_websocket_with_eventlet(ws, container, use_ssl):
         
         # Wait for BOTH directions to complete with a reasonable timeout
         # This ensures proper cleanup before closing while preventing indefinite hangs
-        # Timeout of 3600 seconds (1 hour) is reasonable for desktop sessions
-        gevent.joinall([client_to_container, container_to_client], timeout=3600)
+        gevent.joinall([client_to_container, container_to_client], timeout=WEBSOCKET_PROXY_TIMEOUT)
+        
+        # Check if any greenlet is still running after timeout
+        # If so, kill them to prevent resource leaks
+        if not client_to_container.ready():
+            current_app.logger.warning("Client to container greenlet timed out, killing...")
+            gevent.kill(client_to_container)
+        if not container_to_client.ready():
+            current_app.logger.warning("Container to client greenlet timed out, killing...")
+            gevent.kill(container_to_client)
         
         # Close WebSocket with proper status code (1000 = normal closure)
         # This prevents code 1005 ("no status received")
