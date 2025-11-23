@@ -187,8 +187,9 @@ Should return the same response
    - Ensure apache.conf has the WebSocket rewrite rule:
      ```apache
      RewriteCond %{HTTP:Upgrade} =websocket [NC]
-     RewriteRule /(.*) ws://localhost:5020/$1 [P,L]
+     RewriteRule /(.*) http://localhost:5020/$1 [P,L]
      ```
+   - Note: Use `http://` not `ws://` - Flask's gevent-websocket expects HTTP with Upgrade header
    - Ensure mod_proxy_wstunnel is enabled: `apache2ctl -M | grep proxy_wstunnel`
 
 4. **Check Container Accessibility**:
@@ -242,8 +243,9 @@ Should return the same response
 5. **Check Apache configuration has WebSocket rewrite rules**:
    ```apache
    RewriteCond %{HTTP:Upgrade} =websocket [NC]
-   RewriteRule /(.*)           ws://localhost:5020/$1 [P,L]
+   RewriteRule /(.*)           http://localhost:5020/$1 [P,L]
    ```
+   Note: Must use `http://` not `ws://` to allow Flask's gevent-websocket to handle the upgrade
 
 6. **Check Apache error logs**:
    ```bash
