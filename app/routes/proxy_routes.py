@@ -20,6 +20,7 @@ proxy_bp = Blueprint('proxy', __name__)
 PROXY_CONNECT_TIMEOUT = 10  # seconds to wait for initial connection
 PROXY_READ_TIMEOUT = 300  # seconds to wait for response (5 minutes for desktop operations)
 WEBSOCKET_PROXY_TIMEOUT = 3600  # seconds to wait for WebSocket proxy to complete (1 hour for desktop sessions)
+GREENLET_CLEANUP_WAIT = 0.1  # seconds to wait for greenlet cleanup after kill (100ms)
 DEFAULT_RETRIES = 3  # number of retry attempts for transient failures
 DEFAULT_BACKOFF_FACTOR = 0.3  # exponential backoff factor (0.3s, 0.6s, 1.2s)
 PROXY_CHUNK_SIZE = 64 * 1024  # 64KB chunks for streaming responses (optimal for desktop streaming)
@@ -601,11 +602,11 @@ def _proxy_websocket_with_eventlet(ws, container, use_ssl):
         if not client_to_container.ready():
             current_app.logger.warning("Client to container greenlet timed out, killing...")
             client_to_container.kill(block=False)
-            gevent.sleep(0.1)  # Brief wait for cleanup
+            gevent.sleep(GREENLET_CLEANUP_WAIT)
         if not container_to_client.ready():
             current_app.logger.warning("Container to client greenlet timed out, killing...")
             container_to_client.kill(block=False)
-            gevent.sleep(0.1)  # Brief wait for cleanup
+            gevent.sleep(GREENLET_CLEANUP_WAIT)
         
         # Close WebSocket with proper status code (1000 = normal closure)
         # This prevents code 1005 ("no status received")
