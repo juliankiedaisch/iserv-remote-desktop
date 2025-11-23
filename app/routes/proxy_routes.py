@@ -355,6 +355,7 @@ def proxy_websocket_root():
         match = re.search(r'/desktop/([^/?#]+)', referer)
         if match:
             referer_proxy_path = match.group(1)
+            current_app.logger.info(f"Extracted proxy_path from Referer: {referer_proxy_path}")
             
             # Validate extracted path length
             if len(referer_proxy_path) > 255:  # Max reasonable proxy path length
@@ -366,18 +367,29 @@ def proxy_websocket_root():
                 # Find the container
                 container = Container.get_by_proxy_path(referer_proxy_path)
                 if container:
-                    current_app.logger.debug(f"Found container from Referer: {referer_proxy_path}")
+                    current_app.logger.info(f"Found container from Referer: {referer_proxy_path} -> {container.container_name}")
+                else:
+                    current_app.logger.warning(f"Container not found for proxy_path from Referer: {referer_proxy_path}")
             else:
                 current_app.logger.debug(f"Referer path is an asset: {referer_proxy_path}, trying session")
+        else:
+            current_app.logger.warning(f"Could not extract proxy_path from Referer: {referer}")
+    else:
+        current_app.logger.warning("No Referer header in WebSocket request")
     
     # If no container found from Referer, try session
     if not container:
         session_container_name = session.get('current_container')
+        current_app.logger.info(f"Trying to find container from session: {session_container_name}")
         if session_container_name:
             current_app.logger.debug(f"Trying container from session for WebSocket: {session_container_name}")
             container = Container.get_by_proxy_path(session_container_name)
             if container:
-                current_app.logger.debug(f"Found container from session for WebSocket: {session_container_name}")
+                current_app.logger.info(f"Found container from session for WebSocket: {session_container_name} -> {container.container_name}")
+            else:
+                current_app.logger.warning(f"Container not found for proxy_path from session: {session_container_name}")
+        else:
+            current_app.logger.warning("No current_container in session")
     
     if not container:
         error_msg = f"No running container found for websocket (Referer: {referer}, Session: {session.get('current_container')})"
