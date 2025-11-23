@@ -321,9 +321,7 @@ def proxy_websocket_root():
     """
     referer = request.headers.get('Referer', '')
     current_app.logger.info(f"WebSocket request at /websockify with Referer: {referer}")
-    current_app.logger.debug(f"Request headers: {dict(request.headers)}")
-    # Log only presence of session data, not actual values, to protect sensitive information
-    current_app.logger.debug(f"Session keys: {list(session.keys())}")
+    # Log minimal information for debugging without exposing sensitive session data
     current_app.logger.debug(f"Session has current_container: {bool(session.get('current_container'))}")
     
     # Check if this is a WebSocket upgrade request
@@ -399,12 +397,13 @@ def proxy_websocket_root():
         current_app.logger.warning(error_msg)
         
         # For WebSocket requests, return a proper error response
-        # Regular 404 responses cause code 1006 in browsers
+        # Use code 1011 (server error) when container is not found
+        # Code 1002 would be for protocol errors, which this is not
         if is_websocket:
             # If we have a ws object, close it properly with an error code
             if ws:
                 try:
-                    ws.close(1002, "Container not found")
+                    ws.close(1011, "Container not found")
                 except Exception as e:
                     current_app.logger.error(f"Error closing WebSocket: {e}")
                 return None
@@ -432,9 +431,9 @@ def proxy_websocket_root():
     
     current_app.logger.info(f"Proxying WebSocket to container {container.container_name} on port {container.host_port}")
     
-    # If this is a WebSocket upgrade request and we have a WebSocket object from eventlet/gunicorn
+    # If this is a WebSocket upgrade request and we have a WebSocket object from gevent-websocket
     if ws:
-        current_app.logger.info("Handling WebSocket with eventlet")
+        current_app.logger.info("Handling WebSocket with gevent-websocket")
         return _proxy_websocket_with_gevent(ws, container, use_ssl)
     elif is_websocket:
         # WebSocket upgrade request but no ws object (e.g., running with Werkzeug dev server)
