@@ -108,7 +108,7 @@ docker-compose logs -f app | grep websockify
 
 ### Why Hop-by-Hop Headers Are Stripped
 
-HTTP/1.1 specification (RFC 2616) defines hop-by-hop headers as headers that are meaningful only for a single transport-level connection and must not be forwarded by proxies. This is because:
+HTTP/1.1 specification (RFC 7230, Section 6.1) defines hop-by-hop headers as headers that are meaningful only for a single transport-level connection and must not be forwarded by proxies. This is because:
 
 1. **Connection Management**: These headers control the specific connection between two endpoints
 2. **Protocol Upgrades**: Upgrade headers signal a protocol change for the current connection

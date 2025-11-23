@@ -160,11 +160,17 @@ After the WebSocket connection is established:
 2. Verify container is running: `docker ps | grep kasm`
 3. Test container WebSocket endpoint directly:
    ```bash
-   # Install wscat if not available
-   npm install -g wscat
+   # Option 1: Using npx (no global installation required)
+   npx wscat -c wss://localhost:7001/websockify --no-check
    
-   # Test container connection (replace 7001 with your container port)
-   wscat -c wss://localhost:7001/websockify --no-check
+   # Option 2: Using curl with WebSocket upgrade (simpler)
+   curl -i -N -H "Connection: Upgrade" -H "Upgrade: websocket" \
+        -H "Sec-WebSocket-Version: 13" -H "Sec-WebSocket-Key: test" \
+        https://localhost:7001/websockify -k
+   
+   # Option 3: Install wscat globally (requires elevated privileges)
+   # npm install -g wscat
+   # wscat -c wss://localhost:7001/websockify --no-check
    ```
 4. Verify VNC credentials are correct in `.env`
 
