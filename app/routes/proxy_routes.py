@@ -289,9 +289,9 @@ def proxy_websocket_root():
     We need to determine which container this request is for by checking the Referer header,
     or falling back to the session if Referer is unavailable or points to an asset.
     
-    When running with gunicorn + eventlet, WebSocket connections are available via
-    request.environ.get('wsgi.websocket'). This function handles both regular HTTP
-    requests and WebSocket upgrade requests.
+    When running with gunicorn + GeventWebSocketWorker or gevent-websocket development server,
+    WebSocket connections are available via request.environ.get('wsgi.websocket'). 
+    This function handles both regular HTTP requests and WebSocket upgrade requests.
     """
     referer = request.headers.get('Referer', '')
     current_app.logger.debug(f"WebSocket request at /websockify with Referer: {referer}")
@@ -387,6 +387,10 @@ def _proxy_websocket_with_eventlet(ws, container, use_ssl):
     """
     Proxy WebSocket connection between client and container using gevent
     
+    Note: Despite the function name referencing 'eventlet', this implementation
+    uses gevent-websocket which is the proper WebSocket handler when running with
+    gunicorn + GeventWebSocketWorker or the gevent-websocket development server.
+    
     Args:
         ws: gevent-websocket WebSocket object from request.environ['wsgi.websocket']
         container: Container object with connection details
@@ -410,8 +414,14 @@ def _proxy_websocket_with_eventlet(ws, container, use_ssl):
         # Wrap with SSL if needed
         if use_ssl:
             context = ssl.create_default_context()
-            context.check_hostname = False
-            context.verify_mode = ssl.CERT_NONE
+            # For localhost container connections, we need to disable verification
+            # as Kasm containers use self-signed certificates
+            # Security note: This is acceptable for localhost-only connections
+            # where the container is on the same host
+            verify_ssl = os.environ.get('KASM_VERIFY_SSL', 'false').lower() == 'true'
+            if not verify_ssl:
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
             sock = context.wrap_socket(sock, server_hostname='localhost')
         
         # Send WebSocket upgrade request to container
@@ -429,12 +439,16 @@ def _proxy_websocket_with_eventlet(ws, container, use_ssl):
         sock.sendall(upgrade_request.encode())
         
         # Read the upgrade response from container
+        # Limit response size to prevent memory exhaustion attacks
+        MAX_HANDSHAKE_SIZE = 8192  # 8KB should be sufficient for WebSocket handshake
         response = b""
         while b"\r\n\r\n" not in response:
             chunk = sock.recv(4096)
             if not chunk:
                 raise Exception("Container closed connection during WebSocket handshake")
             response += chunk
+            if len(response) > MAX_HANDSHAKE_SIZE:
+                raise Exception("WebSocket handshake response too large")
         
         # Check if upgrade was successful
         if b"101" not in response.split(b"\r\n")[0]:
