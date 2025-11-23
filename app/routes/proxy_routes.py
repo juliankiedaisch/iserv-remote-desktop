@@ -12,6 +12,7 @@ import base64
 import re
 import socket
 import ssl
+import traceback
 
 proxy_bp = Blueprint('proxy', __name__)
 
@@ -490,7 +491,7 @@ def _proxy_websocket_with_eventlet(ws, container, use_ssl):
                 ws.close(1011, "Cannot connect to container")
             except:
                 pass
-            return
+            return None
         # Remove timeout after connection is established
         sock.settimeout(None)
         
@@ -534,7 +535,7 @@ def _proxy_websocket_with_eventlet(ws, container, use_ssl):
                     ws.close(1011, "Container connection failed")
                 except:
                     pass
-                return
+                return None
             response += chunk
             if len(response) > MAX_HANDSHAKE_SIZE:
                 current_app.logger.error("WebSocket handshake response too large")
@@ -542,7 +543,7 @@ def _proxy_websocket_with_eventlet(ws, container, use_ssl):
                     ws.close(1009, "Handshake too large")
                 except:
                     pass
-                return
+                return None
         
         # Check if upgrade was successful
         if b"101" not in response.split(b"\r\n")[0]:
@@ -552,7 +553,7 @@ def _proxy_websocket_with_eventlet(ws, container, use_ssl):
                 ws.close(1002, "Container rejected connection")
             except:
                 pass
-            return
+            return None
         
         current_app.logger.info("WebSocket upgrade successful, starting bidirectional proxy")
         
@@ -607,10 +608,10 @@ def _proxy_websocket_with_eventlet(ws, container, use_ssl):
         current_app.logger.info("WebSocket proxy connection closed")
         # Don't return an HTTP response after WebSocket is closed
         # The connection is already closed, just return None
+        return None
         
     except Exception as e:
         current_app.logger.error(f"Error in WebSocket proxy: {str(e)}")
-        import traceback
         current_app.logger.error(f"Traceback: {traceback.format_exc()}")
         try:
             # Try to close the WebSocket with an error code
