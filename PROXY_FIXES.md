@@ -25,6 +25,16 @@
 
 **Solution**: Added 'app' to ASSET_PREFIXES so that `/desktop/app/*` paths are correctly handled as asset requests requiring Referer or session-based container resolution.
 
+### 3. WebSocket Connection Failures
+**Problem**: WebSocket connections at `/websockify` failed with 400 errors when the Referer was missing, invalid, or pointed to an asset path.
+
+**Example from logs**:
+```
+172.29.10.11 - - [22/Nov/2025 23:51:25] "GET /websockify HTTP/1.1" 400 -
+```
+
+**Solution**: Updated the WebSocket handler to support session-based fallback, similar to asset requests. When the Referer lookup fails, the handler now checks the session for the current container, allowing WebSocket connections to succeed even without a valid Referer.
+
 ## Changes Made
 
 ### 1. app/routes/proxy_routes.py
@@ -40,6 +50,7 @@
 - **Container Storage**: When a non-asset desktop page is accessed, the container's proxy_path is stored in `session['current_container']`
 - **Session Fallback**: When asset requests can't find a container via Referer (e.g., nested assets), the code falls back to `session['current_container']`
 - **Smart Session Updates**: Only non-asset requests update the session, preventing corruption by asset requests
+- **WebSocket Support**: WebSocket handler also uses session fallback when Referer is unavailable or points to an asset
 
 #### Variable Naming Fix
 - Renamed `session` variable to `requests_session` to avoid shadowing Flask's `session` import
@@ -59,6 +70,11 @@
 - Tests documenting session storage logic
 - Tests for nested asset reference handling
 - Tests verifying asset requests don't override session
+
+#### Created tests/test_websocket_routing.py
+- Tests for WebSocket Referer extraction
+- Tests for session fallback logic
+- Tests for user-friendly error messages
 
 ## How It Works
 
@@ -85,13 +101,21 @@
 3. Referer checked, container found
 4. Locale file served successfully
 
+### WebSocket Flow
+1. Page establishes WebSocket at `/websockify`
+2. Referer checked (may be missing or an asset)
+3. If Referer lookup fails, check session
+4. Container found from `session['current_container']`
+5. WebSocket connection established successfully
+
 ## Benefits
 
 1. **No More 404s for Nested Assets**: Fonts, images, and other resources loaded by CSS files now work correctly
 2. **App Path Support**: Kasm's `/desktop/app/` paths now work for locale files and other application resources
-3. **Backward Compatible**: Existing functionality unchanged; only adds session fallback
-4. **Minimal Changes**: Small, focused changes that don't affect the core proxy logic
-5. **Well-Tested**: All existing tests pass, plus new tests for the new functionality
+3. **Reliable WebSocket Connections**: WebSocket connections succeed even without proper Referer headers
+4. **Backward Compatible**: Existing functionality unchanged; only adds session fallback
+5. **Minimal Changes**: Small, focused changes that don't affect the core proxy logic
+6. **Well-Tested**: All existing tests pass, plus new tests for the new functionality
 
 ## Security Considerations
 
