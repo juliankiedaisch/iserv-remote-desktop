@@ -176,7 +176,7 @@ nginx has built-in support for WebSocket proxying that preserves headers better.
 
 ## References
 
-- [Apache mod_proxy Documentation](https://httpd.apache.org/docs/2.4/mod/mod_proxy.html)
+- [Apache mod_proxy_wstunnel Documentation](https://httpd.apache.org/docs/2.4/mod/mod_proxy_wstunnel.html)
 - [Apache mod_headers Documentation](https://httpd.apache.org/docs/2.4/mod/mod_headers.html)
 - [RFC 6455 - The WebSocket Protocol](https://tools.ietf.org/html/rfc6455)
-- [RFC 2616 - HTTP/1.1 (Hop-by-hop headers)](https://tools.ietf.org/html/rfc2616#section-13.5.1)
+- [RFC 7230 - HTTP/1.1 Message Syntax and Routing (Hop-by-hop headers)](https://tools.ietf.org/html/rfc7230#section-6.1)

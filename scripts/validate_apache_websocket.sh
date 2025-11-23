@@ -90,18 +90,18 @@ for dir in "${APACHE_CONF_DIRS[@]}"; do
             
             # Look for the environment variable pattern in RewriteRule
             # Pattern: E=UPGRADE:%{HTTP:Upgrade} (with optional spacing)
-            if grep -iE "E=UPGRADE\s*:\s*%\{HTTP:Upgrade\}" "$conf" 2>/dev/null >/dev/null; then
+            if grep -iE "E=UPGRADE\s*:\s*%\{HTTP:Upgrade\}" "$conf" &>/dev/null; then
                 echo "  ✓ WebSocket header forwarding found in: $conf"
                 FOUND_CONFIG=true
                 
                 # Check for both environment variable and RequestHeader
-                if grep -iE "RequestHeader\s+set\s+Upgrade" "$conf" 2>/dev/null >/dev/null; then
+                if grep -iE "RequestHeader\s+set\s+Upgrade" "$conf" &>/dev/null; then
                     echo "  ✓ Upgrade header forwarding configured"
                 else
                     echo "  ⚠️  Missing 'RequestHeader set Upgrade' directive"
                 fi
                 
-                if grep -iE "RequestHeader\s+set\s+Connection" "$conf" 2>/dev/null >/dev/null; then
+                if grep -iE "RequestHeader\s+set\s+Connection" "$conf" &>/dev/null; then
                     echo "  ✓ Connection header forwarding configured"
                 else
                     echo "  ⚠️  Missing 'RequestHeader set Connection' directive"
