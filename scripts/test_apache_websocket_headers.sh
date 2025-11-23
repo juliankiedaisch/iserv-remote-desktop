@@ -2,6 +2,12 @@
 # Test script to verify Apache is forwarding WebSocket headers correctly
 # This script tests the Apache configuration by making a WebSocket upgrade request
 # and checking if the headers are being forwarded to Flask
+#
+# Usage: ./test_apache_websocket_headers.sh [domain] [protocol]
+#   domain: Default is localhost:5020
+#   protocol: Default is http (use https for production)
+#
+# Make sure this script is executable: chmod +x test_apache_websocket_headers.sh
 
 set -e
 
@@ -14,16 +20,18 @@ echo ""
 DOMAIN="${1:-localhost:5020}"
 PROTOCOL="${2:-http}"
 FULL_URL="${PROTOCOL}://${DOMAIN}/websockify"
+# Allow custom health check endpoint
+HEALTH_ENDPOINT="${3:-/}"
 
 echo "Testing WebSocket header forwarding to: $FULL_URL"
 echo ""
 
 # Test 1: Check if Apache/Flask is accessible
 echo "Test 1: Basic connectivity check..."
-if curl -s -o /dev/null -w "%{http_code}" "${PROTOCOL}://${DOMAIN}/health" 2>/dev/null | grep -q "200\|404"; then
+if curl -s -o /dev/null -w "%{http_code}" "${PROTOCOL}://${DOMAIN}${HEALTH_ENDPOINT}" 2>/dev/null | grep -q "200\|404\|302"; then
     echo "✓ Server is reachable"
 else
-    echo "✗ Server is NOT reachable at ${PROTOCOL}://${DOMAIN}/health"
+    echo "✗ Server is NOT reachable at ${PROTOCOL}://${DOMAIN}${HEALTH_ENDPOINT}"
     echo "  Make sure the application is running"
     exit 1
 fi
@@ -33,10 +41,13 @@ echo ""
 echo "Test 2: Testing WebSocket header forwarding..."
 echo "Sending WebSocket upgrade request..."
 
+# Generate a random WebSocket key for more realistic testing
+WS_KEY=$(openssl rand -base64 16 2>/dev/null || echo "dGhlIHNhbXBsZSBub25jZQ==")
+
 RESPONSE=$(curl -s -i -X GET "$FULL_URL" \
     -H "Upgrade: websocket" \
     -H "Connection: Upgrade" \
-    -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+    -H "Sec-WebSocket-Key: $WS_KEY" \
     -H "Sec-WebSocket-Version: 13" \
     2>&1 || true)
 
@@ -85,5 +96,6 @@ if echo "$RESPONSE" | grep -q "200 OK"; then
 fi
 
 echo "⚠ Unexpected response - please check Flask logs"
-echo "Run: docker-compose logs -f app | grep websockify"
+echo "Run: docker-compose logs -f [service-name] | grep websockify"
+echo "(Replace [service-name] with your Flask service name, commonly 'app' or 'web')"
 exit 1
