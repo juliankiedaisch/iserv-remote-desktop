@@ -702,29 +702,62 @@ def _return_websocket_handshake(container, use_ssl):
 @proxy_bp.route('/desktop/<path:proxy_path>/websockify', methods=['GET'])
 def proxy_websocket(proxy_path):
     """
-    Special handler for WebSocket connections (used by Kasm/noVNC)
+    Special handler for WebSocket connections at /desktop/<proxy_path>/websockify
     
-    Note: This is a simplified version. For production, use a proper 
-    WebSocket proxy like nginx or a Flask-SocketIO implementation.
+    This handles WebSocket connections that include the container path in the URL.
+    This is more reliable than the root /websockify endpoint because the container
+    is explicitly specified in the URL rather than inferred from Referer/session.
     """
+    current_app.logger.info(f"WebSocket request at /desktop/{proxy_path}/websockify")
+    
     container = Container.get_by_proxy_path(proxy_path)
     
     if not container:
         current_app.logger.warning(f"No running container found for websocket proxy path: {proxy_path}")
         return Response("Container not found or not running", status=404)
     
-    # For WebSocket connections, we need a proper WebSocket proxy
-    # This is a placeholder that redirects to the direct WebSocket endpoint
-    # In production, use nginx or another proper WebSocket proxy
-    current_app.logger.warning(
-        f"WebSocket proxy requested for {proxy_path}. "
-        f"Consider using nginx for WebSocket proxying in production."
+    if not container.host_port:
+        current_app.logger.error(f"Container {container.container_name} has no host port assigned")
+        return Response("Container port not available", status=500)
+    
+    # Update last accessed time
+    container.last_accessed = datetime.now(timezone.utc)
+    db.session.commit()
+    
+    # Determine protocol based on environment variable
+    container_protocol = os.environ.get('KASM_CONTAINER_PROTOCOL', 'https')
+    use_ssl = container_protocol == 'https'
+    
+    current_app.logger.info(f"Proxying WebSocket to container {container.container_name} on port {container.host_port}")
+    
+    # Check if this is a WebSocket upgrade request
+    ws = request.environ.get('wsgi.websocket')
+    is_websocket = ws is not None or (
+        request.headers.get('Upgrade', '').lower() == 'websocket' and
+        'upgrade' in request.headers.get('Connection', '').lower()
     )
     
-    # Return information about where the WebSocket should connect
-    # This is handled by nginx or the client needs to connect differently
-    return Response(
-        f"WebSocket endpoint: ws://localhost:{container.host_port}/websockify",
-        status=200,
-        mimetype='text/plain'
-    )
+    # If this is a WebSocket upgrade request and we have a WebSocket object
+    if ws:
+        current_app.logger.info("Handling WebSocket with gevent-websocket")
+        return _proxy_websocket_with_eventlet(ws, container, use_ssl)
+    elif is_websocket:
+        # WebSocket upgrade request but no ws object
+        current_app.logger.error(
+            "WebSocket upgrade request detected but wsgi.websocket is not available! "
+            "This indicates a server configuration issue."
+        )
+        return Response(
+            "WebSocket not supported - server configuration error.",
+            status=500,
+            mimetype='text/plain'
+        )
+    else:
+        # Regular HTTP request (for testing/debugging)
+        current_app.logger.debug(f"Regular HTTP request to /desktop/{proxy_path}/websockify (not WebSocket)")
+        return Response(
+            f"This endpoint is for WebSocket connections only. "
+            f"Container: {container.container_name}, Port: {container.host_port}",
+            status=200,
+            mimetype='text/plain'
+        )
