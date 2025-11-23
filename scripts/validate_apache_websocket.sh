@@ -80,28 +80,35 @@ APACHE_CONF_DIRS=(
 FOUND_CONFIG=false
 for dir in "${APACHE_CONF_DIRS[@]}"; do
     if [ -d "$dir" ]; then
+        # Use nullglob to handle case where no .conf files exist
+        shopt -s nullglob
         for conf in "$dir"/*.conf; do
-            if [ -f "$conf" ]; then
-                # Use grep with regex to handle spacing and case variations
-                if grep -iE "E=UPGRADE.*HTTP:Upgrade" "$conf" 2>/dev/null >/dev/null; then
-                    echo "  ✓ WebSocket header forwarding found in: $conf"
-                    FOUND_CONFIG=true
-                    
-                    # Check for both environment variable and RequestHeader
-                    if grep -iE "RequestHeader.*set.*Upgrade" "$conf" 2>/dev/null >/dev/null; then
-                        echo "  ✓ Upgrade header forwarding configured"
-                    else
-                        echo "  ⚠️  Missing 'RequestHeader set Upgrade' directive"
-                    fi
-                    
-                    if grep -iE "RequestHeader.*set.*Connection" "$conf" 2>/dev/null >/dev/null; then
-                        echo "  ✓ Connection header forwarding configured"
-                    else
-                        echo "  ⚠️  Missing 'RequestHeader set Connection' directive"
-                    fi
+            # Check if file exists (handles empty glob)
+            if [ ! -f "$conf" ]; then
+                continue
+            fi
+            
+            # Look for the environment variable pattern in RewriteRule
+            # Pattern: E=UPGRADE:%{HTTP:Upgrade} (with optional spacing)
+            if grep -iE "E=UPGRADE\s*:\s*%\{HTTP:Upgrade\}" "$conf" 2>/dev/null >/dev/null; then
+                echo "  ✓ WebSocket header forwarding found in: $conf"
+                FOUND_CONFIG=true
+                
+                # Check for both environment variable and RequestHeader
+                if grep -iE "RequestHeader\s+set\s+Upgrade" "$conf" 2>/dev/null >/dev/null; then
+                    echo "  ✓ Upgrade header forwarding configured"
+                else
+                    echo "  ⚠️  Missing 'RequestHeader set Upgrade' directive"
+                fi
+                
+                if grep -iE "RequestHeader\s+set\s+Connection" "$conf" 2>/dev/null >/dev/null; then
+                    echo "  ✓ Connection header forwarding configured"
+                else
+                    echo "  ⚠️  Missing 'RequestHeader set Connection' directive"
                 fi
             fi
         done
+        shopt -u nullglob
     fi
 done
 
