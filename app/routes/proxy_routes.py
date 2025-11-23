@@ -586,26 +586,29 @@ def _proxy_websocket_with_eventlet(ws, container, use_ssl):
                     ws.send(data)
             except Exception as e:
                 current_app.logger.debug(f"Container to client proxy ended: {e}")
-            finally:
-                try:
-                    ws.close()
-                except:
-                    pass
         
         # Start bidirectional proxying in separate greenlets
         client_to_container = gevent.spawn(proxy_client_to_container)
         container_to_client = gevent.spawn(proxy_container_to_client)
         
-        # Wait for either direction to finish
-        gevent.wait([client_to_container, container_to_client], count=1)
+        # Wait for BOTH directions to complete
+        # This ensures proper cleanup before closing
+        gevent.joinall([client_to_container, container_to_client])
         
-        # Clean up
+        # Close WebSocket with proper status code (1000 = normal closure)
+        # This prevents code 1005 ("no status received")
+        try:
+            ws.close(1000, "Connection closed normally")
+        except:
+            pass
+        
+        # Clean up container socket
         try:
             sock.close()
         except:
             pass
         
-        current_app.logger.info("WebSocket proxy connection closed")
+        current_app.logger.info("WebSocket proxy connection closed normally")
         # Don't return an HTTP response after WebSocket is closed
         # The connection is already closed, just return None
         return None
