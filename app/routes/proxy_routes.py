@@ -322,7 +322,9 @@ def proxy_websocket_root():
     referer = request.headers.get('Referer', '')
     current_app.logger.info(f"WebSocket request at /websockify with Referer: {referer}")
     current_app.logger.debug(f"Request headers: {dict(request.headers)}")
-    current_app.logger.debug(f"Session contents: {dict(session)}")
+    # Log only session keys, not values, to avoid exposing sensitive data
+    current_app.logger.debug(f"Session keys: {list(session.keys())}")
+    current_app.logger.debug(f"Session current_container: {session.get('current_container')}")
     
     # Check if this is a WebSocket upgrade request
     ws = request.environ.get('wsgi.websocket')
@@ -432,7 +434,7 @@ def proxy_websocket_root():
     # If this is a WebSocket upgrade request and we have a WebSocket object from eventlet/gunicorn
     if ws:
         current_app.logger.info("Handling WebSocket with eventlet")
-        return _proxy_websocket_with_eventlet(ws, container, use_ssl)
+        return _proxy_websocket_with_gevent(ws, container, use_ssl)
     elif is_websocket:
         # WebSocket upgrade request but no ws object (e.g., running with Werkzeug dev server)
         # Return a proper WebSocket handshake response that Apache/Nginx can intercept
@@ -449,13 +451,13 @@ def proxy_websocket_root():
         )
 
 
-def _proxy_websocket_with_eventlet(ws, container, use_ssl):
+def _proxy_websocket_with_gevent(ws, container, use_ssl):
     """
     Proxy WebSocket connection between client and container using gevent
     
-    Note: Despite the function name referencing 'eventlet', this implementation
-    uses gevent-websocket which is the proper WebSocket handler when running with
-    gunicorn + GeventWebSocketWorker or the gevent-websocket development server.
+    This implementation uses gevent-websocket which provides the WebSocket handler
+    when running with gunicorn + GeventWebSocketWorker or the gevent-websocket 
+    development server (pywsgi.WSGIServer with WebSocketHandler).
     
     Why Manual WebSocket Upgrade is Necessary:
     ==========================================
@@ -740,7 +742,7 @@ def proxy_websocket(proxy_path):
     # If this is a WebSocket upgrade request and we have a WebSocket object
     if ws:
         current_app.logger.info("Handling WebSocket with gevent-websocket")
-        return _proxy_websocket_with_eventlet(ws, container, use_ssl)
+        return _proxy_websocket_with_gevent(ws, container, use_ssl)
     elif is_websocket:
         # WebSocket upgrade request but no ws object
         current_app.logger.error(
