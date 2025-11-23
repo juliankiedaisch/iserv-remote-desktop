@@ -322,6 +322,7 @@ def proxy_websocket_root():
     referer = request.headers.get('Referer', '')
     current_app.logger.info(f"WebSocket request at /websockify with Referer: {referer}")
     current_app.logger.debug(f"Request headers: {dict(request.headers)}")
+    current_app.logger.debug(f"Session contents: {dict(session)}")
     
     # Check if this is a WebSocket upgrade request
     ws = request.environ.get('wsgi.websocket')
@@ -335,7 +336,7 @@ def proxy_websocket_root():
         if ws:
             current_app.logger.info("wsgi.websocket object is available")
         else:
-            current_app.logger.info("wsgi.websocket object is NOT available (may be handled by Apache)")
+            current_app.logger.warning("wsgi.websocket object is NOT available (may be handled by Apache)")
     else:
         current_app.logger.info("NOT a WebSocket upgrade request")
     
@@ -379,8 +380,28 @@ def proxy_websocket_root():
                 current_app.logger.debug(f"Found container from session for WebSocket: {session_container_name}")
     
     if not container:
-        current_app.logger.warning(f"No running container found for websocket (Referer: {referer})")
-        return Response("Container not found or not running. Please access the desktop page first.", status=404)
+        error_msg = f"No running container found for websocket (Referer: {referer}, Session: {session.get('current_container')})"
+        current_app.logger.warning(error_msg)
+        
+        # For WebSocket requests, return a proper error response
+        # Regular 404 responses cause code 1006 in browsers
+        if is_websocket:
+            # If we have a ws object, close it properly with an error code
+            if ws:
+                try:
+                    ws.close(1002, "Container not found")
+                except Exception as e:
+                    current_app.logger.error(f"Error closing WebSocket: {e}")
+                return None
+            else:
+                # No ws object, return HTTP error
+                return Response(
+                    "Container not found or not running. Please access the desktop page first to establish a session.",
+                    status=404,
+                    mimetype='text/plain'
+                )
+        else:
+            return Response("Container not found or not running. Please access the desktop page first.", status=404)
     
     if not container.host_port:
         current_app.logger.error(f"Container {container.container_name} has no host port assigned")
