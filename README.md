@@ -190,16 +190,33 @@ The application requires access to the Docker socket (`/var/run/docker.sock`) to
 
 ### WebSocket Connection Issues (Code 1006/1005)
 
-If you see errors like "Connection closed (code: 1006)" or "Failed when connecting", this is typically caused by Apache not forwarding WebSocket upgrade headers to Flask.
+If you see errors like "Connection closed (code: 1006)" or "Failed when connecting", or Flask logs show "NOT a WebSocket upgrade request", this is caused by Apache not forwarding WebSocket upgrade headers to Flask.
 
 **Quick Fix:**
-1. Update your Apache configuration with WebSocket header forwarding (see `apache.conf`)
-2. Run the validation script: `./scripts/validate_apache_websocket.sh`
-3. Reload Apache: `sudo systemctl reload apache2`
+1. Update your Apache configuration with WebSocket header forwarding:
+   ```apache
+   # Add these lines BEFORE ProxyPass directive
+   SetEnvIf Upgrade "(?i)websocket" IS_WEBSOCKET=1
+   SetEnvIf Connection "(?i)upgrade" IS_UPGRADE=1
+   RequestHeader set Upgrade "websocket" env=IS_WEBSOCKET
+   RequestHeader set Connection "Upgrade" env=IS_UPGRADE
+   ```
+
+2. Test and reload Apache:
+   ```bash
+   sudo apache2ctl configtest
+   sudo systemctl reload apache2
+   ```
+
+3. Verify the fix with test script:
+   ```bash
+   ./scripts/test_apache_websocket_headers.sh localhost:5020 http
+   ```
 
 **Detailed Information:**
-- [WEBSOCKET_HEADER_FIX.md](WEBSOCKET_HEADER_FIX.md) - Complete explanation and fix
-- [TESTING_WEBSOCKET_FIX.md](TESTING_WEBSOCKET_FIX.md) - Testing procedures
+- [WEBSOCKET_PROXY_FIX_SUMMARY.md](WEBSOCKET_PROXY_FIX_SUMMARY.md) - Complete fix guide with testing
+- [WEBSOCKET_FIX_QUICKSTART.md](WEBSOCKET_FIX_QUICKSTART.md) - Quick reference
+- [WEBSOCKET_HEADER_FIX.md](WEBSOCKET_HEADER_FIX.md) - Technical explanation
 - [APACHE_SETUP.md](APACHE_SETUP.md) - Full Apache configuration guide
 
 **Check if headers are being forwarded:**

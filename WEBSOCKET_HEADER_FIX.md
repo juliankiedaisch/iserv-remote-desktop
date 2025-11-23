@@ -29,39 +29,63 @@ These headers are considered "hop-by-hop" because they control the connection be
 
 ## Solution
 
-The fix explicitly preserves the `Upgrade` and `Connection` headers when proxying WebSocket requests:
+The fix explicitly preserves the `Upgrade` and `Connection` headers when proxying WebSocket requests using `SetEnvIf` to detect them:
 
-### Updated Apache Configuration
+### Updated Apache Configuration (Recommended)
 
 ```apache
-RewriteCond %{HTTP:Upgrade} =websocket [NC]
-RewriteCond %{HTTP:Connection} upgrade [NC]
-# Explicitly preserve the Upgrade and Connection headers when proxying
-# mod_proxy strips hop-by-hop headers by default, so we must set them explicitly
-RewriteRule ^/(.*) http://localhost:5020/$1 [P,L,E=UPGRADE:%{HTTP:Upgrade},E=CONNECTION:%{HTTP:Connection}]
-RequestHeader set Upgrade %{UPGRADE}e env=UPGRADE
-RequestHeader set Connection %{CONNECTION}e env=CONNECTION
+# Detect WebSocket upgrade requests and set an environment variable
+SetEnvIf Upgrade "(?i)websocket" IS_WEBSOCKET=1
+SetEnvIf Connection "(?i)upgrade" IS_UPGRADE=1
+
+# Preserve WebSocket headers for requests that have them
+# mod_proxy strips hop-by-hop headers by default, but we need them for Flask
+RequestHeader set Upgrade "websocket" env=IS_WEBSOCKET
+RequestHeader set Connection "Upgrade" env=IS_UPGRADE
+
+# General proxy for all routes (HTTP and WebSocket)
+ProxyPass / http://localhost:5020/ retry=3 timeout=3600
+ProxyPassReverse / http://localhost:5020/
 ```
 
 ### How It Works
 
-1. **RewriteCond**: Detects WebSocket upgrade requests by checking for `Upgrade: websocket` and `Connection: upgrade` headers
+1. **SetEnvIf**: Detects WebSocket upgrade requests by checking for `Upgrade: websocket` and `Connection: upgrade` headers (case-insensitive via `(?i)`)
 
-2. **RewriteRule with Environment Variables**:
-   - `E=UPGRADE:%{HTTP:Upgrade}` - Stores the Upgrade header value in an environment variable
-   - `E=CONNECTION:%{HTTP:Connection}` - Stores the Connection header value in an environment variable
+2. **Environment Variables**:
+   - `IS_WEBSOCKET=1` - Set when the Upgrade header contains "websocket"
+   - `IS_UPGRADE=1` - Set when the Connection header contains "upgrade"
 
 3. **RequestHeader set**:
-   - `RequestHeader set Upgrade %{UPGRADE}e env=UPGRADE` - Re-adds the Upgrade header to the proxied request
-   - `RequestHeader set Connection %{CONNECTION}e env=CONNECTION` - Re-adds the Connection header to the proxied request
-   - The `env=UPGRADE` and `env=CONNECTION` conditions ensure these headers are only set when the environment variables exist
+   - `RequestHeader set Upgrade "websocket" env=IS_WEBSOCKET` - Re-adds the Upgrade header only when IS_WEBSOCKET is set
+   - `RequestHeader set Connection "Upgrade" env=IS_UPGRADE` - Re-adds the Connection header only when IS_UPGRADE is set
 
 ### Why This Approach?
 
-- **Preserves Original Headers**: The original header values are captured and forwarded
+- **Simple and Reliable**: No complex RewriteRules or timing issues
 - **Selective Application**: Only applies to WebSocket requests (when the environment variables are set)
 - **Flask Compatibility**: Flask's gevent-websocket can now detect the Upgrade header and handle the WebSocket upgrade
 - **Maintains Routing Logic**: Flask can still inspect Referer, session, and other headers to determine container routing
+- **Works Across Apache Versions**: Compatible with Apache 2.4+ which most modern systems use
+
+### Alternative Approach (If SetEnvIf Doesn't Work)
+
+If your Apache version has issues with `SetEnvIf`, you can use RewriteRules with environment variables:
+
+```apache
+RewriteEngine On
+RewriteCond %{HTTP:Upgrade} =websocket [NC]
+RewriteCond %{HTTP:Connection} upgrade [NC]
+RewriteRule ^/(.*) http://localhost:5020/$1 [P,L,E=UPGRADE:%{HTTP:Upgrade},E=CONNECTION:%{HTTP:Connection}]
+RequestHeader set Upgrade %{UPGRADE}e env=UPGRADE
+RequestHeader set Connection %{CONNECTION}e env=CONNECTION
+
+# General proxy for all non-WebSocket HTTP routes
+ProxyPass / http://localhost:5020/ retry=3 timeout=3600
+ProxyPassReverse / http://localhost:5020/
+```
+
+**Note**: The RewriteRule approach can have timing issues where the environment variables aren't set before the headers are processed, which is why the SetEnvIf approach is recommended.
 
 ## Testing
 
