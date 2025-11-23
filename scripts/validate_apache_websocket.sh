@@ -80,33 +80,42 @@ APACHE_CONF_DIRS=(
 FOUND_CONFIG=false
 for dir in "${APACHE_CONF_DIRS[@]}"; do
     if [ -d "$dir" ]; then
-        # Use nullglob to handle case where no .conf files exist
-        # Use subshell to ensure shopt changes don't affect parent shell
-        (
+        # Save current nullglob state and enable it
+        # This prevents glob expansion errors when no .conf files exist
+        if shopt -q nullglob; then
+            NULLGLOB_WAS_SET=true
+        else
+            NULLGLOB_WAS_SET=false
             shopt -s nullglob
-            for conf in "$dir"/*.conf; do
-                # Look for the environment variable pattern in RewriteRule
-                # Pattern: E=UPGRADE:%{HTTP:Upgrade} (with optional spacing)
-                # Using [[:space:]] for POSIX compliance instead of \s
-                if grep -iE "E=UPGRADE[[:space:]]*:[[:space:]]*%\{HTTP:Upgrade\}" "$conf" &>/dev/null; then
-                    echo "  ✓ WebSocket header forwarding found in: $conf"
-                    FOUND_CONFIG=true
-                    
-                    # Check for both environment variable and RequestHeader
-                    if grep -iE "RequestHeader[[:space:]]+set[[:space:]]+Upgrade" "$conf" &>/dev/null; then
-                        echo "  ✓ Upgrade header forwarding configured"
-                    else
-                        echo "  ⚠️  Missing 'RequestHeader set Upgrade' directive"
-                    fi
-                    
-                    if grep -iE "RequestHeader[[:space:]]+set[[:space:]]+Connection" "$conf" &>/dev/null; then
-                        echo "  ✓ Connection header forwarding configured"
-                    else
-                        echo "  ⚠️  Missing 'RequestHeader set Connection' directive"
-                    fi
+        fi
+        
+        for conf in "$dir"/*.conf; do
+            # Look for the environment variable pattern in RewriteRule
+            # Pattern: E=UPGRADE:%{HTTP:Upgrade} (with optional spacing)
+            # Using [[:space:]] for POSIX compliance instead of \s
+            if grep -iE "E=UPGRADE[[:space:]]*:[[:space:]]*%\{HTTP:Upgrade\}" "$conf" &>/dev/null; then
+                echo "  ✓ WebSocket header forwarding found in: $conf"
+                FOUND_CONFIG=true
+                
+                # Check for both environment variable and RequestHeader
+                if grep -iE "RequestHeader[[:space:]]+set[[:space:]]+Upgrade" "$conf" &>/dev/null; then
+                    echo "  ✓ Upgrade header forwarding configured"
+                else
+                    echo "  ⚠️  Missing 'RequestHeader set Upgrade' directive"
                 fi
-            done
-        )
+                
+                if grep -iE "RequestHeader[[:space:]]+set[[:space:]]+Connection" "$conf" &>/dev/null; then
+                    echo "  ✓ Connection header forwarding configured"
+                else
+                    echo "  ⚠️  Missing 'RequestHeader set Connection' directive"
+                fi
+            fi
+        done
+        
+        # Restore nullglob to original state
+        if [ "$NULLGLOB_WAS_SET" = false ]; then
+            shopt -u nullglob
+        fi
     fi
 done
 
