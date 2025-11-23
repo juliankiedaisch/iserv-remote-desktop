@@ -594,6 +594,7 @@ def _proxy_websocket_with_eventlet(ws, container, use_ssl):
         container_to_client = gevent.spawn(proxy_container_to_client)
         
         # Wait for BOTH directions to complete with timeout (WEBSOCKET_PROXY_TIMEOUT)
+        # Note: joinall with timeout will stop waiting but NOT interrupt the greenlets
         # This ensures proper cleanup before closing while preventing indefinite hangs
         gevent.joinall([client_to_container, container_to_client], timeout=WEBSOCKET_PROXY_TIMEOUT)
         
