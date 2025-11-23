@@ -52,4 +52,22 @@ with app.app_context():
     run_migrations()
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5020 , debug=True)
+    # Use gevent-websocket server for WebSocket support in development
+    # This provides the same WebSocket functionality as production (gunicorn + gevent-websocket)
+    from gevent import pywsgi
+    from geventwebsocket.handler import WebSocketHandler
+    
+    server = pywsgi.WSGIServer(
+        ('0.0.0.0', 5020),
+        app,
+        handler_class=WebSocketHandler
+    )
+    
+    print("=" * 70)
+    print("Starting IServ Remote Desktop with WebSocket support")
+    print("Server: gevent-websocket (development mode)")
+    print("Address: http://0.0.0.0:5020")
+    print("WebSocket support: ENABLED")
+    print("=" * 70)
+    
+    server.serve_forever()

@@ -10,6 +10,8 @@ from app.services.docker_manager import DockerManager
 import os
 import base64
 import re
+import socket
+import ssl
 
 proxy_bp = Blueprint('proxy', __name__)
 
@@ -287,11 +289,22 @@ def proxy_websocket_root():
     We need to determine which container this request is for by checking the Referer header,
     or falling back to the session if Referer is unavailable or points to an asset.
     
-    Note: Flask will forward this to the reverse proxy (Apache/Nginx) which will 
-    handle the actual WebSocket upgrade.
+    When running with gunicorn + GeventWebSocketWorker or gevent-websocket development server,
+    WebSocket connections are available via request.environ.get('wsgi.websocket'). 
+    This function handles both regular HTTP requests and WebSocket upgrade requests.
     """
     referer = request.headers.get('Referer', '')
     current_app.logger.debug(f"WebSocket request at /websockify with Referer: {referer}")
+    
+    # Check if this is a WebSocket upgrade request
+    ws = request.environ.get('wsgi.websocket')
+    is_websocket = ws is not None or (
+        request.headers.get('Upgrade', '').lower() == 'websocket' and
+        'upgrade' in request.headers.get('Connection', '').lower()
+    )
+    
+    if is_websocket:
+        current_app.logger.debug("WebSocket upgrade request detected")
     
     container = None
     
@@ -346,77 +359,184 @@ def proxy_websocket_root():
     
     # Determine protocol based on environment variable
     container_protocol = os.environ.get('KASM_CONTAINER_PROTOCOL', 'https')
+    use_ssl = container_protocol == 'https'
     
-    # Build the target WebSocket URL for the container
-    target_url = f"{container_protocol}://localhost:{container.host_port}/websockify"
+    current_app.logger.info(f"Proxying WebSocket to container {container.container_name} on port {container.host_port}")
     
-    # Forward query parameters
-    if request.query_string:
-        target_url = f"{target_url}?{request.query_string.decode('utf-8')}"
+    # If this is a WebSocket upgrade request and we have a WebSocket object from eventlet/gunicorn
+    if ws:
+        current_app.logger.info("Handling WebSocket with eventlet")
+        return _proxy_websocket_with_eventlet(ws, container, use_ssl)
+    elif is_websocket:
+        # WebSocket upgrade request but no ws object (e.g., running with Werkzeug dev server)
+        # Return a proper WebSocket handshake response that Apache/Nginx can intercept
+        current_app.logger.info("Returning WebSocket handshake for Apache/Nginx to handle")
+        return _return_websocket_handshake(container, use_ssl)
+    else:
+        # Regular HTTP request (for testing/debugging)
+        current_app.logger.debug("Regular HTTP request to /websockify (not WebSocket)")
+        return Response(
+            f"This endpoint is for WebSocket connections only. "
+            f"Container: {container.container_name}, Port: {container.host_port}",
+            status=200,
+            mimetype='text/plain'
+        )
+
+
+def _proxy_websocket_with_eventlet(ws, container, use_ssl):
+    """
+    Proxy WebSocket connection between client and container using gevent
     
-    current_app.logger.info(f"Proxying WebSocket to: {target_url}")
+    Note: Despite the function name referencing 'eventlet', this implementation
+    uses gevent-websocket which is the proper WebSocket handler when running with
+    gunicorn + GeventWebSocketWorker or the gevent-websocket development server.
     
-    # Prepare headers for forwarding
-    headers = {}
-    for key, value in request.headers:
-        if key.lower() not in HOP_BY_HOP_HEADERS:
-            headers[key] = value
+    Args:
+        ws: gevent-websocket WebSocket object from request.environ['wsgi.websocket']
+        container: Container object with connection details
+        use_ssl: Whether to use SSL for container connection
+    """
+    import gevent
+    from gevent import socket as green_socket
     
-    # Add HTTP Basic Auth for VNC password
-    # Note: VNC_PASSWORD should be set in environment for security
+    current_app.logger.info(f"Establishing WebSocket proxy to container port {container.host_port}")
+    
+    # Get VNC credentials
     vnc_user = os.environ.get('VNC_USER', 'kasm_user')
     vnc_password = os.environ.get('VNC_PASSWORD', 'password')
     
-    # Warn if using default password (security risk in production)
-    if vnc_password == 'password':
-        current_app.logger.warning("Using default VNC password - set VNC_PASSWORD environment variable for production")
-    
-    credentials = f"{vnc_user}:{vnc_password}"
-    encoded_credentials = base64.b64encode(credentials.encode('utf-8')).decode('utf-8')
-    headers['Authorization'] = f"Basic {encoded_credentials}"
-    
-    # IMPORTANT: Flask/requests library cannot handle true WebSocket upgrades
-    # This code only forwards the initial HTTP upgrade request
-    # The actual WebSocket protocol upgrade MUST be handled by Apache/Nginx
-    # Apache RewriteRule converts this to ws:// and handles the upgrade
+    # Connect to the container's WebSocket endpoint
     try:
-        verify_ssl = os.environ.get('KASM_VERIFY_SSL', 'false').lower() == 'true'
-        requests_session = create_retry_session(verify_ssl=verify_ssl)
+        # Create socket connection to container
+        sock = green_socket.socket(green_socket.AF_INET, green_socket.SOCK_STREAM)
+        sock.connect(('localhost', container.host_port))
         
-        if not verify_ssl:
-            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        # Wrap with SSL if needed
+        if use_ssl:
+            context = ssl.create_default_context()
+            # For localhost container connections, we need to disable verification
+            # as Kasm containers use self-signed certificates
+            # Security note: This is acceptable for localhost-only connections
+            # where the container is on the same host
+            verify_ssl = os.environ.get('KASM_VERIFY_SSL', 'false').lower() == 'true'
+            if not verify_ssl:
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
+            sock = context.wrap_socket(sock, server_hostname='localhost')
         
-        # Forward the initial WebSocket handshake request
-        # Apache will intercept this and upgrade the connection to WebSocket
-        resp = requests_session.request(
-            method=request.method,
-            url=target_url,
-            headers=headers,
-            data=request.get_data(),
-            cookies=request.cookies,
-            allow_redirects=False,
-            stream=True,
-            timeout=(PROXY_CONNECT_TIMEOUT, PROXY_READ_TIMEOUT)
+        # Send WebSocket upgrade request to container
+        credentials = base64.b64encode(f"{vnc_user}:{vnc_password}".encode()).decode()
+        upgrade_request = (
+            f"GET /websockify HTTP/1.1\r\n"
+            f"Host: localhost:{container.host_port}\r\n"
+            f"Upgrade: websocket\r\n"
+            f"Connection: Upgrade\r\n"
+            f"Sec-WebSocket-Key: {base64.b64encode(os.urandom(16)).decode()}\r\n"
+            f"Sec-WebSocket-Version: 13\r\n"
+            f"Authorization: Basic {credentials}\r\n"
+            f"\r\n"
         )
+        sock.sendall(upgrade_request.encode())
         
-        # Create response with the same status code
-        excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
-        response_headers = [
-            (name, value) for (name, value) in resp.raw.headers.items()
-            if name.lower() not in excluded_headers
-        ]
+        # Read the upgrade response from container
+        # Limit response size to prevent memory exhaustion attacks
+        MAX_HANDSHAKE_SIZE = 8192  # 8KB should be sufficient for WebSocket handshake
+        response = b""
+        while b"\r\n\r\n" not in response:
+            chunk = sock.recv(4096)
+            if not chunk:
+                raise Exception("Container closed connection during WebSocket handshake")
+            response += chunk
+            if len(response) > MAX_HANDSHAKE_SIZE:
+                raise Exception("WebSocket handshake response too large")
         
-        response = Response(
-            resp.iter_content(chunk_size=PROXY_CHUNK_SIZE),
-            status=resp.status_code,
-            headers=response_headers
-        )
+        # Check if upgrade was successful
+        if b"101" not in response.split(b"\r\n")[0]:
+            current_app.logger.error(f"Container did not accept WebSocket upgrade: {response[:200]}")
+            ws.close()
+            return Response("Container did not accept WebSocket connection", status=502)
         
-        return response
+        current_app.logger.info("WebSocket upgrade successful, starting bidirectional proxy")
+        
+        # Proxy data between client and container
+        def proxy_client_to_container():
+            """Forward data from client WebSocket to container socket"""
+            try:
+                while True:
+                    message = ws.receive()
+                    if message is None:
+                        break
+                    sock.sendall(message)
+            except Exception as e:
+                current_app.logger.debug(f"Client to container proxy ended: {e}")
+            finally:
+                try:
+                    sock.shutdown(green_socket.SHUT_WR)
+                except:
+                    pass
+        
+        def proxy_container_to_client():
+            """Forward data from container socket to client WebSocket"""
+            try:
+                while True:
+                    data = sock.recv(4096)
+                    if not data:
+                        break
+                    ws.send(data)
+            except Exception as e:
+                current_app.logger.debug(f"Container to client proxy ended: {e}")
+            finally:
+                try:
+                    ws.close()
+                except:
+                    pass
+        
+        # Start bidirectional proxying in separate greenlets
+        client_to_container = gevent.spawn(proxy_client_to_container)
+        container_to_client = gevent.spawn(proxy_container_to_client)
+        
+        # Wait for either direction to finish
+        gevent.wait([client_to_container, container_to_client], count=1)
+        
+        # Clean up
+        try:
+            sock.close()
+        except:
+            pass
+        
+        current_app.logger.info("WebSocket proxy connection closed")
+        return Response("", status=200)
         
     except Exception as e:
-        current_app.logger.error(f"Error proxying WebSocket: {str(e)}")
-        return Response(f"Error connecting to container WebSocket: {str(e)}", status=502)
+        current_app.logger.error(f"Error in WebSocket proxy: {str(e)}")
+        try:
+            ws.close()
+        except:
+            pass
+        return Response(f"WebSocket proxy error: {str(e)}", status=502)
+
+
+def _return_websocket_handshake(container, use_ssl):
+    """
+    Return a WebSocket handshake response for Apache/Nginx to intercept and upgrade
+    
+    This is used when running with a dev server that doesn't support WebSocket natively.
+    Apache/Nginx should see this response and establish the WebSocket connection.
+    """
+    # For now, redirect to the container-specific WebSocket endpoint
+    # This allows Apache to properly route the WebSocket connection
+    protocol = 'https' if use_ssl else 'http'
+    redirect_url = f"{protocol}://localhost:{container.host_port}/websockify"
+    
+    current_app.logger.debug(f"Redirecting WebSocket to: {redirect_url}")
+    
+    # Return a 307 Temporary Redirect which preserves the request method and body
+    # This allows Apache to re-attempt the WebSocket upgrade to the container
+    return Response(
+        f"Redirecting WebSocket connection to container",
+        status=307,
+        headers={'Location': redirect_url}
+    )
 
 
 @proxy_bp.route('/desktop/<path:proxy_path>/websockify', methods=['GET'])
