@@ -83,11 +83,6 @@ for dir in "${APACHE_CONF_DIRS[@]}"; do
         # Use nullglob to handle case where no .conf files exist
         shopt -s nullglob
         for conf in "$dir"/*.conf; do
-            # Check if file exists (handles empty glob)
-            if [ ! -f "$conf" ]; then
-                continue
-            fi
-            
             # Look for the environment variable pattern in RewriteRule
             # Pattern: E=UPGRADE:%{HTTP:Upgrade} (with optional spacing)
             if grep -iE "E=UPGRADE\s*:\s*%\{HTTP:Upgrade\}" "$conf" &>/dev/null; then
