@@ -158,6 +158,45 @@ Should return the same response
 
 ## Troubleshooting
 
+### Issue: WebSocket Connection Closes Immediately (Code 1005)
+
+**Symptom**: Browser shows `Failed when connecting: Connection closed (code: 1005)` after successful HTTP 101 upgrade
+
+**Root Cause**: WebSocket connection closes without a proper close frame, typically when:
+1. The container is not accessible or hasn't started yet
+2. The container rejects the WebSocket connection
+3. Error handling in the proxy tries to return HTTP responses after WebSocket is established
+
+**Solutions**:
+
+1. **Ensure Container is Running**:
+   - Wait 10-15 seconds after starting a container before connecting
+   - Check container logs: `docker logs <container_name>`
+   - Verify container port is accessible: `curl -k https://localhost:<port>/websockify`
+
+2. **Check Application Logs**:
+   ```bash
+   docker-compose logs -f app | grep websockify
+   ```
+   Look for:
+   - "Attempting to connect to container at localhost:XXXX"
+   - "Successfully connected to container port XXXX"
+   - "Failed to connect to container port XXXX" (indicates container issue)
+
+3. **Verify WebSocket Configuration**:
+   - Ensure apache.conf has the WebSocket rewrite rule:
+     ```apache
+     RewriteCond %{HTTP:Upgrade} =websocket [NC]
+     RewriteRule /(.*) ws://localhost:5020/$1 [P,L]
+     ```
+   - Ensure mod_proxy_wstunnel is enabled: `apache2ctl -M | grep proxy_wstunnel`
+
+4. **Check Container Accessibility**:
+   - Test container WebSocket endpoint directly:
+     ```bash
+     wscat -c wss://localhost:<container_port>/websockify --no-check
+     ```
+
 ### Issue: "Connection Aborted" Error
 
 **Symptom**: Error when clicking desktop: `('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))`
