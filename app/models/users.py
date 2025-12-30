@@ -87,6 +87,19 @@ class User(db.Model):
         """Check if user is a student"""
         return self.role == 'student'
     
+    def get_group_names(self):
+        """Get list of group names from user_data"""
+        if not self.user_data or 'groups' not in self.user_data:
+            return []
+        
+        if type(self.user_data.get('groups')) == dict:
+            # Extract group names from dict structure
+            return [elem.get("act", "") for elem in self.user_data.get('groups', {}).values()]
+        elif type(self.user_data.get('groups')) == list:
+            return self.user_data.get('groups', [])
+        
+        return []
+    
     # ============================================================
     # SERIALIZATION
     # ============================================================

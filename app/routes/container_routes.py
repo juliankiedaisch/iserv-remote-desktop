@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, current_app
 from app import db
 from app.models.oauth_session import OAuthSession
 from app.models.containers import Container
+from app.models.desktop_assignments import DesktopType, DesktopAssignment
 from app.services.docker_manager import DockerManager
 from datetime import datetime, timezone
 from functools import wraps
@@ -62,6 +63,26 @@ def start_container(oauth_session):
         if not desktop_type:
             data = request.get_json() or {}
             desktop_type = data.get('desktop_type', 'ubuntu-desktop')
+        
+        # Check desktop type permissions
+        desktop_type_record = DesktopType.query.filter_by(name=desktop_type).first()
+        
+        if desktop_type_record:
+            # If desktop type exists in database, check if it's enabled
+            if not desktop_type_record.enabled:
+                return jsonify({
+                    'success': False,
+                    'error': f'Desktop type "{desktop_type}" is currently disabled'
+                }), 403
+            
+            # Check user permission
+            user_groups = user.get_group_names()
+            if not DesktopAssignment.check_access(desktop_type_record.id, user.id, user_groups):
+                return jsonify({
+                    'success': False,
+                    'error': f'You do not have permission to access "{desktop_type}" desktops'
+                }), 403
+        # If desktop_type_record is None, it's a legacy desktop type - allow for backward compatibility
         
         # Check if user already has a running container for this desktop type
         existing = Container.query.filter_by(
@@ -154,10 +175,28 @@ def get_container_status(oauth_session):
 def stop_container(oauth_session):
     """Stop user's container"""
     try:
-        # Get container for this session
-        container = Container.get_by_session(oauth_session.id)
+        # Get desktop type from request
+        data = request.get_json() or {}
+        desktop_type = data.get('desktop_type') or request.args.get('desktop_type')
+        
+        current_app.logger.info(f"Stop request - session_id: {oauth_session.id}, desktop_type: {desktop_type}, user_id: {oauth_session.user_id}")
+        
+        # Get container for this session and desktop type
+        # Since users can have multiple containers, we need to match by user_id and desktop_type
+        if desktop_type:
+            container = Container.query.filter_by(
+                user_id=oauth_session.user_id,
+                desktop_type=desktop_type,
+                status='running'
+            ).first()
+            current_app.logger.info(f"Container query result: {container}")
+        else:
+            container = Container.get_by_session(oauth_session.id)
         
         if not container:
+            # Log all containers for this user to help debug
+            all_user_containers = Container.query.filter_by(user_id=oauth_session.user_id).all()
+            current_app.logger.warning(f"No running container found. User has {len(all_user_containers)} total containers: {[c.desktop_type for c in all_user_containers]}")
             return jsonify({
                 'success': False,
                 'error': 'No running container found'
@@ -249,5 +288,91 @@ def list_containers(oauth_session):
         current_app.logger.error(f"Failed to list containers: {str(e)}")
         return jsonify({
             'success': False,
+            'error': str(e)
+        }), 500
+
+
+@container_bp.route('/container/available-types', methods=['GET'])
+@require_session
+def get_available_desktop_types(oauth_session):
+    """Get list of desktop types available to the current user"""
+    try:
+        user = oauth_session.user
+        user_groups = user.get_group_names()
+        
+        # Get all enabled desktop types
+        all_types = DesktopType.query.filter_by(enabled=True).all()
+        
+        available_types = []
+        for desktop_type in all_types:
+            # Check if user has access
+            if DesktopAssignment.check_access(desktop_type.id, user.id, user_groups):
+                available_types.append({
+                    'id': desktop_type.id,
+                    'name': desktop_type.name,
+                    'docker_image': desktop_type.docker_image,
+                    'description': desktop_type.description,
+                    'icon': desktop_type.icon
+                })
+        
+        return jsonify({
+            'success': True,
+            'desktop_types': available_types
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Failed to get available desktop types: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@container_bp.route('/container/health', methods=['GET'])
+@require_session
+def check_container_health(oauth_session):
+    """Check if a specific container is ready and responding"""
+    try:
+        desktop_type = request.args.get('desktop_type')
+        
+        if not desktop_type:
+            return jsonify({
+                'success': False,
+                'error': 'desktop_type parameter required'
+            }), 400
+        
+        # Get container for this user and desktop type
+        container = Container.query.filter_by(
+            user_id=oauth_session.user_id,
+            desktop_type=desktop_type,
+            status='running'
+        ).first()
+        
+        if not container:
+            return jsonify({
+                'success': False,
+                'ready': False,
+                'error': 'Container not found or not running'
+            }), 404
+        
+        # Check Docker container status
+        docker_manager = DockerManager()
+        status_info = docker_manager.get_container_status(container)
+        
+        # Container is ready if Docker reports it as running
+        is_ready = status_info.get('status') == 'running'
+        
+        return jsonify({
+            'success': True,
+            'ready': is_ready,
+            'status': status_info.get('status'),
+            'container_id': container.id
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Failed to check container health: {str(e)}")
+        return jsonify({
+            'success': False,
+            'ready': False,
             'error': str(e)
         }), 500

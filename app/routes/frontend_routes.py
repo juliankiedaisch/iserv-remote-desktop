@@ -31,3 +31,9 @@ def index():
 def admin_panel():
     """Admin panel page"""
     return render_template('admin.html')
+
+
+@frontend_bp.route('/admin/desktop-types')
+def desktop_types_admin():
+    """Desktop types management page"""
+    return render_template('desktop_types.html')

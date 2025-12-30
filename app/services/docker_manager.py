@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from sqlalchemy import or_
 from app import db
 from app.models.containers import Container
+from app.models.desktop_assignments import DesktopType
 
 class DockerManager:
     """Manage Docker containers for Kasm workspaces"""
@@ -29,26 +30,30 @@ class DockerManager:
             user_id: User's unique ID
             session_id: Session ID
             username: User's username
-            desktop_type: Type of desktop to create (optional)
+            desktop_type: Type of desktop to create (name from desktop_types table)
             
         Returns:
             Container model instance
         """
         container_record = None
         try:
-            # Desktop type to image mapping
-            DESKTOP_IMAGES = {
-                'ubuntu-vscode': 'kasmweb/vs-code:1.18.0',
-                'ubuntu-desktop': 'kasmweb/ubuntu-noble-desktop:1.18.0',
-                'ubuntu-only-office': 'kasmweb/only-office:1.18.0'
-            }
-            
-            # Get image based on desktop type or use default
-            if desktop_type and desktop_type in DESKTOP_IMAGES:
-                kasm_image = DESKTOP_IMAGES[desktop_type]
+            # Get desktop type from database
+            if desktop_type:
+                desktop_type_record = DesktopType.query.filter_by(name=desktop_type, enabled=True).first()
+                if not desktop_type_record:
+                    raise Exception(f"Desktop type '{desktop_type}' not found or disabled")
+                
+                kasm_image = desktop_type_record.docker_image
             else:
-                kasm_image = os.environ.get('KASM_IMAGE', 'kasmweb/ubuntu-noble-desktop:1.18.0')
-                desktop_type = 'ubuntu-desktop'  # Default type
+                # Fallback to default if no type specified
+                default_type = DesktopType.query.filter_by(enabled=True).first()
+                if default_type:
+                    kasm_image = default_type.docker_image
+                    desktop_type = default_type.name
+                else:
+                    # Last resort fallback to environment or hardcoded default
+                    kasm_image = os.environ.get('KASM_IMAGE', 'kasmweb/ubuntu-noble-desktop:1.18.0')
+                    desktop_type = 'ubuntu-desktop'
             
             container_port = int(os.environ.get('KASM_CONTAINER_PORT', 6901))
             

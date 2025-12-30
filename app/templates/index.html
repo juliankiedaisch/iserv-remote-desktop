@@ -16,13 +16,11 @@
         border-radius: 10px;
         padding: 25px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        cursor: pointer;
         transition: all 0.3s;
         position: relative;
     }
     
     .desktop-card:hover {
-        transform: translateY(-5px);
         box-shadow: 0 8px 12px rgba(0,0,0,0.15);
     }
     
@@ -90,6 +88,45 @@
         margin-top: 10px;
     }
     
+    .desktop-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        margin-top: 15px;
+    }
+    
+    .desktop-actions .btn {
+        flex: 1;
+        padding: 10px;
+        font-size: 14px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: all 0.3s;
+        font-weight: 500;
+    }
+    
+    .desktop-actions .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+    
+    .desktop-actions .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(102, 126, 234, 0.4);
+    }
+    
+    .desktop-actions .btn-danger {
+        background: #dc3545;
+        color: white;
+    }
+    
+    .desktop-actions .btn-danger:hover {
+        background: #c82333;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(220, 53, 69, 0.4);
+    }
+    
     .loading {
         text-align: center;
         padding: 40px;
@@ -137,31 +174,7 @@
     const API_BASE = window.location.origin + '/api';
     let sessionId = localStorage.getItem('session_id');
     let userData = null;
-    
-    // Desktop types configuration
-    const DESKTOP_TYPES = [
-        {
-            type: 'ubuntu-vscode',
-            name: 'Ubuntu with VSCode',
-            description: 'Full Ubuntu desktop with Visual Studio Code pre-installed',
-            icon: '💻',
-            image: 'kasmweb/vs-code:1.15.0'
-        },
-        {
-            type: 'ubuntu-desktop',
-            name: 'Ubuntu Desktop',
-            description: 'Standard Ubuntu desktop environment',
-            icon: '🖥️',
-            image: 'kasmweb/ubuntu-focal-desktop:1.15.0'
-        },
-        {
-            type: 'ubuntu-chromium',
-            name: 'Ubuntu with Chromium',
-            description: 'Ubuntu desktop with Chromium browser',
-            icon: '🌐',
-            image: 'kasmweb/chromium:1.15.0'
-        }
-    ];
+    let availableDesktopTypes = [];
     
     async function checkSession() {
         if (!sessionId) {
@@ -187,6 +200,60 @@
             console.error('Session check failed:', error);
             showError('Failed to validate session');
             return false;
+        }
+    }
+    
+    async function loadAvailableDesktopTypes() {
+        try {
+            const response = await fetch(`${API_BASE}/container/available-types`, {
+                headers: {
+                    'X-Session-ID': sessionId
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to load desktop types');
+            }
+            
+            availableDesktopTypes = data.desktop_types || [];
+            
+            // If no types available in database, fall back to hardcoded for backward compatibility
+            if (availableDesktopTypes.length === 0) {
+                availableDesktopTypes = [
+                    {
+                        name: 'ubuntu-vscode',
+                        docker_image: 'kasmweb/vs-code:1.18.0',
+                        description: 'Full Ubuntu desktop with Visual Studio Code pre-installed',
+                        icon: '💻'
+                    },
+                    {
+                        name: 'ubuntu-desktop',
+                        docker_image: 'kasmweb/ubuntu-noble-desktop:1.18.0',
+                        description: 'Standard Ubuntu desktop environment',
+                        icon: '🖥️'
+                    }
+                ];
+            }
+            
+        } catch (error) {
+            console.error('Failed to load desktop types:', error);
+            // Fall back to hardcoded types
+            availableDesktopTypes = [
+                {
+                    name: 'ubuntu-vscode',
+                    docker_image: 'kasmweb/vs-code:1.18.0',
+                    description: 'Full Ubuntu desktop with Visual Studio Code pre-installed',
+                    icon: '💻'
+                },
+                {
+                    name: 'ubuntu-desktop',
+                    docker_image: 'kasmweb/ubuntu-noble-desktop:1.18.0',
+                    description: 'Standard Ubuntu desktop environment',
+                    icon: '🖥️'
+                }
+            ];
         }
     }
     
@@ -220,30 +287,34 @@
         const grid = document.getElementById('desktop-grid');
         grid.innerHTML = '';
         
-        // Create a map of containers by their image/type
+        // Create a map of containers by desktop type name
         const containerMap = {};
         containers.forEach(container => {
-            containerMap[container.container_name] = container;
+            if (container.desktop_type) {
+                containerMap[container.desktop_type] = container;
+            }
         });
         
-        // Render all desktop types
-        DESKTOP_TYPES.forEach(desktop => {
+        // Render available desktop types
+        availableDesktopTypes.forEach(desktop => {
             const card = createDesktopCard(desktop, containerMap);
             grid.appendChild(card);
         });
+        
+        // Show message if no desktop types available
+        if (availableDesktopTypes.length === 0) {
+            grid.innerHTML = '<div class="error-message">No desktop types available for your account</div>';
+        }
     }
     
     function createDesktopCard(desktop, containerMap) {
-        // Find matching container
-        const container = Object.values(containerMap).find(c => 
-            c.container_name && c.container_name.includes(desktop.type)
-        );
+        // Find matching container by desktop type name
+        const container = containerMap[desktop.name];
         
         const isRunning = container && container.status === 'running';
         
         const card = document.createElement('div');
         card.className = `desktop-card ${isRunning ? 'running' : 'stopped'}`;
-        card.onclick = () => handleDesktopClick(desktop, container);
         
         let lastAccessText = '';
         if (container && container.last_accessed) {
@@ -252,32 +323,36 @@
         }
         
         card.innerHTML = `
-            <div class="desktop-icon">${desktop.icon}</div>
+            <div class="desktop-icon">${desktop.icon || '🖥️'}</div>
             <div class="desktop-name">${desktop.name}</div>
-            <div class="desktop-description">${desktop.description}</div>
+            <div class="desktop-description">${desktop.description || ''}</div>
             <div class="desktop-status">
                 <span class="status-indicator ${isRunning ? 'running' : 'stopped'}"></span>
                 <span>${isRunning ? 'Running' : 'Stopped'}</span>
             </div>
             ${lastAccessText ? `<div class="desktop-meta">${lastAccessText}</div>` : ''}
+            <div class="desktop-actions">
+                ${isRunning ? 
+                    `<button class="btn btn-primary" onclick="event.stopPropagation(); openDesktop('${container.url}');">Open</button>
+                     <button class="btn btn-danger" onclick="event.stopPropagation(); stopContainer('${desktop.name}');">Stop</button>` :
+                    `<button class="btn btn-primary" onclick="event.stopPropagation(); startDesktop('${desktop.name}');">Start</button>`
+                }
+            </div>
         `;
         
         return card;
     }
     
-    async function handleDesktopClick(desktop, container) {
-        if (container && container.status === 'running' && container.url) {
-            // Container is running, open it
-            window.open(container.url, '_blank');
-            await updateLastAccess();
-            return;
-        }
-        
-        // Start new container
+    async function openDesktop(url) {
+        window.open(url, '_blank');
+        await updateLastAccess();
+    }
+    
+    async function startDesktop(desktopType) {
         try {
-            showLoading();
+            showLoading('Creating container...');
             
-            const response = await fetch(`${API_BASE}/container/start?desktop_type=${desktop.type}`, {
+            const response = await fetch(`${API_BASE}/container/start?desktop_type=${desktopType}`, {
                 method: 'POST',
                 headers: {
                     'X-Session-ID': sessionId
@@ -288,13 +363,69 @@
             
             if (data.success && data.url) {
                 // Reload to show updated status
+                showLoading('Container created, starting services...');
                 await loadDesktops();
                 
-                // Open in new tab after a brief delay to ensure UI updates
-                // 500ms allows the desktop list to refresh before opening VNC
-                setTimeout(() => {
+                // Give container initial time to start up (3 seconds)
+                // This allows Docker to initialize the container before we start polling
+                for (let i = 3; i > 0; i--) {
+                    showLoading(`Initializing services... (${i}s)`);
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+                
+                // Now poll for container readiness
+                showLoading('Checking if desktop is ready...');
+                
+                const maxAttempts = 25; // 25 more attempts after initial 3s wait
+                let attempts = 0;
+                let ready = false;
+                
+                while (attempts < maxAttempts && !ready) {
+                    attempts++;
+                    
+                    // Update status message with progress
+                    const dots = '.'.repeat((attempts % 3) + 1);
+                    showLoading(`Waiting for desktop to be ready${dots} (${attempts + 3}s)`);
+                    
+                    try {
+                        const healthResponse = await fetch(
+                            `${API_BASE}/container/health?desktop_type=${encodeURIComponent(desktopType)}`, 
+                            {
+                                headers: {
+                                    'X-Session-ID': sessionId
+                                }
+                            }
+                        );
+                        
+                        const healthData = await healthResponse.json();
+                        
+                        if (healthData.success && healthData.ready) {
+                            // Add small additional delay to ensure VNC server is fully ready
+                            showLoading('Desktop ready, preparing to open...');
+                            await new Promise(resolve => setTimeout(resolve, 2000));
+                            ready = true;
+                            break;
+                        }
+                    } catch (healthError) {
+                        console.log('Health check attempt', attempts, 'failed:', healthError.message);
+                    }
+                    
+                    // Wait 1 second before next check
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+                
+                if (ready) {
+                    showLoading('Opening desktop...');
+                    await new Promise(resolve => setTimeout(resolve, 500));
                     window.open(data.url, '_blank');
-                }, 500);
+                    
+                    showLoading('Desktop opened in new tab');
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                } else {
+                    // Timeout - open anyway but warn user
+                    window.open(data.url, '_blank');
+                    showError('Desktop is starting but may take a few more seconds to load. Please refresh the tab if needed.');
+                }
             } else {
                 throw new Error(data.error || 'Failed to start desktop');
             }
@@ -302,6 +433,42 @@
         } catch (error) {
             console.error('Failed to start desktop:', error);
             showError('Failed to start desktop: ' + error.message);
+        } finally {
+            hideLoading();
+        }
+    }
+    
+    async function stopContainer(desktopType) {
+        if (!confirm(`Are you sure you want to stop the ${desktopType} container?`)) {
+            return;
+        }
+        
+        try {
+            showLoading('Stopping container...');
+            
+            const response = await fetch(`${API_BASE}/container/stop`, {
+                method: 'POST',
+                headers: {
+                    'X-Session-ID': sessionId,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    desktop_type: desktopType
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to stop container');
+            }
+            
+            // Reload desktops to reflect the change
+            await loadDesktops();
+            
+        } catch (error) {
+            console.error('Failed to stop container:', error);
+            showError('Failed to stop container: ' + error.message);
         } finally {
             hideLoading();
         }
@@ -331,9 +498,12 @@
         `;
     }
     
-    function showLoading() {
-        document.getElementById('loading').style.display = 'block';
-        document.getElementById('loading').querySelector('p').textContent = 'Starting desktop...';
+    function showLoading(message) {
+        const loadingEl = document.getElementById('loading');
+        loadingEl.style.display = 'block';
+        if (message !== undefined) {
+            loadingEl.querySelector('p').textContent = message;
+        }
     }
     
     function hideLoading() {
@@ -361,6 +531,7 @@
     async function init() {
         const authenticated = await checkSession();
         if (authenticated) {
+            await loadAvailableDesktopTypes();
             await loadDesktops();
             
             // Refresh desktop status every 30 seconds to show current state
