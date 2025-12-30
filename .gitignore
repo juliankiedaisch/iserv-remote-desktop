@@ -451,3 +451,9 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+#Log files
+*.log
+
+#Database Files
+*.db

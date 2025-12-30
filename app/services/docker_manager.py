@@ -56,7 +56,9 @@ class DockerManager:
             container_name = f"kasm-{username}-{desktop_type}-{session_id[:8]}"
             
             # Generate unique proxy path for reverse proxy access
-            proxy_path = f"{username}-{desktop_type}"
+            # Replace periods with dashes for DNS subdomain compatibility
+            username_safe = username.replace('.', '-')
+            proxy_path = f"{username_safe}-{desktop_type}"
             
             # Check if container already exists for this session and desktop type in any state
             # We check by session_id, user_id, and desktop_type to ensure we only find containers for this user
@@ -410,20 +412,23 @@ class DockerManager:
     
     def get_container_url(self, container_record):
         """
-        Get the URL to access the container via reverse proxy
+        Get the URL to access the container via subdomain routing
+        
+        Apache routes subdomains directly to containers using RewriteMap.
         
         Args:
             container_record: Container model instance
             
         Returns:
-            URL string
+            URL string with subdomain
         """
         if not container_record.proxy_path:
             return None
         
-        # Get host and protocol from environment
+        # Get host from environment
         host = os.environ.get('DOCKER_HOST_URL', 'localhost')
-        protocol = os.environ.get('DOCKER_HOST_PROTOCOL', 'https')  # Default to HTTPS for production
         
-        # Use proxy path for access (reverse proxy will forward to the correct port)
-        return f"{protocol}://{host}/desktop/{container_record.proxy_path}"
+        # Use subdomain routing: desktop-container-name.hub.mdg-hamburg.de
+        # Format matches wildcard SSL cert *.hub.mdg-hamburg.de
+        # Apache's RewriteMap queries Flask API to get container IP:port
+        return f"https://desktop-{container_record.proxy_path}.hub.mdg-hamburg.de/"

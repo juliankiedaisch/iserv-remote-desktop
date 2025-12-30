@@ -3,6 +3,7 @@ from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from authlib.integrations.flask_client import OAuth
 from werkzeug.middleware.proxy_fix import ProxyFix
+from flask_sock import Sock
 import os
 from urllib.parse import urlparse
 
@@ -10,6 +11,7 @@ from urllib.parse import urlparse
 # Initialize Flask extensions
 db = SQLAlchemy()
 oauth = OAuth()
+sock = Sock()
 
 
 def create_app(debug=False):
@@ -44,6 +46,7 @@ def create_app(debug=False):
     # Initialize extensions with app
     db.init_app(app)
     oauth.init_app(app)
+    sock.init_app(app)
     
     # Register OAuth provider
     oauth.register(
@@ -66,10 +69,14 @@ def create_app(debug=False):
     from app.routes.frontend_routes import frontend_bp
     from app.routes.admin_routes import admin_bp
     from app.routes.proxy_routes import proxy_bp
+    from app.routes.debug_routes import debug_bp
+    from app.routes.apache_api_routes import apache_api_bp
     app.register_blueprint(auth_bp, url_prefix='/')
     app.register_blueprint(container_bp, url_prefix='/api')
     app.register_blueprint(frontend_bp, url_prefix='/')
     app.register_blueprint(admin_bp, url_prefix='/api')
     app.register_blueprint(proxy_bp, url_prefix='/')
+    app.register_blueprint(debug_bp, url_prefix='/')
+    app.register_blueprint(apache_api_bp)
 
     return app

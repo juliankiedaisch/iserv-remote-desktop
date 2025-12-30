@@ -5,7 +5,7 @@ from urllib3.util.retry import Retry
 import urllib3
 from app.models.containers import Container
 from datetime import datetime, timezone
-from app import db
+from app import db, sock
 from app.services.docker_manager import DockerManager
 import os
 import base64
@@ -319,8 +319,18 @@ def proxy_websocket_root():
     WebSocket connections are available via request.environ.get('wsgi.websocket'). 
     This function handles both regular HTTP requests and WebSocket upgrade requests.
     """
+    import sys
+    print("=" * 80, flush=True)
+    print("[ROUTE ENTRY] /websockify route handler was called!", flush=True)
+    print(f"Upgrade header: {request.headers.get('Upgrade')}", flush=True)
+    print(f"wsgi.websocket exists: {request.environ.get('wsgi.websocket') is not None}", flush=True)
+    print(f"Host header: {request.headers.get('Host')}", flush=True)
+    print("=" * 80, flush=True)
+    sys.stdout.flush()
+    
     referer = request.headers.get('Referer', '')
-    current_app.logger.info(f"WebSocket request at /websockify with Referer: {referer}")
+    host = request.headers.get('Host', '')
+    current_app.logger.info(f"WebSocket request at /websockify with Host: {host}, Referer: {referer}")
     # Log minimal information for debugging without exposing sensitive session data
     current_app.logger.debug(f"Session has current_container: {bool(session.get('current_container'))}")
     
@@ -342,7 +352,24 @@ def proxy_websocket_root():
     
     container = None
     
-    # Try to find container from Referer first
+    # PRIORITY 1: Try to extract container from subdomain
+    # Format: container-name.desktop.hub.mdg-hamburg.de
+    if host and '.desktop.hub.mdg-hamburg.de' in host:
+        subdomain = host.split('.desktop.hub.mdg-hamburg.de')[0]
+        current_app.logger.error(f"DEBUG: Host={host}, Extracted subdomain={subdomain}")
+        if subdomain and subdomain != 'desktop':
+            current_app.logger.error(f"DEBUG: Looking for container with proxy_path={subdomain}")
+            # Find container by proxy_path (subdomain should match proxy_path)
+            container = Container.get_by_proxy_path(subdomain)
+            if container:
+                current_app.logger.error(f"DEBUG: ✓ Found container from subdomain: {subdomain} -> {container.container_name}")
+            else:
+                current_app.logger.error(f"DEBUG: ✗ Container not found for subdomain: {subdomain}")
+                # Debug: List all containers
+                all_containers = Container.query.all()
+                current_app.logger.error(f"DEBUG: Available containers: {[(c.container_name, c.proxy_path) for c in all_containers]}")
+    
+    # PRIORITY 2: Try to find container from Referer (backward compatibility)
     if referer:
         # Validate Referer length to prevent ReDoS attacks
         if len(referer) > 2048:  # Max reasonable URL length
@@ -515,12 +542,14 @@ def _proxy_websocket_with_gevent(ws, container, use_ssl):
     # Connect to the container's WebSocket endpoint
     try:
         # Create socket connection to container
+        print(f"[WEBSOCKET DEBUG] Attempting to connect to container at localhost:{container.host_port}")
         current_app.logger.info(f"Attempting to connect to container at localhost:{container.host_port}")
         sock = green_socket.socket(green_socket.AF_INET, green_socket.SOCK_STREAM)
         # Set socket timeout for connection
         sock.settimeout(10)
         try:
             sock.connect(('localhost', container.host_port))
+            print(f"[WEBSOCKET DEBUG] Successfully connected to container port {container.host_port}")
             current_app.logger.info(f"Successfully connected to container port {container.host_port}")
         except Exception as connect_error:
             current_app.logger.error(f"Failed to connect to container port {container.host_port}: {connect_error}")
@@ -547,8 +576,9 @@ def _proxy_websocket_with_gevent(ws, container, use_ssl):
         
         # Send WebSocket upgrade request to container
         credentials = base64.b64encode(f"{vnc_user}:{vnc_password}".encode()).decode()
+        # KasmVNC expects WebSocket at root path /, not /websockify
         upgrade_request = (
-            f"GET /websockify HTTP/1.1\r\n"
+            f"GET / HTTP/1.1\r\n"
             f"Host: localhost:{container.host_port}\r\n"
             f"Upgrade: websocket\r\n"
             f"Connection: Upgrade\r\n"
@@ -583,7 +613,10 @@ def _proxy_websocket_with_gevent(ws, container, use_ssl):
                 return None
         
         # Check if upgrade was successful
-        if b"101" not in response.split(b"\r\n")[0]:
+        response_status = response.split(b"\r\n")[0]
+        print(f"[WEBSOCKET DEBUG] Container response: {response_status}")
+        if b"101" not in response_status:
+            print(f"[WEBSOCKET DEBUG] ✗ Container rejected upgrade: {response[:200]}")
             current_app.logger.error(f"Container did not accept WebSocket upgrade: {response[:200]}")
             # Close the client WebSocket with a proper close frame
             try:
@@ -591,6 +624,7 @@ def _proxy_websocket_with_gevent(ws, container, use_ssl):
             except Exception:
                 pass
             return None
+        print(f"[WEBSOCKET DEBUG] ✓ Container accepted upgrade, starting proxy")
         
         current_app.logger.info("WebSocket upgrade successful, starting bidirectional proxy")
         
@@ -680,24 +714,28 @@ def _proxy_websocket_with_gevent(ws, container, use_ssl):
 
 def _return_websocket_handshake(container, use_ssl):
     """
-    Return a WebSocket handshake response for Apache/Nginx to intercept and upgrade
+    Handle WebSocket upgrade when Apache is tunneling with ws:// protocol
     
-    This is used when running with a dev server that doesn't support WebSocket natively.
-    Apache/Nginx should see this response and establish the WebSocket connection.
+    When Apache uses RewriteRule with ws://, it tunnels the TCP connection but Flask's
+    gevent-websocket doesn't see the wsgi.websocket object. In this case, Flask receives
+    the upgrade headers but must handle the WebSocket at the HTTP level.
+    
+    The solution is to return HTTP 101 Switching Protocols and then handle the raw socket.
+    However, since Flask/gevent-websocket doesn't easily expose the raw socket, we need
+    to return an error that tells the client to use a different endpoint or approach.
     """
-    # For now, redirect to the container-specific WebSocket endpoint
-    # This allows Apache to properly route the WebSocket connection
-    protocol = 'https' if use_ssl else 'http'
-    redirect_url = f"{protocol}://localhost:{container.host_port}/websockify"
+    current_app.logger.error(
+        "WebSocket upgrade request without wsgi.websocket object. "
+        "This indicates Apache is using RewriteRule with ws:// which doesn't work with gevent-websocket. "
+        f"Container: {container.container_name}, Port: {container.host_port}"
+    )
     
-    current_app.logger.debug(f"Redirecting WebSocket to: {redirect_url}")
-    
-    # Return a 307 Temporary Redirect which preserves the request method and body
-    # This allows Apache to re-attempt the WebSocket upgrade to the container
+    # Return a 502 Bad Gateway error explaining the configuration issue
     return Response(
-        f"Redirecting WebSocket connection to container",
-        status=307,
-        headers={'Location': redirect_url}
+        "WebSocket proxy configuration error: Flask cannot handle WebSocket tunneled by Apache. "
+        "Please configure Apache to use ProxyPass with upgrade=any parameter instead of RewriteRule.",
+        status=502,
+        mimetype='text/plain'
     )
 
 
@@ -763,3 +801,384 @@ def proxy_websocket(proxy_path):
             status=200,
             mimetype='text/plain'
         )
+"""
+New WebSocket route using flask-sock (modern, maintained library)
+
+This replaces the old gevent-websocket implementation which is unmaintained since 2017
+and has compatibility issues with modern Python/gevent.
+"""
+
+# Add this at the END of proxy_routes.py after all other routes
+
+@sock.route('/websockify')
+def websockify_sock(ws):
+    """
+    Handle WebSocket connections using flask-sock
+    
+    With flask-sock, the WebSocket handshake is handled automatically by the library.
+    This function is called AFTER the handshake completes, with a connected WebSocket object.
+    
+    Args:
+        ws: simple-websocket WebSocket object (not gevent-websocket)
+    """
+    import sys
+    print("=" * 80, flush=True)
+    print("[FLASK-SOCK] WebSocket route handler called!", flush=True)
+    print(f"Host: {request.headers.get('Host')}", flush=True)
+    print("=" * 80, flush=True)
+    sys.stdout.flush()
+    
+    referer = request.headers.get('Referer', '')
+    host = request.headers.get('Host', '')
+    current_app.logger.info(f"WebSocket connection at /websockify with Host: {host}, Referer: {referer}")
+    
+    container = None
+    
+    # PRIORITY 1: Extract container from subdomain in Host header
+    if host and '.desktop.hub.mdg-hamburg.de' in host:
+        subdomain = host.split('.desktop.hub.mdg-hamburg.de')[0]
+        if subdomain and subdomain != 'desktop':
+            container = Container.get_by_proxy_path(subdomain)
+            if container:
+                current_app.logger.info(f"Found container from subdomain: {subdomain} -> {container.container_name}")
+            else:
+                current_app.logger.error(f"Container not found for subdomain: {subdomain}")
+    
+    # PRIORITY 2: Try Referer header
+    if not container and referer:
+        match = re.search(r'/desktop/([^/?#]+)', referer)
+        if match:
+            referer_proxy_path = match.group(1)
+            if not is_asset_path(referer_proxy_path):
+                container = Container.get_by_proxy_path(referer_proxy_path)
+                if container:
+                    current_app.logger.info(f"Found container from Referer: {referer_proxy_path}")
+    
+    # PRIORITY 3: Try session
+    if not container:
+        session_container_name = session.get('current_container')
+        if session_container_name:
+            container = Container.get_by_proxy_path(session_container_name)
+            if container:
+                current_app.logger.info(f"Found container from session: {session_container_name}")
+    
+    if not container:
+        current_app.logger.error("No container found for WebSocket connection")
+        ws.close(reason="Container not found")
+        return
+    
+    if not container.host_port:
+        current_app.logger.error(f"Container {container.container_name} has no host port")
+        ws.close(reason="Container port not available")
+        return
+    
+    # Get container connection settings
+    use_ssl = os.environ.get('KASM_CONTAINER_PROTOCOL', 'https') == 'https'
+    
+    # Proxy the WebSocket connection
+    _proxy_websocket_flask_sock(ws, container, use_ssl, host)
+
+
+def _proxy_websocket_flask_sock(client_ws, container, use_ssl, host=None):
+    """
+    Raw socket-level TCP tunnel for WebSocket
+    
+    After the browser's WebSocket handshake with Flask completes, we get access to the
+    underlying socket. We connect to KasmVNC and tunnel raw TCP data bidirectionally.
+    
+    Args:
+        client_ws: simple-websocket WebSocket object from flask-sock
+        container: Container object  
+        use_ssl: Whether to use SSL for container connection
+    """
+    import socket as std_socket
+    import ssl as ssl_module
+    from gevent import spawn
+    import select
+    
+    current_app.logger.info(f"Starting socket-level TCP tunnel to container")
+    
+    container_sock = None
+    
+    try:
+        # Get container IP from Docker
+        container_ip = None
+        try:
+            import subprocess
+            result = subprocess.run(
+                ['docker', 'inspect', '-f', '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}', 
+                 container.container_name],
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0:
+                container_ip = result.stdout.strip()
+                current_app.logger.info(f"Container IP: {container_ip}")
+        except Exception as e:
+            current_app.logger.warning(f"Could not get container IP: {e}")
+        
+        if not container_ip:
+            current_app.logger.error("Could not determine container IP")
+            return
+        
+        # Connect to container's WebSocket/HTTP port (6901)
+        container_port = 6901
+        current_app.logger.info(f"Connecting to container at {container_ip}:{container_port}")
+        container_sock = std_socket.socket(std_socket.AF_INET, std_socket.SOCK_STREAM)
+        container_sock.settimeout(10)
+        container_sock.connect((container_ip, container_port))
+        container_sock.settimeout(None)
+        
+        # Wrap with SSL
+        if use_ssl:
+            context = ssl_module.create_default_context()
+            verify_ssl = os.environ.get('KASM_VERIFY_SSL', 'false').lower() == 'true'
+            if not verify_ssl:
+                context.check_hostname = False
+                context.verify_mode = ssl_module.CERT_NONE
+            container_sock = context.wrap_socket(container_sock, server_hostname=container_ip)
+            current_app.logger.info("SSL connection established")
+        
+        # Send WebSocket upgrade to KasmVNC
+        import base64
+        vnc_user = os.environ.get('VNC_USER', 'kasm_user')
+        vnc_password = os.environ.get('VNC_PASSWORD', 'password')
+        ws_key = base64.b64encode(os.urandom(16)).decode()
+        credentials = base64.b64encode(f"{vnc_user}:{vnc_password}".encode()).decode()
+        
+        upgrade_request = (
+            f"GET / HTTP/1.1\r\n"
+            f"Host: {container_ip}:{container_port}\r\n"
+            f"Upgrade: websocket\r\n"
+            f"Connection: Upgrade\r\n"
+            f"Sec-WebSocket-Key: {ws_key}\r\n"
+            f"Sec-WebSocket-Version: 13\r\n"
+            f"Authorization: Basic {credentials}\r\n"
+            f"\r\n"
+        )
+        
+        current_app.logger.info(f"Sending WebSocket upgrade to KasmVNC")
+        container_sock.sendall(upgrade_request.encode())
+        
+        # Read upgrade response  
+        response = b""
+        while b"\r\n\r\n" not in response:
+            chunk = container_sock.recv(1024)
+            if not chunk:
+                raise Exception("Connection closed during handshake")
+            response += chunk
+        
+        status_line = response.split(b'\r\n')[0].decode()
+        current_app.logger.info(f"KasmVNC response: {status_line}")
+        
+        # If upgrade failed, close immediately - don't relay HTML to noVNC!
+        if not status_line.startswith('HTTP/1.1 101'):
+            current_app.logger.error(f"KasmVNC rejected WebSocket upgrade: {status_line}")
+            current_app.logger.error("Cannot proxy - KasmVNC requires direct browser connection")
+            return
+        
+        current_app.logger.info("✓ WebSocket upgrade successful!")
+        
+        # Use client_ws.receive() and client_ws.send() for WebSocket framing
+        current_app.logger.info("Starting WebSocket frame relay")
+        
+        # Raw bidirectional relay using WebSocket API
+        def client_to_container():
+            """Receive WebSocket frames from client, send binary to container"""
+            try:
+                while True:
+                    data = client_ws.receive()  # Receives decoded WebSocket data
+                    if data is None:
+                        break
+                    # Send raw binary to container (no WebSocket framing)
+                    if isinstance(data, bytes):
+                        container_sock.sendall(data)
+                    elif isinstance(data, str):
+                        container_sock.sendall(data.encode('utf-8'))
+            except Exception as e:
+                pass  # No app context in greenlet
+            finally:
+                try:
+                    container_sock.close()
+                except:
+                    pass
+        
+        def container_to_client():
+            """Receive binary from container, send as WebSocket frames to client"""
+            try:
+                while True:
+                    data = container_sock.recv(4096)
+                    if not data:
+                        break
+                    # Send as WebSocket binary frame
+                    client_ws.send(data)
+            except Exception as e:
+                pass  # No app context in greenlet
+            finally:
+                try:
+                    client_ws.close()
+                except:
+                    pass
+        
+        # Spawn both relay greenlets
+        current_app.logger.info("Spawning relay greenlets")
+        g1 = spawn(client_to_container)
+        g2 = spawn(container_to_client)
+        
+        # Wait for either to finish
+        g1.join()
+        g2.join()
+        
+        current_app.logger.info("TCP tunnel closed")
+        
+    except Exception as e:
+        current_app.logger.error(f"TCP tunnel error: {e}", exc_info=True)
+    finally:
+        if container_sock:
+            try:
+                container_sock.close()
+            except:
+                pass
+
+
+def _OLD_proxy_websocket_flask_sock(client_ws, container, use_ssl, host=None):
+    """
+    OLD VERSION - tried to connect to KasmVNC's HTTP/WebSocket port
+    This didn't work because KasmVNC rejected our upgrade request.
+    """
+    import socket as std_socket
+    import ssl
+    import base64
+    from gevent import spawn
+    from gevent.socket import wait_read, wait_write
+    
+    current_app.logger.info(f"Proxying WebSocket to container port {container.host_port}")
+    
+    # Get VNC credentials
+    vnc_user = os.environ.get('VNC_USER', 'kasm_user')
+    vnc_password = os.environ.get('VNC_PASSWORD', 'password')
+    
+    sock = None
+    
+    try:
+        # Connect to container using gevent socket
+        current_app.logger.info(f"Connecting to container at localhost:{container.host_port}")
+        sock = std_socket.socket(std_socket.AF_INET, std_socket.SOCK_STREAM)
+        sock.settimeout(10)
+        sock.connect(('localhost', container.host_port))
+        sock.settimeout(None)
+        
+        # Wrap with SSL if needed
+        if use_ssl:
+            context = ssl.create_default_context()
+            verify_ssl = os.environ.get('KASM_VERIFY_SSL', 'false').lower() == 'true'
+            if not verify_ssl:
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
+            sock = context.wrap_socket(sock, server_hostname='localhost')
+            current_app.logger.info("SSL wrap successful")
+        
+        # Send WebSocket upgrade to container
+        credentials = base64.b64encode(f"{vnc_user}:{vnc_password}".encode()).decode()
+        ws_key = base64.b64encode(os.urandom(16)).decode()
+        
+        # KasmVNC requires Basic authentication for WebSocket
+        upgrade_request = (
+            f"GET / HTTP/1.1\r\n"
+            f"Host: localhost:{container.host_port}\r\n"
+            f"Upgrade: websocket\r\n"
+            f"Connection: Upgrade\r\n"
+            f"Sec-WebSocket-Key: {ws_key}\r\n"
+            f"Sec-WebSocket-Version: 13\r\n"
+            f"Authorization: Basic {credentials}\r\n"
+            f"\r\n"
+        )
+        
+        current_app.logger.info(f"Sending WebSocket upgrade with auth: GET /, Key: {ws_key}")
+        current_app.logger.info(f"Full credentials: {credentials}")
+        current_app.logger.info(f"VNC user: {vnc_user}, VNC pass: {vnc_password}")
+        current_app.logger.info(f"Request (repr): {repr(upgrade_request)}")
+        sock.sendall(upgrade_request.encode())
+        
+        # Read upgrade response
+        current_app.logger.info("Waiting for container upgrade response")
+        response = b""
+        while b"\r\n\r\n" not in response:
+            chunk = sock.recv(4096)
+            if not chunk:
+                current_app.logger.error("Container closed connection during handshake")
+                return
+            response += chunk
+            if len(response) > 8192:
+                current_app.logger.error("Handshake response too large")
+                return
+        
+        # Log first few lines of response
+        response_lines = response.split(b"\r\n")[:5]
+        for line in response_lines:
+            current_app.logger.info(f"  Response line: {line}")
+        
+        # Check upgrade response
+        status_line = response.split(b"\r\n")[0].decode('utf-8', errors='ignore')
+        current_app.logger.info(f"Container response: {status_line}")
+        
+        if b"101" not in response.split(b"\r\n")[0]:
+            current_app.logger.error(f"Container rejected upgrade (expected 101): {response[:300]}")
+            return
+        
+        current_app.logger.info("WebSocket upgrade successful, starting bidirectional proxy")
+        
+        # Proxy data bidirectionally using gevent
+        def client_to_container():
+            try:
+                while True:
+                    message = client_ws.receive()
+                    if message is None:
+                        current_app.logger.info("Client closed connection")
+                        break
+                    sock.sendall(message)
+            except Exception as e:
+                current_app.logger.info(f"Client to container ended: {e}")
+            finally:
+                try:
+                    sock.shutdown(std_socket.SHUT_WR)
+                except:
+                    pass
+        
+        def container_to_client():
+            try:
+                while True:
+                    data = sock.recv(4096)
+                    if not data:
+                        current_app.logger.info("Container closed connection")
+                        break
+                    client_ws.send(data)
+            except Exception as e:
+                current_app.logger.info(f"Container to client ended: {e}")
+            finally:
+                try:
+                    client_ws.close()
+                except:
+                    pass
+        
+        # Start both directions using gevent greenlets
+        g1 = spawn(client_to_container)
+        g2 = spawn(container_to_client)
+        g1.join()
+        g2.join()
+        
+        current_app.logger.info("WebSocket proxy completed")
+        
+    except Exception as e:
+        current_app.logger.error(f"WebSocket proxy error: {e}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        try:
+            client_ws.close(reason=str(e))
+        except:
+            pass
+    finally:
+        if sock:
+            try:
+                sock.close()
+            except:
+                pass

@@ -4,7 +4,8 @@ Authlib
 requests
 dotenv
 gevent
-gevent-websocket
+flask-sock
+simple-websocket
 gunicorn 
 eventlet
 flask-cors

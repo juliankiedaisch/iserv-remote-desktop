@@ -1,3 +1,7 @@
+# Monkey patch FIRST, before any other imports (fixes gevent + threading conflicts)
+from gevent import monkey
+monkey.patch_all()
+
 import os
 if __name__ == '__main__':
     import dotenv
@@ -52,22 +56,20 @@ with app.app_context():
     run_migrations()
 
 if __name__ == '__main__':
-    # Use gevent-websocket server for WebSocket support in development
-    # This provides the same WebSocket functionality as production (gunicorn + gevent-websocket)
+    # Use gevent server for WebSocket support in development
+    # flask-sock provides WebSocket support at the Flask application level
     from gevent import pywsgi
-    from geventwebsocket.handler import WebSocketHandler
     
     server = pywsgi.WSGIServer(
         ('0.0.0.0', 5020),
-        app,
-        handler_class=WebSocketHandler
+        app
     )
     
     print("=" * 70)
     print("Starting IServ Remote Desktop with WebSocket support")
-    print("Server: gevent-websocket (development mode)")
+    print("Server: gevent + flask-sock (development mode)")
     print("Address: http://0.0.0.0:5020")
-    print("WebSocket support: ENABLED")
+    print("WebSocket support: ENABLED (via flask-sock)")
     print("=" * 70)
     
     server.serve_forever()
