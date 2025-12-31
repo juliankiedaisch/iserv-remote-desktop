@@ -9,6 +9,28 @@ from app import db
 from app.models.containers import Container
 from app.models.desktop_assignments import DesktopType
 
+# Import WebSocket event emitters (lazy import to avoid circular dependencies)
+def _emit_container_created(container, user_id):
+    try:
+        from app.routes.websocket_routes import emit_container_created
+        emit_container_created(container, user_id)
+    except Exception as e:
+        current_app.logger.debug(f"WebSocket emit failed (non-critical): {e}")
+
+def _emit_container_status(container, user_id):
+    try:
+        from app.routes.websocket_routes import emit_container_status
+        emit_container_status(container, user_id)
+    except Exception as e:
+        current_app.logger.debug(f"WebSocket emit failed (non-critical): {e}")
+
+def _emit_container_stopped(container, user_id):
+    try:
+        from app.routes.websocket_routes import emit_container_stopped
+        emit_container_stopped(container, user_id)
+    except Exception as e:
+        current_app.logger.debug(f"WebSocket emit failed (non-critical): {e}")
+
 class DockerManager:
     """Manage Docker containers for Kasm workspaces"""
     
@@ -252,6 +274,9 @@ class DockerManager:
                 f"Container {container_name} created successfully on port {host_port}"
             )
             
+            # Emit WebSocket event for real-time updates
+            _emit_container_created(container_record, user_id)
+            
             return container_record
             
         except APIError as e:
@@ -289,6 +314,7 @@ class DockerManager:
             container_record: Container model instance
         """
         try:
+            user_id = container_record.user_id
             if not container_record.container_id:
                 current_app.logger.warning(
                     f"No container ID for {container_record.container_name}"
@@ -306,12 +332,17 @@ class DockerManager:
                 f"Container {container_record.container_name} stopped"
             )
             
+            # Emit WebSocket event for real-time updates
+            _emit_container_stopped(container_record, user_id)
+            
         except NotFound:
             current_app.logger.warning(
                 f"Container {container_record.container_id} not found in Docker"
             )
             container_record.status = 'stopped'
             db.session.commit()
+            # Still emit the event
+            _emit_container_stopped(container_record, container_record.user_id)
         except Exception as e:
             current_app.logger.error(f"Failed to stop container: {str(e)}")
             db.session.rollback()

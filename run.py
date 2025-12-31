@@ -7,7 +7,7 @@ if __name__ == '__main__':
     import dotenv
     dotenv.load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
-from app import create_app, db
+from app import create_app, db, socketio
 from sqlalchemy import inspect, text
 
 app = create_app(os.environ["DEBUG"])
@@ -56,20 +56,15 @@ with app.app_context():
     run_migrations()
 
 if __name__ == '__main__':
-    # Use gevent server for WebSocket support in development
-    # flask-sock provides WebSocket support at the Flask application level
-    from gevent import pywsgi
-    
-    server = pywsgi.WSGIServer(
-        ('0.0.0.0', 5020),
-        app
-    )
+    # Use SocketIO server for WebSocket support (Socket.IO + flask-sock)
+    # This provides both Socket.IO for real-time updates and flask-sock for VNC proxy
     
     print("=" * 70)
     print("Starting IServ Remote Desktop with WebSocket support")
-    print("Server: gevent + flask-sock (development mode)")
+    print("Server: Flask-SocketIO + gevent (development mode)")
     print("Address: http://0.0.0.0:5020")
-    print("WebSocket support: ENABLED (via flask-sock)")
+    print("WebSocket support: ENABLED (Socket.IO at /ws, flask-sock for VNC)")
     print("=" * 70)
     
-    server.serve_forever()
+    # Use SocketIO to run the app (it handles gevent internally)
+    socketio.run(app, host='0.0.0.0', port=5020, debug=False)

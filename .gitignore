@@ -10,7 +10,6 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
 develop-eggs/
 dist/
 downloads/
@@ -31,6 +30,10 @@ db/
 *.sqlite
 *.sqlite3
 flask_session/
+
+# Frontend build artifacts (keep source, ignore build output)
+frontend/build/
+frontend/node_modules/
 
 # SSL certificates (use your own certificates, don't commit them)
 ssl/
