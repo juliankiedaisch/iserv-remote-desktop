@@ -12,9 +12,11 @@ from urllib.parse import urlparse
 db = SQLAlchemy()
 oauth = OAuth()
 sock = Sock()
+socketio = None  # Will be initialized in create_app
 
 
 def create_app(debug=False):
+    global socketio
     app = Flask(__name__)
     # Configure the app based on environment
     if debug:
@@ -39,7 +41,7 @@ def create_app(debug=False):
 
 
     
-    # Enable CORS
+    # Enable CORS for both Flask routes and WebSocket
     CORS(app, supports_credentials=True, origins=[app.config["FRONTEND_URL"]])
     
     
@@ -47,6 +49,12 @@ def create_app(debug=False):
     db.init_app(app)
     oauth.init_app(app)
     sock.init_app(app)
+    
+    # Initialize Socket.IO for real-time updates
+    from app.routes.websocket_routes import init_socketio
+    # Assign to global socketio variable so it can be imported by run.py
+    socketio = init_socketio(app)
+    globals()['socketio'] = socketio
     
     # Register OAuth provider
     oauth.register(

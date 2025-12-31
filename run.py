@@ -12,6 +12,9 @@ from sqlalchemy import inspect, text
 
 app = create_app(os.environ["DEBUG"])
 
+# Import socketio AFTER create_app() is called, as it's initialized inside create_app
+from app import socketio
+
 def run_migrations():
     """Run SQL migration files from the migrations directory
     
@@ -56,20 +59,15 @@ with app.app_context():
     run_migrations()
 
 if __name__ == '__main__':
-    # Use gevent server for WebSocket support in development
-    # flask-sock provides WebSocket support at the Flask application level
-    from gevent import pywsgi
-    
-    server = pywsgi.WSGIServer(
-        ('0.0.0.0', 5020),
-        app
-    )
+    # Use SocketIO server for WebSocket support (Socket.IO + flask-sock)
+    # This provides both Socket.IO for real-time updates and flask-sock for VNC proxy
     
     print("=" * 70)
     print("Starting IServ Remote Desktop with WebSocket support")
-    print("Server: gevent + flask-sock (development mode)")
-    print("Address: http://0.0.0.0:5020")
-    print("WebSocket support: ENABLED (via flask-sock)")
+    print("Server: Flask-SocketIO + gevent (development mode)")
+    print("Address: http://0.0.0.0:5021")
+    print("WebSocket support: ENABLED (Socket.IO at /ws, flask-sock for VNC)")
     print("=" * 70)
     
-    server.serve_forever()
+    # Use SocketIO to run the app (it handles gevent internally)
+    socketio.run(app, host='0.0.0.0', port=5021, debug=False)

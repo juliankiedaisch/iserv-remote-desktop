@@ -3,20 +3,41 @@ Remote Desktop as docker container with OIDC access
 
 This application provides remote desktop access via Kasm Workspaces in Docker containers, with authentication through OAuth/OIDC (e.g., IServ).
 
+## Architecture
+
+The application uses a **separated frontend-backend architecture**:
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  React Frontend │────▶│  Flask Backend  │────▶│ Docker Host     │
+│  (Static files) │     │  (API + WS)     │     │ (Containers)    │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+         │                       │
+         │    WebSocket (WS)     │
+         └───────────────────────┘
+```
+
+- **Frontend**: React SPA with TypeScript, communicates via REST API and WebSocket
+- **Backend**: Flask API server with Socket.IO for real-time updates
+- **WebSocket**: Socket.IO for container status updates, flask-sock for VNC proxy
+
 ## Features
 
 - OAuth/OIDC authentication (IServ compatible)
-- Web-based desktop selection interface
+- **React-based web interface** with real-time updates
 - Multiple desktop types (Ubuntu with VSCode, Ubuntu Desktop, Ubuntu with Chromium)
 - Per-user Docker container management
 - Automatic Kasm workspace provisioning
 - Session-based container lifecycle
 - Admin panel for managing all containers
-- Real-time container status updates
+- **Real-time container status updates via WebSocket**
 - Last access timestamps for each desktop
 - Automatic cleanup of stopped containers
+- **Scalable to 50-100+ concurrent users** (see [SCALABILITY_GUIDE.md](SCALABILITY_GUIDE.md))
 
 ## Setup
+
+### Backend Setup
 
 1. Copy `.env.example` to `.env` and configure:
    - OAuth credentials (IServ)
@@ -42,15 +63,45 @@ This application provides remote desktop access via Kasm Workspaces in Docker co
    python3 scripts/test_installation.py
    ```
 
-6. Run the application:
+6. Run the backend:
    ```bash
    python run.py
    ```
-   
-   Or use Docker Compose:
+
+### Frontend Setup
+
+1. Navigate to the frontend directory:
    ```bash
-   docker-compose up
+   cd frontend
    ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Configure environment (optional):
+   ```bash
+   cp .env.example .env
+   # Edit .env to set REACT_APP_API_URL if backend is on different host
+   ```
+
+4. For development:
+   ```bash
+   npm start
+   ```
+
+5. For production build:
+   ```bash
+   npm run build
+   # Serve the `build` directory with any static file server
+   ```
+
+### Docker Compose (Full Stack)
+
+```bash
+docker-compose up
+```
 
 For detailed usage examples, see [USAGE.md](USAGE.md).
 

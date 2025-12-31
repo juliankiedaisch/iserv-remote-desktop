@@ -16,3 +16,6 @@ Flask-SQLAlchemy
 itsdangerous
 psycopg2-binary
 docker
+flask-socketio
+python-socketio
+gevent-websocket

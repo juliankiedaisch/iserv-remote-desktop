@@ -1,0 +1,149 @@
+import axios, { AxiosInstance, AxiosError } from 'axios';
+import {
+  SessionResponse,
+  ContainerListResponse,
+  ContainerStartResponse,
+  DesktopTypesResponse,
+  ContainerHealthResponse,
+  ApiResponse,
+  Container
+} from '../types';
+
+// Get API base URL from environment or default to relative path
+const API_BASE_URL = process.env.REACT_APP_API_URL || '';
+
+class ApiService {
+  private client: AxiosInstance;
+  private sessionId: string | null = null;
+
+  constructor() {
+    this.client = axios.create({
+      baseURL: API_BASE_URL,
+      timeout: 30000,
+      withCredentials: true,
+    });
+
+    // Load session from localStorage
+    this.sessionId = localStorage.getItem('session_id');
+
+    // Add request interceptor to add session header
+    this.client.interceptors.request.use((config) => {
+      if (this.sessionId) {
+        config.headers['X-Session-ID'] = this.sessionId;
+      }
+      return config;
+    });
+
+    // Add response interceptor for error handling
+    this.client.interceptors.response.use(
+      (response) => response,
+      (error: AxiosError) => {
+        if (error.response?.status === 401) {
+          // Session expired or invalid
+          this.clearSession();
+          window.location.href = '/login';
+        }
+        return Promise.reject(error);
+      }
+    );
+  }
+
+  setSession(sessionId: string): void {
+    this.sessionId = sessionId;
+    localStorage.setItem('session_id', sessionId);
+  }
+
+  getSessionId(): string | null {
+    return this.sessionId;
+  }
+
+  clearSession(): void {
+    this.sessionId = null;
+    localStorage.removeItem('session_id');
+  }
+
+  // Authentication endpoints
+  async validateSession(): Promise<SessionResponse> {
+    const response = await this.client.get<SessionResponse>('/session', {
+      params: { session_id: this.sessionId }
+    });
+    return response.data;
+  }
+
+  async logout(): Promise<void> {
+    try {
+      await this.client.post('/logout');
+    } finally {
+      this.clearSession();
+    }
+  }
+
+  getLoginUrl(): string {
+    return `${API_BASE_URL}/login`;
+  }
+
+  // Container endpoints
+  async listContainers(): Promise<ContainerListResponse> {
+    const response = await this.client.get<ContainerListResponse>('/api/container/list');
+    return response.data;
+  }
+
+  async startContainer(desktopType: string): Promise<ContainerStartResponse> {
+    const response = await this.client.post<ContainerStartResponse>(
+      `/api/container/start?desktop_type=${encodeURIComponent(desktopType)}`
+    );
+    return response.data;
+  }
+
+  async stopContainer(desktopType: string): Promise<ApiResponse<void>> {
+    const response = await this.client.post<ApiResponse<void>>('/api/container/stop', {
+      desktop_type: desktopType
+    });
+    return response.data;
+  }
+
+  async checkContainerHealth(desktopType: string): Promise<ContainerHealthResponse> {
+    const response = await this.client.get<ContainerHealthResponse>(
+      `/api/container/health?desktop_type=${encodeURIComponent(desktopType)}`
+    );
+    return response.data;
+  }
+
+  async getAvailableDesktopTypes(): Promise<DesktopTypesResponse> {
+    const response = await this.client.get<DesktopTypesResponse>('/api/container/available-types');
+    return response.data;
+  }
+
+  // Admin endpoints
+  async getAllContainers(): Promise<{ success: boolean; containers: Container[]; error?: string }> {
+    const response = await this.client.get<{ success: boolean; containers: Container[] }>(
+      '/api/admin/containers'
+    );
+    return response.data;
+  }
+
+  async stopAdminContainer(containerId: string): Promise<ApiResponse<void>> {
+    const response = await this.client.post<ApiResponse<void>>(
+      `/api/admin/container/${containerId}/stop`
+    );
+    return response.data;
+  }
+
+  async removeAdminContainer(containerId: string): Promise<ApiResponse<void>> {
+    const response = await this.client.delete<ApiResponse<void>>(
+      `/api/admin/container/${containerId}/remove`
+    );
+    return response.data;
+  }
+
+  async stopAllContainers(): Promise<{ success: boolean; stopped_count: number; error?: string }> {
+    const response = await this.client.post<{ success: boolean; stopped_count: number }>(
+      '/api/admin/containers/stop-all'
+    );
+    return response.data;
+  }
+}
+
+// Export singleton instance
+export const apiService = new ApiService();
+export default apiService;
