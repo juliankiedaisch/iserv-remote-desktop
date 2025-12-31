@@ -52,7 +52,9 @@ def create_app(debug=False):
     
     # Initialize Socket.IO for real-time updates
     from app.routes.websocket_routes import init_socketio
+    # Assign to global socketio variable so it can be imported by run.py
     socketio = init_socketio(app)
+    globals()['socketio'] = socketio
     
     # Register OAuth provider
     oauth.register(

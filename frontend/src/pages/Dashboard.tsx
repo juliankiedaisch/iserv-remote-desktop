@@ -60,7 +60,7 @@ export const Dashboard: React.FC = () => {
   return (
     <div className="container">
       <Header
-        title="🖥️ Remote Desktop"
+        title="🖥️ MDG Remote Desktop"
         user={user}
         isAdmin={isAdmin}
         onLogout={logout}

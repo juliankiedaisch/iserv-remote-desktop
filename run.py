@@ -7,10 +7,13 @@ if __name__ == '__main__':
     import dotenv
     dotenv.load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
-from app import create_app, db, socketio
+from app import create_app, db
 from sqlalchemy import inspect, text
 
 app = create_app(os.environ["DEBUG"])
+
+# Import socketio AFTER create_app() is called, as it's initialized inside create_app
+from app import socketio
 
 def run_migrations():
     """Run SQL migration files from the migrations directory
@@ -62,9 +65,9 @@ if __name__ == '__main__':
     print("=" * 70)
     print("Starting IServ Remote Desktop with WebSocket support")
     print("Server: Flask-SocketIO + gevent (development mode)")
-    print("Address: http://0.0.0.0:5020")
+    print("Address: http://0.0.0.0:5021")
     print("WebSocket support: ENABLED (Socket.IO at /ws, flask-sock for VNC)")
     print("=" * 70)
     
     # Use SocketIO to run the app (it handles gevent internally)
-    socketio.run(app, host='0.0.0.0', port=5020, debug=False)
+    socketio.run(app, host='0.0.0.0', port=5021, debug=False)

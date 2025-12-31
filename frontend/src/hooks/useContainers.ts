@@ -158,7 +158,25 @@ export function useContainers() {
 
   // Get container by desktop type
   const getContainerByType = useCallback((desktopType: string): Container | undefined => {
-    return state.containers.find(c => c.desktop_type === desktopType);
+    // Get all containers for this desktop type
+    const matchingContainers = state.containers.filter(c => c.desktop_type === desktopType);
+    
+    if (matchingContainers.length === 0) {
+      return undefined;
+    }
+    
+    // Prefer running containers over stopped ones
+    const runningContainer = matchingContainers.find(c => c.status === 'running');
+    if (runningContainer) {
+      return runningContainer;
+    }
+    
+    // If no running container, return the most recently created one
+    return matchingContainers.sort((a, b) => {
+      const aTime = new Date(a.created_at || 0).getTime();
+      const bTime = new Date(b.created_at || 0).getTime();
+      return bTime - aTime; // Most recent first
+    })[0];
   }, [state.containers]);
 
   // Handle WebSocket updates
