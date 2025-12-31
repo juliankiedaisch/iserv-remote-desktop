@@ -22,7 +22,7 @@ class WebSocketService {
 
     const sessionId = apiService.getSessionId();
     if (!sessionId) {
-      console.warn('WebSocket: No session ID available');
+      console.warn('WebSocket: No session ID available, connection aborted. Please ensure you are logged in.');
       return;
     }
 

@@ -93,8 +93,10 @@ export function useContainers() {
       let attempts = 0;
       let ready = false;
 
-      // Initial wait
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // Initial wait: Docker containers need time to start their services.
+      // This delay allows the container to initialize before we start health checks.
+      const CONTAINER_INIT_DELAY_MS = 3000;
+      await new Promise(resolve => setTimeout(resolve, CONTAINER_INIT_DELAY_MS));
 
       while (attempts < maxAttempts && !ready) {
         attempts++;

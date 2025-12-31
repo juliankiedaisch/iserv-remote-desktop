@@ -43,6 +43,8 @@ export const DesktopCard: React.FC<DesktopCardProps> = ({
 
   const handleStop = (e: React.MouseEvent) => {
     e.stopPropagation();
+    // Note: window.confirm is used for simplicity. For better accessibility,
+    // consider implementing a custom modal dialog with ARIA attributes.
     if (!isLoading && window.confirm(`Are you sure you want to stop the ${desktopType.name} container?`)) {
       onStop(desktopType.name);
     }
