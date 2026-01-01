@@ -1,0 +1,395 @@
+import React, { useState, useEffect } from 'react';
+import { Link, Navigate } from 'react-router-dom';
+import { Loading, Alert } from '../components';
+import { useAuth } from '../hooks/useAuth';
+import './DesktopTypesManager.css';
+
+interface DesktopType {
+  id: number;
+  name: string;
+  docker_image: string;
+  description: string | null;
+  icon: string;
+  enabled: boolean;
+  assignment_count: number;
+}
+
+export const DesktopTypesManager: React.FC = () => {
+  const { user, isAdmin, loading: authLoading } = useAuth();
+  const [desktopTypes, setDesktopTypes] = useState<DesktopType[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedType, setSelectedType] = useState<DesktopType | null>(null);
+
+  // Form state
+  const [formData, setFormData] = useState({
+    name: '',
+    docker_image: '',
+    description: '',
+    icon: '🖥️',
+    enabled: true
+  });
+
+  useEffect(() => {
+    if (isAdmin) {
+      loadDesktopTypes();
+    }
+  }, [isAdmin]);
+
+  const loadDesktopTypes = async () => {
+    try {
+      const response = await fetch('/api/admin/desktops/types', {
+        headers: {
+          'X-Session-ID': localStorage.getItem('session_id') || '',
+        }
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        setDesktopTypes(data.desktop_types);
+        setError(null);
+      } else {
+        setError(data.error || 'Failed to load desktop types');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to load desktop types');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const response = await fetch('/api/admin/desktops/types', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Session-ID': localStorage.getItem('session_id') || '',
+        },
+        body: JSON.stringify(formData)
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        setSuccessMessage('Desktop type created successfully');
+        setShowCreateModal(false);
+        resetForm();
+        await loadDesktopTypes();
+      } else {
+        setError(data.error || 'Failed to create desktop type');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to create desktop type');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedType) return;
+
+    setLoading(true);
+
+    try {
+      const response = await fetch(`/api/admin/desktops/types/${selectedType.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Session-ID': localStorage.getItem('session_id') || '',
+        },
+        body: JSON.stringify(formData)
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        setSuccessMessage('Desktop type updated successfully');
+        setShowEditModal(false);
+        setSelectedType(null);
+        resetForm();
+        await loadDesktopTypes();
+      } else {
+        setError(data.error || 'Failed to update desktop type');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to update desktop type');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (typeId: number, typeName: string) => {
+    if (!window.confirm(`Delete desktop type "${typeName}"? This will remove all assignments.`)) {
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch(`/api/admin/desktops/types/${typeId}`, {
+        method: 'DELETE',
+        headers: {
+          'X-Session-ID': localStorage.getItem('session_id') || '',
+        }
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        setSuccessMessage('Desktop type deleted successfully');
+        await loadDesktopTypes();
+      } else {
+        setError(data.error || 'Failed to delete desktop type');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete desktop type');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      docker_image: '',
+      description: '',
+      icon: '🖥️',
+      enabled: true
+    });
+  };
+
+  const openEditModal = (type: DesktopType) => {
+    setSelectedType(type);
+    setFormData({
+      name: type.name,
+      docker_image: type.docker_image,
+      description: type.description || '',
+      icon: type.icon,
+      enabled: type.enabled
+    });
+    setShowEditModal(true);
+  };
+
+  if (authLoading) {
+    return (
+      <div className="container">
+        <Loading message="Checking session..." />
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return <Navigate to="/" replace />;
+  }
+
+  return (
+    <div className="container">
+      <header className="header">
+        <h1>🖥️ Desktop Types Manager</h1>
+        <div className="user-info">
+          <span className="username">{user?.username} (Admin)</span>
+          <Link to="/admin" className="btn btn-secondary">
+            ← Back to Admin
+          </Link>
+        </div>
+      </header>
+
+      {error && (
+        <Alert type="error" message={error} onDismiss={() => setError(null)} />
+      )}
+      {successMessage && (
+        <Alert type="success" message={successMessage} onDismiss={() => setSuccessMessage(null)} />
+      )}
+
+      <div className="desktop-types-container">
+        <div className="desktop-types-header">
+          <h2>Available Desktop Types</h2>
+          <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
+            ➕ Create New Type
+          </button>
+        </div>
+
+        {loading ? (
+          <Loading message="Loading desktop types..." />
+        ) : desktopTypes.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">📦</div>
+            <p>No desktop types configured</p>
+            <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
+              Create First Desktop Type
+            </button>
+          </div>
+        ) : (
+          <div className="desktop-types-grid">
+            {desktopTypes.map((type) => (
+              <div key={type.id} className={`desktop-type-card ${!type.enabled ? 'disabled' : ''}`}>
+                <div className="desktop-type-icon">{type.icon}</div>
+                <h3>{type.name}</h3>
+                <p className="desktop-type-description">{type.description || 'No description'}</p>
+                <div className="desktop-type-meta">
+                  <span className="desktop-type-image">{type.docker_image}</span>
+                  <span className={`status-badge ${type.enabled ? 'enabled' : 'disabled'}`}>
+                    {type.enabled ? 'Enabled' : 'Disabled'}
+                  </span>
+                  <span className="assignment-count">
+                    {type.assignment_count} assignment{type.assignment_count !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div className="desktop-type-actions">
+                  <button className="btn btn-sm btn-primary" onClick={() => openEditModal(type)}>
+                    Edit
+                  </button>
+                  <button className="btn btn-sm btn-danger" onClick={() => handleDelete(type.id, type.name)}>
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Create Modal */}
+      {showCreateModal && (
+        <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Create Desktop Type</h2>
+              <button className="modal-close" onClick={() => setShowCreateModal(false)}>✕</button>
+            </div>
+            <form onSubmit={handleCreate}>
+              <div className="form-group">
+                <label>Name *</label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Docker Image *</label>
+                <input
+                  type="text"
+                  value={formData.docker_image}
+                  onChange={(e) => setFormData({ ...formData, docker_image: e.target.value })}
+                  placeholder="e.g., kasmweb/ubuntu-jammy-desktop:1.15.0"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Description</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  rows={3}
+                />
+              </div>
+              <div className="form-group">
+                <label>Icon (Emoji)</label>
+                <input
+                  type="text"
+                  value={formData.icon}
+                  onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
+                  maxLength={2}
+                />
+              </div>
+              <div className="form-group">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={formData.enabled}
+                    onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
+                  />
+                  Enabled
+                </label>
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowCreateModal(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={loading}>
+                  Create
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {showEditModal && selectedType && (
+        <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Edit Desktop Type</h2>
+              <button className="modal-close" onClick={() => setShowEditModal(false)}>✕</button>
+            </div>
+            <form onSubmit={handleUpdate}>
+              <div className="form-group">
+                <label>Name *</label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Docker Image *</label>
+                <input
+                  type="text"
+                  value={formData.docker_image}
+                  onChange={(e) => setFormData({ ...formData, docker_image: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Description</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  rows={3}
+                />
+              </div>
+              <div className="form-group">
+                <label>Icon (Emoji)</label>
+                <input
+                  type="text"
+                  value={formData.icon}
+                  onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
+                  maxLength={2}
+                />
+              </div>
+              <div className="form-group">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={formData.enabled}
+                    onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
+                  />
+                  Enabled
+                </label>
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowEditModal(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={loading}>
+                  Update
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default DesktopTypesManager;

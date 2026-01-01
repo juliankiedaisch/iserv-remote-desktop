@@ -99,11 +99,12 @@
 }
 
 .desktop-actions .btn-primary {
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+  background: var(--color-primary);
   color: white;
 }
 
 .desktop-actions .btn-primary:hover:not(:disabled) {
+  background: var(--color-primary-dark);
   transform: translateY(-2px);
   box-shadow: var(--shadow-primary);
 }
