@@ -1,22 +1,22 @@
 .desktop-card {
-  background: white;
+  background: var(--color-bg-white);
   border-radius: 10px;
   padding: 25px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-sm);
   transition: all 0.3s;
   position: relative;
 }
 
 .desktop-card:hover {
-  box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-md);
 }
 
 .desktop-card.running {
-  border: 2px solid #28a745;
+  border: 2px solid var(--color-success);
 }
 
 .desktop-card.stopped {
-  border: 2px solid #6c757d;
+  border: 2px solid var(--color-gray);
 }
 
 .desktop-icon {
@@ -28,14 +28,14 @@
 .desktop-name {
   font-size: 20px;
   font-weight: bold;
-  color: #333;
+  color: var(--color-text-primary);
   margin-bottom: 10px;
   text-align: center;
 }
 
 .desktop-description {
   font-size: 14px;
-  color: #666;
+  color: var(--color-text-secondary);
   margin-bottom: 15px;
   text-align: center;
 }
@@ -55,12 +55,12 @@
 }
 
 .status-indicator.running {
-  background: #28a745;
+  background: var(--color-success);
   animation: pulse 2s infinite;
 }
 
 .status-indicator.stopped {
-  background: #6c757d;
+  background: var(--color-gray);
 }
 
 @keyframes pulse {
@@ -70,7 +70,7 @@
 
 .desktop-meta {
   font-size: 12px;
-  color: #999;
+  color: var(--color-text-muted);
   text-align: center;
   margin-top: 10px;
 }
@@ -99,22 +99,22 @@
 }
 
 .desktop-actions .btn-primary {
-  background: linear-gradient(135deg,  #3e59d1 0%, #303383 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
   color: white;
 }
 
 .desktop-actions .btn-primary:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.4);
+  box-shadow: var(--shadow-primary);
 }
 
 .desktop-actions .btn-danger {
-  background: #dc3545;
+  background: var(--color-danger);
   color: white;
 }
 
 .desktop-actions .btn-danger:hover:not(:disabled) {
-  background: #c82333;
+  background: var(--color-danger-hover);
   transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(220, 53, 69, 0.4);
+  box-shadow: var(--shadow-danger);
 }

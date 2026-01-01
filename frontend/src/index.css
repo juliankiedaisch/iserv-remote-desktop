@@ -1,3 +1,66 @@
+:root {
+  /* Primary colors */
+  --color-primary: #3e59d1;
+  --color-primary-dark: #303383;
+  --color-primary-gradient-start: #667eea;
+  --color-primary-gradient-end: #764ba2;
+  
+  /* Secondary colors */
+  --color-secondary: #38d352;
+  --color-secondary-dark: #278d31;
+  
+  /* Status colors */
+  --color-success: #28a745;
+  --color-success-bg: #d4edda;
+  --color-success-border: #c3e6cb;
+  --color-success-text: #155724;
+  
+  --color-danger: #dc3545;
+  --color-danger-hover: #c82333;
+  --color-danger-bg: #f8d7da;
+  --color-danger-border: #f5c6cb;
+  --color-danger-text: #721c24;
+  
+  --color-warning: #ffc107;
+  --color-warning-bg: #fff3cd;
+  --color-warning-border: #ffeeba;
+  --color-warning-text: #856404;
+  
+  --color-info: #17a2b8;
+  --color-info-bg: #d1ecf1;
+  --color-info-border: #bee5eb;
+  --color-info-text: #0c5460;
+  
+  /* Neutral colors */
+  --color-gray: #6c757d;
+  --color-gray-dark: #5a6268;
+  --color-gray-light: #f8f9fa;
+  --color-gray-border: #dee2e6;
+  --color-gray-border-light: #eee;
+  
+  /* Text colors */
+  --color-text-primary: #333;
+  --color-text-secondary: #666;
+  --color-text-muted: #999;
+  
+  /* Background colors */
+  --color-bg-white: #ffffff;
+  --color-bg-overlay: rgba(0, 0, 0, 0.5);
+  --color-bg-loading-border: rgba(255, 255, 255, 0.3);
+  
+  /* Admin specific */
+  --color-admin-badge: #aaffad;
+  --color-admin-button: #32469c;
+  --color-admin-button-hover: #2d3c8d;
+  
+  /* Shadow colors */
+  --shadow-sm: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 8px 12px rgba(0, 0, 0, 0.15);
+  --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.2);
+  --shadow-primary: 0 4px 8px rgba(102, 126, 234, 0.4);
+  --shadow-danger: 0 4px 8px rgba(220, 53, 69, 0.4);
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
@@ -5,7 +68,7 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: linear-gradient(135deg, #3e59d1 0%, #303383 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
   min-height: 100vh;
 }
 

@@ -1,8 +1,8 @@
 .admin-container {
-  background: white;
+  background: var(--color-bg-white);
   border-radius: 10px;
   padding: 30px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-sm);
 }
 
 .admin-header {
@@ -11,11 +11,11 @@
   align-items: center;
   margin-bottom: 30px;
   padding-bottom: 20px;
-  border-bottom: 2px solid #eee;
+  border-bottom: 2px solid var(--color-gray-border-light);
 }
 
 .admin-header h2 {
-  color: #333;
+  color: var(--color-text-primary);
   font-size: 28px;
   margin: 0;
 }
@@ -33,7 +33,7 @@
 }
 
 .stat-card {
-  background: linear-gradient(135deg, #3e59d1 0%, #303383 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
   color: white;
   padding: 20px;
   border-radius: 8px;
@@ -58,22 +58,22 @@
 }
 
 .container-table th {
-  background: #f8f9fa;
+  background: var(--color-gray-light);
   padding: 12px;
   text-align: left;
   font-weight: 600;
-  color: #333;
-  border-bottom: 2px solid #dee2e6;
+  color: var(--color-text-primary);
+  border-bottom: 2px solid var(--color-gray-border);
 }
 
 .container-table td {
   padding: 12px;
-  border-bottom: 1px solid #dee2e6;
-  color: #666;
+  border-bottom: 1px solid var(--color-gray-border);
+  color: var(--color-text-secondary);
 }
 
 .container-table tr:hover {
-  background: #f8f9fa;
+  background: var(--color-gray-light);
 }
 
 .status-badge {
@@ -85,23 +85,23 @@
 }
 
 .status-badge.running {
-  background: #d4edda;
-  color: #155724;
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
 }
 
 .status-badge.stopped {
-  background: #f8d7da;
-  color: #721c24;
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
 }
 
 .status-badge.creating {
-  background: #fff3cd;
-  color: #856404;
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
 }
 
 .status-badge.error {
-  background: #f8d7da;
-  color: #721c24;
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
 }
 
 .action-buttons {
@@ -117,7 +117,7 @@
 .empty-state {
   text-align: center;
   padding: 60px 20px;
-  color: #999;
+  color: var(--color-text-muted);
 }
 
 .empty-state-icon {
@@ -131,7 +131,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--color-bg-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -139,12 +139,12 @@
 }
 
 .loading-overlay .loading-content {
-  background: white;
+  background: var(--color-bg-white);
   padding: 30px;
   border-radius: 10px;
   text-align: center;
 }
 
 .loading-overlay .loading-content .loading {
-  color: #333;
+  color: var(--color-text-primary);
 }
