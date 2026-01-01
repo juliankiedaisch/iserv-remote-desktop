@@ -1,10 +1,6 @@
 import { useEffect, useState } from 'react';
 import { apiService } from '../services/api';
 
-interface ThemeSettings {
-  [key: string]: string;
-}
-
 export const useTheme = () => {
   const [themeLoaded, setThemeLoaded] = useState(false);
 

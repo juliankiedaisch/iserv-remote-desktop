@@ -12,7 +12,6 @@ interface ThemeSettings {
 export const ThemeEditor: React.FC = () => {
   const { user, isAdmin, logout, loading: authLoading } = useAuth();
   const [theme, setTheme] = useState<ThemeSettings>({});
-  const [originalTheme, setOriginalTheme] = useState<ThemeSettings>({});
   const [favicon, setFavicon] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -49,7 +48,6 @@ export const ThemeEditor: React.FC = () => {
       if (response.success && response.theme) {
         const settings = response.theme.settings || {};
         setTheme(settings);
-        setOriginalTheme(settings);
         setFavicon(response.theme.favicon);
       } else {
         setError('Failed to load theme');
@@ -73,7 +71,6 @@ export const ThemeEditor: React.FC = () => {
       setError(null);
       const response = await apiService.updateTheme(theme, favicon || undefined);
       if (response.success) {
-        setOriginalTheme(theme);
         setSuccessMessage('Theme saved successfully!');
         // Apply all colors
         Object.keys(theme).forEach(key => {
@@ -101,7 +98,6 @@ export const ThemeEditor: React.FC = () => {
       if (response.success && response.theme) {
         const settings = response.theme.settings || {};
         setTheme(settings);
-        setOriginalTheme(settings);
         setFavicon(response.theme.favicon);
         setSuccessMessage('Theme reset to defaults!');
         // Apply default colors
@@ -160,7 +156,6 @@ export const ThemeEditor: React.FC = () => {
         if (response.success && response.theme) {
           const settings = response.theme.settings || {};
           setTheme(settings);
-          setOriginalTheme(settings);
           if (response.theme.favicon) {
             setFavicon(response.theme.favicon);
             updateFaviconInDOM(response.theme.favicon);
@@ -337,6 +332,7 @@ export const ThemeEditor: React.FC = () => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };
