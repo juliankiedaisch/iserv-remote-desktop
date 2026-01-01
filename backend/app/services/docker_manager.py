@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from sqlalchemy import or_
 from app import db
 from app.models.containers import Container
-from app.models.desktop_assignments import DesktopType
+from app.models.desktop_assignments import DesktopImage
 
 # Import WebSocket event emitters (lazy import to avoid circular dependencies)
 def _emit_container_created(container, user_id):
@@ -61,14 +61,14 @@ class DockerManager:
         try:
             # Get desktop type from database
             if desktop_type:
-                desktop_type_record = DesktopType.query.filter_by(name=desktop_type, enabled=True).first()
+                desktop_type_record = DesktopImage.query.filter_by(name=desktop_type, enabled=True).first()
                 if not desktop_type_record:
                     raise Exception(f"Desktop type '{desktop_type}' not found or disabled")
                 
                 kasm_image = desktop_type_record.docker_image
             else:
                 # Fallback to default if no type specified
-                default_type = DesktopType.query.filter_by(enabled=True).first()
+                default_type = DesktopImage.query.filter_by(enabled=True).first()
                 if default_type:
                     kasm_image = default_type.docker_image
                     desktop_type = default_type.name

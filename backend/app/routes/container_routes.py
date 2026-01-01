@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, current_app
 from app import db
 from app.models.oauth_session import OAuthSession
 from app.models.containers import Container
-from app.models.desktop_assignments import DesktopType, DesktopAssignment
+from app.models.desktop_assignments import DesktopImage, DesktopAssignment
 from app.services.docker_manager import DockerManager
 from datetime import datetime, timezone
 from functools import wraps
@@ -65,7 +65,7 @@ def start_container(oauth_session):
             desktop_type = data.get('desktop_type', 'ubuntu-desktop')
         
         # Check desktop type permissions
-        desktop_type_record = DesktopType.query.filter_by(name=desktop_type).first()
+        desktop_type_record = DesktopImage.query.filter_by(name=desktop_type).first()
         
         if desktop_type_record:
             # If desktop type exists in database, check if it's enabled
@@ -301,7 +301,7 @@ def get_available_desktop_types(oauth_session):
         user_groups = user.get_group_names()
         
         # Get all enabled desktop types
-        all_types = DesktopType.query.filter_by(enabled=True).all()
+        all_types = DesktopImage.query.filter_by(enabled=True).all()
         
         available_types = []
         for desktop_type in all_types:

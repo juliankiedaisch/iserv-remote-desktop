@@ -13,11 +13,14 @@ class Container(db.Model):
     user_id = db.Column(db.String(128), db.ForeignKey('users.id'), nullable=False)
     session_id = db.Column(db.String(36), db.ForeignKey('oauth_sessions.id'), nullable=False)
     
+    # Desktop image reference
+    desktop_image_id = db.Column(db.Integer, db.ForeignKey('desktop_images.id'), nullable=True)
+    
     # Docker container details
     container_id = db.Column(db.String(128), nullable=True)  # Docker container ID
     container_name = db.Column(db.String(128), nullable=False, unique=True)
-    image_name = db.Column(db.String(256), nullable=False)
-    desktop_type = db.Column(db.String(50), nullable=True)  # Desktop type identifier
+    image_name = db.Column(db.String(256), nullable=False)  # Docker image string (cached from desktop_image)
+    desktop_type = db.Column(db.String(50), nullable=True)  # Legacy: Desktop type identifier (kept for backwards compatibility)
     
     # Container status
     status = db.Column(db.String(50), nullable=False, default='creating')  # creating, running, stopped, error
@@ -60,11 +63,12 @@ class Container(db.Model):
     
     def to_dict(self):
         """Convert container to dictionary"""
-        return {
+        data = {
             'id': self.id,
             'container_id': self.container_id,
             'container_name': self.container_name,
             'desktop_type': self.desktop_type,
+            'desktop_image_id': self.desktop_image_id,
             'status': self.status,
             'host_port': self.host_port,
             'proxy_path': self.proxy_path,
@@ -72,6 +76,16 @@ class Container(db.Model):
             'started_at': self.started_at.isoformat() if self.started_at else None,
             'last_accessed': self.last_accessed.isoformat() if self.last_accessed else None
         }
+        
+        # Include desktop image info if available
+        if hasattr(self, 'desktop_image_ref') and self.desktop_image_ref:
+            data['desktop_image'] = {
+                'id': self.desktop_image_ref.id,
+                'name': self.desktop_image_ref.name,
+                'icon': self.desktop_image_ref.icon
+            }
+        
+        return data
     
     def __repr__(self):
         return f'<Container {self.container_name} ({self.status})>'

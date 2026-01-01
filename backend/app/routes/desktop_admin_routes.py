@@ -4,7 +4,7 @@ Admin routes for managing desktop types and assignments
 from flask import Blueprint, request, jsonify
 from functools import wraps
 from app import db
-from app.models.desktop_assignments import DesktopType, DesktopAssignment
+from app.models.desktop_assignments import DesktopImage, DesktopAssignment
 from app.models.users import User
 from app.middlewares.auth import require_auth
 
@@ -32,7 +32,7 @@ def require_admin(f):
 @require_admin
 def list_desktop_types(user):
     """List all desktop types"""
-    desktop_types = DesktopType.query.all()
+    desktop_types = DesktopImage.query.all()
     
     # Include assignment counts
     result = []
@@ -55,11 +55,11 @@ def create_desktop_type(user):
         return jsonify({"success": False, "error": "Name and docker_image are required"}), 400
     
     # Check if name already exists
-    existing = DesktopType.query.filter_by(name=data['name']).first()
+    existing = DesktopImage.query.filter_by(name=data['name']).first()
     if existing:
         return jsonify({"success": False, "error": "Desktop type with this name already exists"}), 400
     
-    desktop_type = DesktopType(
+    desktop_type = DesktopImage(
         name=data['name'],
         docker_image=data['docker_image'],
         description=data.get('description'),
@@ -77,7 +77,7 @@ def create_desktop_type(user):
 @require_admin
 def update_desktop_type(user, type_id):
     """Update desktop type"""
-    desktop_type = DesktopType.query.get(type_id)
+    desktop_type = DesktopImage.query.get(type_id)
     if not desktop_type:
         return jsonify({"success": False, "error": "Desktop type not found"}), 404
     
@@ -104,7 +104,7 @@ def update_desktop_type(user, type_id):
 @require_admin
 def delete_desktop_type(user, type_id):
     """Delete desktop type"""
-    desktop_type = DesktopType.query.get(type_id)
+    desktop_type = DesktopImage.query.get(type_id)
     if not desktop_type:
         return jsonify({"success": False, "error": "Desktop type not found"}), 404
     
@@ -118,7 +118,7 @@ def delete_desktop_type(user, type_id):
 @require_admin
 def list_assignments(user, type_id):
     """List assignments for a desktop type"""
-    desktop_type = DesktopType.query.get(type_id)
+    desktop_type = DesktopImage.query.get(type_id)
     if not desktop_type:
         return jsonify({"success": False, "error": "Desktop type not found"}), 404
     
@@ -142,37 +142,40 @@ def list_assignments(user, type_id):
 @require_admin
 def create_assignment(user, type_id):
     """Create new assignment"""
-    desktop_type = DesktopType.query.get(type_id)
+    desktop_type = DesktopImage.query.get(type_id)
     if not desktop_type:
         return jsonify({"success": False, "error": "Desktop type not found"}), 404
     
     data = request.json
     
-    # Validate: must have either group_name or user_id
-    if not data.get('group_name') and not data.get('user_id'):
-        return jsonify({"success": False, "error": "Either group_name or user_id is required"}), 400
+    # Validate: must have either group_id or user_id
+    if not data.get('group_id') and not data.get('user_id'):
+        return jsonify({"success": False, "error": "Either group_id or user_id is required"}), 400
     
     # Check for duplicate
-    if data.get('group_name'):
+    if data.get('group_id'):
         existing = DesktopAssignment.query.filter_by(
-            desktop_type_id=type_id,
-            group_name=data['group_name']
+            desktop_image_id=type_id,
+            group_id=data['group_id']
         ).first()
         if existing:
             return jsonify({"success": False, "error": "Assignment already exists"}), 400
     
     if data.get('user_id'):
         existing = DesktopAssignment.query.filter_by(
-            desktop_type_id=type_id,
+            desktop_image_id=type_id,
             user_id=data['user_id']
         ).first()
         if existing:
             return jsonify({"success": False, "error": "Assignment already exists"}), 400
     
     assignment = DesktopAssignment(
-        desktop_type_id=type_id,
-        group_name=data.get('group_name'),
-        user_id=data.get('user_id')
+        desktop_image_id=type_id,
+        group_id=data.get('group_id'),
+        user_id=data.get('user_id'),
+        assignment_folder_path=data.get('assignment_folder_path'),
+        assignment_folder_name=data.get('assignment_folder_name'),
+        created_by=user['id']  # Set the admin as creator
     )
     
     db.session.add(assignment)
