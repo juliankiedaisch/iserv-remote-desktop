@@ -38,7 +38,7 @@ class ThemeSettings(db.Model):
         """Get the current theme settings, or create default if none exists."""
         theme = ThemeSettings.query.first()
         if not theme:
-            # Create default theme
+            # Create default theme with proper transaction handling
             default_theme = {
                 'color-primary': '#3e59d1',
                 'color-primary-dark': '#303383',
@@ -59,5 +59,12 @@ class ThemeSettings(db.Model):
             }
             theme = ThemeSettings(settings=json.dumps(default_theme))
             db.session.add(theme)
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                # If commit failed, likely due to race condition, try to fetch again
+                theme = ThemeSettings.query.first()
+                if not theme:
+                    raise
         return theme

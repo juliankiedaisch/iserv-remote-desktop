@@ -3,8 +3,6 @@ from app import db
 from app.models.theme_settings import ThemeSettings
 from app.middlewares.auth import require_auth, require_admin
 import json
-import base64
-import os
 
 theme_routes = Blueprint('theme', __name__)
 
@@ -174,8 +172,24 @@ def upload_favicon():
                 'error': 'Favicon data is required'
             }), 400
         
+        favicon_data = data['favicon']
+        
+        # Validate base64 format
+        if not favicon_data.startswith('data:image/'):
+            return jsonify({
+                'success': False,
+                'error': 'Invalid favicon format. Must be a base64 encoded image.'
+            }), 400
+        
+        # Check size (limit to 1MB)
+        if len(favicon_data) > 1048576:  # 1MB in bytes
+            return jsonify({
+                'success': False,
+                'error': 'Favicon size exceeds 1MB limit'
+            }), 400
+        
         theme = ThemeSettings.get_current_theme()
-        theme.favicon = data['favicon']
+        theme.favicon = favicon_data
         
         db.session.commit()
         

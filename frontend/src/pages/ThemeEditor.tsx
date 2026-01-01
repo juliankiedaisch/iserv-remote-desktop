@@ -170,20 +170,32 @@ export const ThemeEditor: React.FC = () => {
         }
       } catch (err: any) {
         setError('Invalid theme file format');
+      } finally {
+        // Reset the input so the same file can be imported again
+        event.target.value = '';
       }
     };
     reader.readAsText(file);
-    // Reset the input so the same file can be imported again
-    event.target.value = '';
   };
 
   const handleFaviconUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      setError('Please upload an image file');
+    // Validate file type by extension and MIME type
+    const validExtensions = ['png', 'jpg', 'jpeg', 'ico', 'gif', 'svg'];
+    const fileExtension = file.name.split('.').pop()?.toLowerCase();
+    
+    if (!file.type.startsWith('image/') || !validExtensions.includes(fileExtension || '')) {
+      setError('Please upload a valid image file (PNG, JPG, ICO, GIF, or SVG)');
+      event.target.value = '';
+      return;
+    }
+
+    // Check file size (max 1MB)
+    if (file.size > 1048576) {
+      setError('Favicon file size must be less than 1MB');
+      event.target.value = '';
       return;
     }
 
@@ -196,10 +208,11 @@ export const ThemeEditor: React.FC = () => {
         setSuccessMessage('Favicon updated! Remember to save your changes.');
       } catch (err: any) {
         setError('Failed to upload favicon');
+      } finally {
+        event.target.value = '';
       }
     };
     reader.readAsDataURL(file);
-    event.target.value = '';
   };
 
   const updateFaviconInDOM = (faviconData: string) => {
