@@ -31,21 +31,19 @@ export function useContainers() {
       if (response.success) {
         setState(prev => ({
           ...prev,
-          desktopTypes: response.desktop_types.length > 0 
-            ? response.desktop_types 
-            : getDefaultDesktopTypes(),
+          desktopTypes: response.desktop_types, // Use whatever the backend returns (empty array is valid)
         }));
       } else {
         setState(prev => ({
           ...prev,
-          desktopTypes: getDefaultDesktopTypes(),
+          desktopTypes: [], // If API fails, show empty (no fallback)
         }));
       }
     } catch (error) {
       console.error('Failed to load desktop types:', error);
       setState(prev => ({
         ...prev,
-        desktopTypes: getDefaultDesktopTypes(),
+        desktopTypes: [], // If error, show empty (no fallback)
       }));
     }
   }, []);
@@ -220,24 +218,6 @@ export function useContainers() {
     getContainerByType,
     refresh: loadContainers,
   };
-}
-
-// Default desktop types for backward compatibility
-function getDefaultDesktopTypes(): DesktopType[] {
-  return [
-    {
-      name: 'ubuntu-vscode',
-      docker_image: 'kasmweb/vs-code:1.18.0',
-      description: 'Full Ubuntu desktop with Visual Studio Code pre-installed',
-      icon: '💻'
-    },
-    {
-      name: 'ubuntu-desktop',
-      docker_image: 'kasmweb/ubuntu-noble-desktop:1.18.0',
-      description: 'Standard Ubuntu desktop environment',
-      icon: '🖥️'
-    }
-  ];
 }
 
 export default useContainers;

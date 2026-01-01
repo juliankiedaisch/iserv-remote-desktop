@@ -118,11 +118,7 @@ class DesktopAssignment(db.Model):
             if group_assignment:
                 return True, group_assignment
         
-        # Check if no assignments exist (open to all)
-        assignment_count = cls.query.filter_by(desktop_image_id=desktop_image_id).count()
-        if assignment_count == 0:
-            return True, None
-        
+        # No assignment found - user does not have access
         return False, None
     
     @classmethod

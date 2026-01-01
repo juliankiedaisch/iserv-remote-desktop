@@ -257,9 +257,10 @@ def remove_container(oauth_session):
 @container_bp.route('/container/list', methods=['GET'])
 @require_session
 def list_containers(oauth_session):
-    """List all containers for the user"""
+    """List all containers for the user (only for assigned desktop images)"""
     try:
         user = oauth_session.user
+        user_group_ids = [g.id for g in user.groups]
         
         # Get all containers for this user
         containers = Container.get_by_user(user.id)
@@ -269,6 +270,16 @@ def list_containers(oauth_session):
         container_list = []
         
         for container in containers:
+            # Check if user still has access to this desktop image
+            if container.desktop_image_id:
+                has_access, _ = DesktopAssignment.check_access(container.desktop_image_id, user.id, user_group_ids)
+                if not has_access:
+                    # User no longer has access to this desktop image, skip this container
+                    continue
+            else:
+                # Old container without desktop_image_id (from old structure), skip it
+                continue
+            
             status_info = docker_manager.get_container_status(container)
             url = docker_manager.get_container_url(container)
             
