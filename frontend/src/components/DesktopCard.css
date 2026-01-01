@@ -5,6 +5,9 @@
   box-shadow: var(--shadow-sm);
   transition: all 0.3s;
   position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .desktop-card:hover {
@@ -38,6 +41,8 @@
   color: var(--color-text-secondary);
   margin-bottom: 15px;
   text-align: center;
+  flex-grow: 1;
+  min-height: 20px;
 }
 
 .desktop-status {

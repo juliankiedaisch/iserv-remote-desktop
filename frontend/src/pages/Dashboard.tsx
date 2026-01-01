@@ -19,6 +19,8 @@ export const Dashboard: React.FC = () => {
 
   const [startError, setStartError] = useState<string | null>(null);
   const [startingProgress, setStartingProgress] = useState<string | null>(null);
+  const [showStopModal, setShowStopModal] = useState(false);
+  const [containerToStop, setContainerToStop] = useState<string | null>(null);
 
   const handleStart = useCallback(async (desktopType: string) => {
     setStartError(null);
@@ -40,10 +42,24 @@ export const Dashboard: React.FC = () => {
     }
   }, [startContainer]);
 
-  const handleStop = useCallback(async (desktopType: string) => {
-    setStartError(null);
-    await stopContainer(desktopType);
-  }, [stopContainer]);
+  const handleStop = useCallback((desktopType: string) => {
+    setContainerToStop(desktopType);
+    setShowStopModal(true);
+  }, []);
+
+  const confirmStop = useCallback(async () => {
+    if (containerToStop) {
+      setStartError(null);
+      setShowStopModal(false);
+      await stopContainer(containerToStop);
+      setContainerToStop(null);
+    }
+  }, [containerToStop, stopContainer]);
+
+  const cancelStop = useCallback(() => {
+    setShowStopModal(false);
+    setContainerToStop(null);
+  }, []);
 
   const handleOpen = useCallback((url: string) => {
     window.open(url, '_blank');
@@ -111,6 +127,30 @@ export const Dashboard: React.FC = () => {
               <p>No desktop types available for your account</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Stop Confirmation Modal */}
+      {showStopModal && containerToStop && (
+        <div className="modal-overlay" onClick={cancelStop}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Stop Container</h2>
+              <button className="modal-close" onClick={cancelStop}>✕</button>
+            </div>
+            <div className="modal-body">
+              <p>Are you sure you want to stop the <strong>{containerToStop}</strong> container?</p>
+              <p className="modal-warning">This will close your active session.</p>
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-secondary" onClick={cancelStop}>
+                Cancel
+              </button>
+              <button type="button" className="btn btn-danger" onClick={confirmStop}>
+                Stop Container
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
