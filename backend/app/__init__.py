@@ -74,19 +74,17 @@ def create_app(debug=False):
     # Register blueprints
     from app.routes.auth_routes import auth_bp
     from app.routes.container_routes import container_bp
-    from app.routes.frontend_routes import frontend_bp
     from app.routes.admin_routes import admin_bp
     from app.routes.proxy_routes import proxy_bp
     from app.routes.debug_routes import debug_bp
     from app.routes.apache_api_routes import apache_api_bp
     from app.routes.desktop_admin_routes import desktop_admin_bp
     from app.routes.theme_routes import theme_routes
-    app.register_blueprint(auth_bp, url_prefix='/')
+    app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(container_bp, url_prefix='/api')
-    app.register_blueprint(frontend_bp, url_prefix='/')
     app.register_blueprint(admin_bp, url_prefix='/api')
-    app.register_blueprint(proxy_bp, url_prefix='/')
-    app.register_blueprint(debug_bp, url_prefix='/')
+    app.register_blueprint(proxy_bp, url_prefix='/api')
+    app.register_blueprint(debug_bp, url_prefix='/api')
     app.register_blueprint(apache_api_bp)
     app.register_blueprint(desktop_admin_bp)
     app.register_blueprint(theme_routes)
