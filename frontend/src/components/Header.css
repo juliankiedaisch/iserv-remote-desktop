@@ -26,6 +26,26 @@
   font-size: 14px;
 }
 
+.teacher-icon {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  text-decoration: none;
+  font-weight: bold;
+  transition: transform 0.2s;
+  font-size: 18px;
+}
+
+.teacher-icon:hover {
+  transform: scale(1.1);
+}
+
 .admin-icon {
   background: var(--color-admin-badge);
   color: white;

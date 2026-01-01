@@ -5,7 +5,7 @@ import { useContainers } from '../hooks/useContainers';
 import './Dashboard.css';
 
 export const Dashboard: React.FC = () => {
-  const { user, isAdmin, logout, loading: authLoading } = useAuth();
+  const { user, isAdmin, isTeacher, logout, loading: authLoading } = useAuth();
   const {
     desktopTypes,
     loading,
@@ -79,6 +79,7 @@ export const Dashboard: React.FC = () => {
         title="🖥️ MDG Remote Desktop"
         user={user}
         isAdmin={isAdmin}
+        isTeacher={isTeacher}
         onLogout={logout}
       />
 

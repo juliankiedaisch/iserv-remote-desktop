@@ -79,6 +79,7 @@ def create_app(debug=False):
     from app.routes.debug_routes import debug_bp
     from app.routes.apache_api_routes import apache_api_bp
     from app.routes.desktop_admin_routes import desktop_admin_bp
+    from app.routes.teacher_routes import teacher_bp
     from app.routes.theme_routes import theme_routes
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(container_bp, url_prefix='/api')
@@ -87,6 +88,7 @@ def create_app(debug=False):
     app.register_blueprint(debug_bp, url_prefix='/api')
     app.register_blueprint(apache_api_bp)
     app.register_blueprint(desktop_admin_bp)
+    app.register_blueprint(teacher_bp)
     app.register_blueprint(theme_routes)
 
     return app

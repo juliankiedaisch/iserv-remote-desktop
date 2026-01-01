@@ -66,6 +66,27 @@ class ApiService {
     localStorage.removeItem('session_id');
   }
 
+  // Generic HTTP methods for flexibility
+  async get<T = any>(url: string, config?: any): Promise<{ data: T }> {
+    const response = await this.client.get<T>(url, config);
+    return { data: response.data };
+  }
+
+  async post<T = any>(url: string, data?: any, config?: any): Promise<{ data: T }> {
+    const response = await this.client.post<T>(url, data, config);
+    return { data: response.data };
+  }
+
+  async put<T = any>(url: string, data?: any, config?: any): Promise<{ data: T }> {
+    const response = await this.client.put<T>(url, data, config);
+    return { data: response.data };
+  }
+
+  async delete<T = any>(url: string, config?: any): Promise<{ data: T }> {
+    const response = await this.client.delete<T>(url, config);
+    return { data: response.data };
+  }
+
   // Authentication endpoints
   async validateSession(): Promise<SessionResponse> {
     const response = await this.client.get<SessionResponse>('/api/auth/session', {

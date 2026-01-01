@@ -298,7 +298,7 @@ def get_available_desktop_types(oauth_session):
     """Get list of desktop types available to the current user"""
     try:
         user = oauth_session.user
-        user_groups = user.get_group_names()
+        user_group_ids = [g.id for g in user.groups]
         
         # Get all enabled desktop types
         all_types = DesktopImage.query.filter_by(enabled=True).all()
@@ -306,14 +306,24 @@ def get_available_desktop_types(oauth_session):
         available_types = []
         for desktop_type in all_types:
             # Check if user has access
-            if DesktopAssignment.check_access(desktop_type.id, user.id, user_groups):
-                available_types.append({
+            has_access, assignment = DesktopAssignment.check_access(desktop_type.id, user.id, user_group_ids)
+            if has_access:
+                desktop_data = {
                     'id': desktop_type.id,
                     'name': desktop_type.name,
                     'docker_image': desktop_type.docker_image,
                     'description': desktop_type.description,
                     'icon': desktop_type.icon
-                })
+                }
+                
+                # Include assignment info if available
+                if assignment:
+                    desktop_data['assignment'] = {
+                        'folder_path': assignment.assignment_folder_path,
+                        'folder_name': assignment.assignment_folder_name
+                    }
+                
+                available_types.append(desktop_data)
         
         return jsonify({
             'success': True,

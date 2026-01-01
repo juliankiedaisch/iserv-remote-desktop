@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Dashboard, AdminPanel, Login, ThemeEditor, DesktopTypesManager } from './pages';
+import { Dashboard, AdminPanel, Login, ThemeEditor, DesktopTypesManager, AssignmentManager } from './pages';
 import { useAuth } from './hooks/useAuth';
 import { useTheme } from './hooks/useTheme';
 import { Loading } from './components';
@@ -55,6 +55,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <DesktopTypesManager />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/teacher/assignments"
+            element={
+              <ProtectedRoute>
+                <AssignmentManager />
               </ProtectedRoute>
             }
           />
