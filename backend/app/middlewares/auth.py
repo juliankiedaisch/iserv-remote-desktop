@@ -129,9 +129,15 @@ def check_auth(f):
         
         if session_id:
             oauth_session = OAuthSession.get_by_session_id(session_id)
-            if oauth_session and oauth_session.expires_at > datetime.now(timezone.utc):
-                # Store the session in the request for later use
-                request.oauth_session = oauth_session
+            if oauth_session:
+                # Ensure expires_at is timezone-aware
+                expires_at = oauth_session.expires_at
+                if expires_at.tzinfo is None:
+                    expires_at = expires_at.replace(tzinfo=timezone.utc)
+                
+                if expires_at > datetime.now(timezone.utc):
+                    # Store the session in the request for later use
+                    request.oauth_session = oauth_session
                 request.user = oauth_session.user
                 
                 # Update last accessed time
@@ -151,6 +157,15 @@ def check_auth(f):
 def require_admin(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        # Check if we're being called after require_auth (user dict is first arg)
+        if args and isinstance(args[0], dict) and 'role' in args[0]:
+            user = args[0]
+            if user['role'] != 'admin':
+                return jsonify({'error': 'Admin privileges required'}), 403
+            # Pass through the arguments as-is
+            return f(*args, **kwargs)
+        
+        # Otherwise, do the full auth check ourselves
         session_id = None
         
         # Check query parameter
@@ -172,22 +187,27 @@ def require_admin(f):
         oauth_session = OAuthSession.get_by_session_id(session_id)
         if not oauth_session:
             return jsonify({'error': 'Invalid session'}), 401
+        
+        # Ensure expires_at is timezone-aware
+        expires_at = oauth_session.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
             
         # Check if session is expired
-        if oauth_session.expires_at < datetime.now(timezone.utc):
+        if expires_at < datetime.now(timezone.utc):
             return jsonify({'error': 'Session expired'}), 401
             
         # Check if user is admin
-        if oauth_session.role != 'admin':
+        if oauth_session.user.role != 'admin':
             return jsonify({'error': 'Admin privileges required'}), 403
             
         # Pass user info to the route
         user = {
             'session_id': oauth_session.id,
-            'user_id': oauth_session.user_id,
-            'username': oauth_session.username,
-            'email': oauth_session.email,
-            'role': oauth_session.role
+            'user_id': oauth_session.user.id,
+            'username': oauth_session.user.username,
+            'email': oauth_session.user.email,
+            'role': oauth_session.user.role
         }
         
         return f(user, *args, **kwargs)
@@ -196,6 +216,15 @@ def require_admin(f):
 def require_teacher(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        # Check if we're being called after require_auth (user dict is first arg)
+        if args and isinstance(args[0], dict) and 'role' in args[0]:
+            user = args[0]
+            if user['role'] not in ['admin', 'teacher']:
+                return jsonify({'error': 'Admin or Teacher privileges required'}), 403
+            # Pass through the arguments as-is
+            return f(*args, **kwargs)
+        
+        # Otherwise, do the full auth check ourselves
         session_id = None
         
         # Check query parameter
@@ -217,19 +246,28 @@ def require_teacher(f):
         oauth_session = OAuthSession.get_by_session_id(session_id)
         if not oauth_session:
             return jsonify({'error': 'Invalid session'}), 401
+        
+        # Ensure expires_at is timezone-aware
+        expires_at = oauth_session.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+            
+        # Check if session is expired
+        if expires_at < datetime.now(timezone.utc):
+            return jsonify({'error': 'Session expired'}), 401
     
         # Check if user is admin or teacher
-        if oauth_session.user.role != 'admin' and oauth_session.user.role != 'teacher' :
+        if oauth_session.user.role not in ['admin', 'teacher']:
             return jsonify({'error': 'Admin or Teacher privileges required'}), 403
             
         # Pass user info to the route
         user = {
             'session_id': oauth_session.id,
-            'user_id': oauth_session.user_id,
+            'user_id': oauth_session.user.id,
             'username': oauth_session.user.username,
             'email': oauth_session.user.email,
             'role': oauth_session.user.role
         }
         
-        return f(*args, **kwargs)
+        return f(user, *args, **kwargs)
     return decorated_function
