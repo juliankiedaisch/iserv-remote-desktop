@@ -45,7 +45,7 @@ class ApiService {
         if (error.response?.status === 401) {
           // Session expired or invalid
           this.clearSession();
-          window.location.href = '/login';
+          window.location.href = '/api/auth/login';
         }
         return Promise.reject(error);
       }
@@ -68,7 +68,7 @@ class ApiService {
 
   // Authentication endpoints
   async validateSession(): Promise<SessionResponse> {
-    const response = await this.client.get<SessionResponse>('/session', {
+    const response = await this.client.get<SessionResponse>('/api/auth/session', {
       params: { session_id: this.sessionId }
     });
     return response.data;
@@ -76,14 +76,14 @@ class ApiService {
 
   async logout(): Promise<void> {
     try {
-      await this.client.post('/logout');
+      await this.client.post('/api/auth/logout');
     } finally {
       this.clearSession();
     }
   }
 
   getLoginUrl(): string {
-    return `${API_BASE_URL}/login`;
+    return `${API_BASE_URL}/api/auth/login`;
   }
 
   // Container endpoints

@@ -128,15 +128,11 @@ Admin users have access to an admin panel (⚙️ icon in header) where they can
 
 ## API Endpoints
 
-### Frontend Routes
-- `GET /` - Desktop selection page (main UI)
-- `GET /admin` - Admin panel page (admin users only)
-
 ### Authentication
-- `GET /login` - Initiate OAuth login
-- `GET /authorize` - OAuth callback
-- `GET /session` - Validate session
-- `POST /logout` - End session
+- `GET /api/auth/login` - Initiate OAuth login
+- `GET /api/auth/authorize` - OAuth callback
+- `GET /api/auth/session` - Validate session
+- `POST /api/auth/logout` - End session
 
 ### Container Management
 - `POST /api/container/start?desktop_type=<type>` - Start a new container
@@ -144,6 +140,10 @@ Admin users have access to an admin panel (⚙️ icon in header) where they can
 - `POST /api/container/stop` - Stop container
 - `POST /api/container/remove` - Remove container
 - `GET /api/container/list` - List user's containers
+
+### Desktop Proxy
+- `GET /api/desktop/<proxy_path>` - Proxy to container desktop
+- `WS /api/websockify` - WebSocket proxy for VNC connections
 
 ### Admin API (Admin Only)
 - `GET /api/admin/containers` - List all containers from all users
