@@ -1,16 +1,16 @@
 .header {
-  background: white;
+  background: var(--color-bg-white);
   border-radius: 10px;
   padding: 20px 30px;
   margin-bottom: 30px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-sm);
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
 .header h1 {
-  color: #333;
+  color: var(--color-text-primary);
   font-size: 24px;
   margin: 0;
 }
@@ -22,12 +22,12 @@
 }
 
 .user-info .username {
-  color: #666;
+  color: var(--color-text-secondary);
   font-size: 14px;
 }
 
 .admin-icon {
-  background: #aaffad;
+  background: var(--color-admin-badge);
   color: white;
   width: 40px;
   height: 40px;
@@ -57,28 +57,28 @@
 }
 
 .btn-primary {
-  background: #32469c;
+  background: var(--color-admin-button);
   color: white;
 }
 
 .btn-primary:hover {
-  background: #2d3c8d;
+  background: var(--color-admin-button-hover);
 }
 
 .btn-danger {
-  background: #dc3545;
+  background: var(--color-danger);
   color: white;
 }
 
 .btn-danger:hover {
-  background: #c82333;
+  background: var(--color-danger-hover);
 }
 
 .btn-secondary {
-  background: #38d352;
+  background: var(--color-secondary);
   color: white;
 }
 
 .btn-secondary:hover {
-  background: #278d31;
+  background: var(--color-secondary-dark);
 }

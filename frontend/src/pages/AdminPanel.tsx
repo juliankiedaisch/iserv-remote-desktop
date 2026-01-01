@@ -126,6 +126,9 @@ export const AdminPanel: React.FC = () => {
         <h1>⚙️ Admin Panel</h1>
         <div className="user-info">
           <span className="username">{user?.username} (Admin)</span>
+          <Link to="/admin/theme" className="btn btn-primary">
+            🎨 Theme Settings
+          </Link>
           <Link to="/admin/desktop-types" className="btn btn-primary">
             🖥️ Desktop Types
           </Link>

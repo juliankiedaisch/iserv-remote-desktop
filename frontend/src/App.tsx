@@ -1,7 +1,8 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Dashboard, AdminPanel, Login } from './pages';
+import { Dashboard, AdminPanel, Login, ThemeEditor } from './pages';
 import { useAuth } from './hooks/useAuth';
+import { useTheme } from './hooks/useTheme';
 import { Loading } from './components';
 import './App.css';
 
@@ -25,6 +26,9 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 };
 
 function App() {
+  // Load theme on app start
+  useTheme();
+  
   return (
     <Router>
       <div className="App">
@@ -51,6 +55,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <AdminPanel />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/theme"
+            element={
+              <ProtectedRoute>
+                <ThemeEditor />
               </ProtectedRoute>
             }
           />

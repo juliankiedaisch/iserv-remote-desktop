@@ -146,6 +146,46 @@ class ApiService {
     );
     return response.data;
   }
+
+  // Theme endpoints
+  async getTheme(): Promise<{ success: boolean; theme: any; error?: string }> {
+    const response = await this.client.get<{ success: boolean; theme: any }>('/api/theme');
+    return response.data;
+  }
+
+  async updateTheme(settings: any, favicon?: string): Promise<{ success: boolean; theme: any; error?: string }> {
+    const response = await this.client.put<{ success: boolean; theme: any }>(
+      '/api/theme',
+      { settings, favicon }
+    );
+    return response.data;
+  }
+
+  async exportTheme(): Promise<{ success: boolean; theme: any; error?: string }> {
+    const response = await this.client.get<{ success: boolean; theme: any }>('/api/theme/export');
+    return response.data;
+  }
+
+  async importTheme(themeData: any): Promise<{ success: boolean; theme: any; error?: string }> {
+    const response = await this.client.post<{ success: boolean; theme: any }>(
+      '/api/theme/import',
+      themeData
+    );
+    return response.data;
+  }
+
+  async resetTheme(): Promise<{ success: boolean; theme: any; error?: string }> {
+    const response = await this.client.post<{ success: boolean; theme: any }>('/api/theme/reset');
+    return response.data;
+  }
+
+  async uploadFavicon(faviconData: string): Promise<{ success: boolean; favicon: string; error?: string }> {
+    const response = await this.client.post<{ success: boolean; favicon: string }>(
+      '/api/theme/favicon',
+      { favicon: faviconData }
+    );
+    return response.data;
+  }
 }
 
 // Export singleton instance
