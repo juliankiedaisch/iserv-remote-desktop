@@ -1,8 +1,11 @@
 """
 Admin routes for managing desktop types and assignments
 """
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_from_directory
 from functools import wraps
+from werkzeug.utils import secure_filename
+import os
+import uuid
 from app import db
 from app.models.desktop_assignments import DesktopImage, DesktopAssignment
 from app.models.users import User
@@ -26,6 +29,71 @@ def require_admin(f):
         return f(user, *args, **kwargs)
     
     return decorated_function
+
+
+# Configuration for icon uploads
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static', 'icons')
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'}
+MAX_FILE_SIZE = 2 * 1024 * 1024  # 2MB
+
+# Ensure upload directory exists
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+@desktop_admin_bp.route('/icons/upload', methods=['POST'])
+@require_admin
+def upload_icon(user):
+    """Upload an icon image for desktop types"""
+    if 'icon' not in request.files:
+        return jsonify({"success": False, "error": "No file provided"}), 400
+    
+    file = request.files['icon']
+    
+    if file.filename == '':
+        return jsonify({"success": False, "error": "No file selected"}), 400
+    
+    if not allowed_file(file.filename):
+        return jsonify({
+            "success": False, 
+            "error": f"Invalid file type. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
+        }), 400
+    
+    # Check file size
+    file.seek(0, os.SEEK_END)
+    file_size = file.tell()
+    file.seek(0)
+    
+    if file_size > MAX_FILE_SIZE:
+        return jsonify({
+            "success": False,
+            "error": "File too large. Maximum size is 2MB"
+        }), 400
+    
+    # Generate unique filename
+    file_extension = file.filename.rsplit('.', 1)[1].lower()
+    unique_filename = f"{uuid.uuid4().hex}.{file_extension}"
+    
+    # Save file
+    filepath = os.path.join(UPLOAD_FOLDER, unique_filename)
+    file.save(filepath)
+    
+    # Return the URL path
+    icon_url = f"/api/admin/desktops/icons/{unique_filename}"
+    
+    return jsonify({
+        "success": True,
+        "icon_url": icon_url,
+        "filename": unique_filename
+    })
+
+
+@desktop_admin_bp.route('/icons/<filename>', methods=['GET'])
+def serve_icon(filename):
+    """Serve uploaded icon images"""
+    return send_from_directory(UPLOAD_FOLDER, filename)
 
 
 @desktop_admin_bp.route('/types', methods=['GET'])

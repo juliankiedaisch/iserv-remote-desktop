@@ -357,3 +357,57 @@
 .pull-logs-container::-webkit-scrollbar-thumb:hover {
   background: #777;
 }
+
+/* Icon upload styles */
+.icon-upload-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.file-input {
+  padding: 0.5rem;
+  border: 2px dashed #e9ecef;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.file-input:hover {
+  border-color: var(--color-primary, #3e59d1);
+  background: #f8f9fa;
+}
+
+.icon-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  border: 2px solid #e9ecef;
+  border-radius: 8px;
+  background: #f8f9fa;
+  overflow: hidden;
+}
+
+.icon-preview img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.form-hint {
+  color: #6c757d;
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+}
+
+.desktop-type-icon .icon-image {
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+}
+
+.desktop-type-icon span {
+  font-size: 3rem;
+}

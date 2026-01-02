@@ -29,6 +29,9 @@ export const DesktopTypesManager: React.FC = () => {
   const [selectedTypes, setSelectedTypes] = useState<Set<number>>(new Set());
   const [showPullModal, setShowPullModal] = useState(false);
   const [pullLogs, setPullLogs] = useState<Array<{image: string, message: string, timestamp: number}>>([]);
+  const [iconFile, setIconFile] = useState<File | null>(null);
+  const [iconPreview, setIconPreview] = useState<string | null>(null);
+  const [uploadingIcon, setUploadingIcon] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -151,13 +154,22 @@ export const DesktopTypesManager: React.FC = () => {
     setLoading(true);
 
     try {
+      // Upload icon if file is selected
+      let iconUrl = formData.icon;
+      if (iconFile) {
+        const uploadedUrl = await uploadIconImage();
+        if (uploadedUrl) {
+          iconUrl = uploadedUrl;
+        }
+      }
+
       const response = await fetch('/api/admin/desktops/types', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-Session-ID': localStorage.getItem('session_id') || '',
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({ ...formData, icon: iconUrl })
       });
       const data = await response.json();
 
@@ -183,13 +195,22 @@ export const DesktopTypesManager: React.FC = () => {
     setLoading(true);
 
     try {
+      // Upload icon if new file is selected
+      let iconUrl = formData.icon;
+      if (iconFile) {
+        const uploadedUrl = await uploadIconImage();
+        if (uploadedUrl) {
+          iconUrl = uploadedUrl;
+        }
+      }
+
       const response = await fetch(`/api/admin/desktops/types/${selectedType.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'X-Session-ID': localStorage.getItem('session_id') || '',
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({ ...formData, icon: iconUrl })
       });
       const data = await response.json();
 
@@ -246,6 +267,8 @@ export const DesktopTypesManager: React.FC = () => {
       icon: '🖥️',
       enabled: true
     });
+    setIconFile(null);
+    setIconPreview(null);
   };
 
   const openEditModal = (type: DesktopType) => {
@@ -257,7 +280,73 @@ export const DesktopTypesManager: React.FC = () => {
       icon: type.icon,
       enabled: type.enabled
     });
+    setIconFile(null);
+    // If icon is a URL path, set it as preview
+    if (type.icon.startsWith('/api/')) {
+      setIconPreview(type.icon);
+    } else {
+      setIconPreview(null);
+    }
     setShowEditModal(true);
+  };
+
+  const handleIconFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/svg+xml', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        setError('Invalid file type. Please upload PNG, JPG, GIF, SVG, or WebP.');
+        return;
+      }
+      
+      // Validate file size (2MB max)
+      if (file.size > 2 * 1024 * 1024) {
+        setError('File too large. Maximum size is 2MB.');
+        return;
+      }
+      
+      setIconFile(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setIconPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const uploadIconImage = async (): Promise<string | null> => {
+    if (!iconFile) return null;
+    
+    setUploadingIcon(true);
+    try {
+      const formData = new FormData();
+      formData.append('icon', iconFile);
+      
+      const response = await fetch('/api/admin/desktops/icons/upload', {
+        method: 'POST',
+        headers: {
+          'X-Session-ID': localStorage.getItem('session_id') || '',
+        },
+        body: formData
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        return data.icon_url;
+      } else {
+        setError(data.error || 'Failed to upload icon');
+        return null;
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to upload icon');
+      return null;
+    } finally {
+      setUploadingIcon(false);
+    }
   };
 
   const handlePullImage = async (typeId: number) => {
@@ -430,7 +519,13 @@ export const DesktopTypesManager: React.FC = () => {
                     onClick={(e) => e.stopPropagation()}
                   />
                 </div>
-                <div className="desktop-type-icon">{type.icon}</div>
+                <div className="desktop-type-icon">
+                  {type.icon.startsWith('/api/') ? (
+                    <img src={type.icon} alt={type.name} className="icon-image" />
+                  ) : (
+                    <span>{type.icon}</span>
+                  )}
+                </div>
                 <h3>{type.name}</h3>
                 <p className="desktop-type-description">{type.description || 'No description'}</p>
                 <div className="desktop-type-meta">
@@ -507,13 +602,21 @@ export const DesktopTypesManager: React.FC = () => {
                 />
               </div>
               <div className="form-group">
-                <label>Icon (Emoji)</label>
-                <input
-                  type="text"
-                  value={formData.icon}
-                  onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
-                  maxLength={2}
-                />
+                <label>Icon</label>
+                <div className="icon-upload-container">
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg,image/gif,image/svg+xml,image/webp"
+                    onChange={handleIconFileChange}
+                    className="file-input"
+                  />
+                  {iconPreview && (
+                    <div className="icon-preview">
+                      <img src={iconPreview} alt="Icon preview" />
+                    </div>
+                  )}
+                  <small className="form-hint">Upload PNG, JPG, GIF, SVG, or WebP (max 2MB)</small>
+                </div>
               </div>
               <div className="form-group">
                 <label className="checkbox-label">
@@ -529,8 +632,8 @@ export const DesktopTypesManager: React.FC = () => {
                 <button type="button" className="btn btn-secondary" onClick={() => setShowCreateModal(false)}>
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary" disabled={loading}>
-                  Create
+                <button type="submit" className="btn btn-primary" disabled={loading || uploadingIcon}>
+                  {uploadingIcon ? 'Uploading...' : loading ? 'Creating...' : 'Create'}
                 </button>
               </div>
             </form>
@@ -574,13 +677,23 @@ export const DesktopTypesManager: React.FC = () => {
                 />
               </div>
               <div className="form-group">
-                <label>Icon (Emoji)</label>
-                <input
-                  type="text"
-                  value={formData.icon}
-                  onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
-                  maxLength={2}
-                />
+                <label>Icon</label>
+                <div className="icon-upload-container">
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg,image/gif,image/svg+xml,image/webp"
+                    onChange={handleIconFileChange}
+                    className="file-input"
+                  />
+                  {iconPreview && (
+                    <div className="icon-preview">
+                      <img src={iconPreview} alt="Icon preview" />
+                    </div>
+                  )}
+                  <small className="form-hint">
+                    {iconFile ? 'New icon selected' : 'Upload new icon or keep existing'} (PNG, JPG, GIF, SVG, or WebP, max 2MB)
+                  </small>
+                </div>
               </div>
               <div className="form-group">
                 <label className="checkbox-label">
@@ -596,8 +709,8 @@ export const DesktopTypesManager: React.FC = () => {
                 <button type="button" className="btn btn-secondary" onClick={() => setShowEditModal(false)}>
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary" disabled={loading}>
-                  Update
+                <button type="submit" className="btn btn-primary" disabled={loading || uploadingIcon}>
+                  {uploadingIcon ? 'Uploading...' : loading ? 'Updating...' : 'Update'}
                 </button>
               </div>
             </form>

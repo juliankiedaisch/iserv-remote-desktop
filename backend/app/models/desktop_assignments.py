@@ -9,7 +9,7 @@ class DesktopImage(db.Model):
     name = db.Column(db.String(128), nullable=False, unique=True)  # e.g., "VS Code", "Ubuntu Desktop"
     docker_image = db.Column(db.String(256), nullable=False)  # e.g., "kasmweb/vs-code:1.16.0"
     description = db.Column(db.Text, nullable=True)
-    icon = db.Column(db.String(10), nullable=True)  # Emoji icon
+    icon = db.Column(db.String(255), nullable=True)  # Emoji icon or image URL path
     enabled = db.Column(db.Boolean, default=True)
     
     # Metadata
