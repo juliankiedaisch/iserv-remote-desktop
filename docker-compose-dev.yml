@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./postgres:/var/lib/postgresql/data
     networks:
       - app-network
     restart: unless-stopped
@@ -19,7 +19,9 @@ services:
 
   # Backend API (Python Flask)
   backend:
-    image: teacherki/mdg-desktop-backend:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     ports:
       # Expose port 5021 for external Apache proxy
       - "5021:5021"
@@ -41,7 +43,9 @@ services:
 
   # Frontend (React build served by nginx)
   frontend:
-    image: teacherki/mdg-desktop-frontend:latest
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     ports:
       # Expose port 3000 for external Apache proxy
       - "3000:3000"

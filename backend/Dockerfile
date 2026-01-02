@@ -18,14 +18,7 @@ COPY requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
 # Copy backend application code
-COPY backend/ .
-
-# Copy migrations and scripts from root
-COPY migrations/ ./migrations/
-COPY scripts/ ./scripts/
-
-# Create necessary directories
-RUN mkdir -p /app/uploads /app/uploads/thumbnails /app/uploads/projects
+COPY . .
 
 EXPOSE 5021
 

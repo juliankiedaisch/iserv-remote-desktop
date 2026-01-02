@@ -4,14 +4,14 @@ set -e
 echo "Starting IServ Remote Desktop application..."
 
 # Wait for database to be ready
-if [[ "$DATABASE_URI" == postgresql* ]]; then
-    echo "Waiting for PostgreSQL to be ready..."
-    until pg_isready -h postgres -U scratch4school; do
-        echo "PostgreSQL is unavailable - sleeping"
-        sleep 2
-    done
-    echo "PostgreSQL is ready!"
-fi
+
+echo "Waiting for PostgreSQL to be ready..."
+until pg_isready -h postgres -U scratch4school; do
+    echo "PostgreSQL is unavailable - sleeping"
+    sleep 2
+done
+echo "PostgreSQL is ready!"
+
 
 # Run database migrations synchronously
 echo "Running database migrations..."

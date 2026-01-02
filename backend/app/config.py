@@ -32,12 +32,17 @@ class Config:
     # Container idle timeout (in hours) - containers inactive for this duration will be stopped
     CONTAINER_IDLE_TIMEOUT_HOURS = int(os.environ.get('CONTAINER_IDLE_TIMEOUT_HOURS', 6))
 
+    POSTGRES_USER = os.environ.get('POSTGRES_USER')
+    POSTGRES_PASSWORD = os.environ.get('POSTGRES_PASSWORD')
+    POSTGRES_SERVER_NAME = os.environ.get('POSTGRES_SERVER_NAME')
+    POSTGRES_DB = os.environ.get('POSTGRES_DB')
+
 class DevelopmentConfig(Config):
     DEBUG = True
     # Supports both SQLite and PostgreSQL
     # SQLite: sqlite:///path/to/db/main.db
     # PostgreSQL: postgresql://user:password@host:port/dbname
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URI') or f'sqlite:///{os.path.join(os.getcwd(), "db/main.db")}'
+    SQLALCHEMY_DATABASE_URI = f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_SERVER_NAME}:5432/{POSTGRES_DB}?client_encoding=utf8"
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_size': 20,
         'pool_recycle': 3600,
@@ -50,7 +55,7 @@ class ProductionConfig(Config):
     # Supports both SQLite and PostgreSQL
     # SQLite: sqlite:///path/to/db/main.db
     # PostgreSQL: postgresql://user:password@host:port/dbname
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URI') or f'sqlite:///{os.path.join(os.getcwd(), "db/main.db")}'
+    SQLALCHEMY_DATABASE_URI = f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_SERVER_NAME}:5432/{POSTGRES_DB}?client_encoding=utf8"
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_size': 20,
         'pool_recycle': 3600,
