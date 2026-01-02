@@ -114,7 +114,8 @@ def start_container(oauth_session):
             user_id=user.id,
             session_id=oauth_session.id,
             username=user.username,
-            desktop_type=desktop_type
+            desktop_type=desktop_type,
+            desktop_image_id=desktop_type_record.id if desktop_type_record else None
         )
         
         url = docker_manager.get_container_url(container)
@@ -264,23 +265,30 @@ def list_containers(oauth_session):
         
         # Get all containers for this user
         containers = Container.get_by_user(user.id)
+        current_app.logger.info(f"User {user.username} has {len(containers)} total containers")
         
         # Get current status for each
         docker_manager = DockerManager()
         container_list = []
         
         for container in containers:
+            current_app.logger.info(f"Checking container {container.container_name}: desktop_type={container.desktop_type}, desktop_image_id={container.desktop_image_id}, status={container.status}")
+            
             # Check if user still has access to this desktop image
             if container.desktop_image_id:
                 has_access, _ = DesktopAssignment.check_access(container.desktop_image_id, user.id, user_group_ids)
+                current_app.logger.info(f"Container {container.container_name}: has_access={has_access}")
                 if not has_access:
                     # User no longer has access to this desktop image, skip this container
+                    current_app.logger.info(f"Skipping container {container.container_name}: no access")
                     continue
             else:
                 # Old container without desktop_image_id (from old structure), skip it
+                current_app.logger.info(f"Skipping container {container.container_name}: no desktop_image_id")
                 continue
             
             status_info = docker_manager.get_container_status(container)
+            current_app.logger.info(f"Container {container.container_name}: status_info={status_info}")
             url = docker_manager.get_container_url(container)
             
             container_info = container.to_dict()
@@ -290,6 +298,7 @@ def list_containers(oauth_session):
             container_info['url'] = url
             container_list.append(container_info)
         
+        current_app.logger.info(f"Returning {len(container_list)} containers to user {user.username}")
         return jsonify({
             'success': True,
             'containers': container_list

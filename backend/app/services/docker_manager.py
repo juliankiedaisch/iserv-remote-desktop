@@ -45,7 +45,7 @@ class DockerManager:
             current_app.logger.error(f"Failed to connect to Docker: {str(e)}")
             raise
     
-    def create_container(self, user_id, session_id, username, desktop_type=None):
+    def create_container(self, user_id, session_id, username, desktop_type=None, desktop_image_id=None):
         """
         Create and start a Kasm workspace container for a user
         
@@ -54,6 +54,7 @@ class DockerManager:
             session_id: Session ID
             username: User's username
             desktop_type: Type of desktop to create (name from desktop_types table)
+            desktop_image_id: ID of the desktop image (for access control)
             
         Returns:
             Container model instance
@@ -67,6 +68,9 @@ class DockerManager:
                     raise Exception(f"Desktop type '{desktop_type}' not found or disabled")
                 
                 kasm_image = desktop_type_record.docker_image
+                # Use provided desktop_image_id or get from record
+                if not desktop_image_id:
+                    desktop_image_id = desktop_type_record.id
             else:
                 # Fallback to default if no type specified
                 default_type = DesktopImage.query.filter_by(enabled=True).first()
@@ -203,6 +207,7 @@ class DockerManager:
                 container_name=container_name,
                 image_name=kasm_image,
                 desktop_type=desktop_type,
+                desktop_image_id=desktop_image_id,
                 status='creating',
                 container_port=container_port,
                 proxy_path=proxy_path

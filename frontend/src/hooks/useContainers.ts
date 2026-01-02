@@ -83,6 +83,9 @@ export function useContainers() {
         throw new Error(response.error || 'Failed to start container');
       }
 
+      // Small delay to ensure container status is fully updated in backend
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       // Reload containers to get updated status
       await loadContainers();
 
