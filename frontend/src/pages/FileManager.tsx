@@ -81,22 +81,31 @@ export const FileManager: React.FC = () => {
     setSuccess(null);
 
     try {
-      // Upload files in parallel for better performance
-      const uploadPromises = Array.from(files).map(file => {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('space', space);
-        formData.append('path', currentPath);
+      // Upload files in batches of 3 to avoid overwhelming the server
+      const fileArray = Array.from(files);
+      const batchSize = 3;
+      let uploadedCount = 0;
+      
+      for (let i = 0; i < fileArray.length; i += batchSize) {
+        const batch = fileArray.slice(i, i + batchSize);
+        const uploadPromises = batch.map(file => {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('space', space);
+          formData.append('path', currentPath);
 
-        return apiService.post('/api/files/upload', formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
+          return apiService.post('/api/files/upload', formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+          });
         });
-      });
 
-      await Promise.all(uploadPromises);
-      setSuccess(`${files.length} file(s) uploaded successfully`);
+        await Promise.all(uploadPromises);
+        uploadedCount += batch.length;
+      }
+      
+      setSuccess(`${uploadedCount} file(s) uploaded successfully`);
       loadFiles();
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to upload files');

@@ -72,10 +72,16 @@ def list_files(oauth_session):
         base_path = get_container_path(user.id, space)
         full_path = os.path.join(base_path, path.lstrip('/'))
         
-        # Security check: ensure path is within base directory
-        full_path = os.path.abspath(full_path)
-        base_path = os.path.abspath(base_path)
-        if not full_path.startswith(base_path):
+        # Security check: ensure path is within base directory using realpath
+        try:
+            full_path = os.path.realpath(full_path)
+            base_path = os.path.realpath(base_path)
+            if not full_path.startswith(base_path + os.sep) and full_path != base_path:
+                return jsonify({
+                    'success': False,
+                    'error': 'Invalid path'
+                }), 403
+        except (OSError, ValueError):
             return jsonify({
                 'success': False,
                 'error': 'Invalid path'
@@ -83,14 +89,10 @@ def list_files(oauth_session):
         
         # Check if path exists
         if not os.path.exists(full_path):
-            # Create the directory if it doesn't exist
-            os.makedirs(full_path, exist_ok=True)
-            try:
-                uid = current_app.config.get('CONTAINER_USER_ID', 1000)
-                gid = current_app.config.get('CONTAINER_GROUP_ID', 1000)
-                os.chown(full_path, uid, gid)
-            except Exception as e:
-                current_app.logger.warning(f"Could not set ownership: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': 'Directory not found'
+            }), 404
         
         # List files and directories
         items = []
@@ -153,10 +155,16 @@ def upload_file(oauth_session):
         base_path = get_container_path(user.id, space)
         target_dir = os.path.join(base_path, path.lstrip('/'))
         
-        # Security check: ensure path is within base directory
-        target_dir = os.path.abspath(target_dir)
-        base_path = os.path.abspath(base_path)
-        if not target_dir.startswith(base_path):
+        # Security check: ensure path is within base directory using realpath
+        try:
+            target_dir = os.path.realpath(target_dir)
+            base_path = os.path.realpath(base_path)
+            if not target_dir.startswith(base_path + os.sep) and target_dir != base_path:
+                return jsonify({
+                    'success': False,
+                    'error': 'Invalid path'
+                }), 403
+        except (OSError, ValueError):
             return jsonify({
                 'success': False,
                 'error': 'Invalid path'
@@ -219,10 +227,16 @@ def download_file(oauth_session):
         base_path = get_container_path(user.id, space)
         file_path = os.path.join(base_path, path.lstrip('/'))
         
-        # Security check: ensure path is within base directory
-        file_path = os.path.abspath(file_path)
-        base_path = os.path.abspath(base_path)
-        if not file_path.startswith(base_path):
+        # Security check: ensure path is within base directory using realpath
+        try:
+            file_path = os.path.realpath(file_path)
+            base_path = os.path.realpath(base_path)
+            if not file_path.startswith(base_path + os.sep) and file_path != base_path:
+                return jsonify({
+                    'success': False,
+                    'error': 'Invalid path'
+                }), 403
+        except (OSError, ValueError):
             return jsonify({
                 'success': False,
                 'error': 'Invalid path'
@@ -275,10 +289,16 @@ def delete_file(oauth_session):
         base_path = get_container_path(user.id, space)
         target_path = os.path.join(base_path, path.lstrip('/'))
         
-        # Security check: ensure path is within base directory
-        target_path = os.path.abspath(target_path)
-        base_path = os.path.abspath(base_path)
-        if not target_path.startswith(base_path):
+        # Security check: ensure path is within base directory using realpath
+        try:
+            target_path = os.path.realpath(target_path)
+            base_path = os.path.realpath(base_path)
+            if not target_path.startswith(base_path + os.sep) and target_path != base_path:
+                return jsonify({
+                    'success': False,
+                    'error': 'Invalid path'
+                }), 403
+        except (OSError, ValueError):
             return jsonify({
                 'success': False,
                 'error': 'Invalid path'
@@ -347,10 +367,16 @@ def create_folder(oauth_session):
         parent_dir = os.path.join(base_path, path.lstrip('/'))
         new_folder_path = os.path.join(parent_dir, folder_name)
         
-        # Security check: ensure path is within base directory
-        new_folder_path = os.path.abspath(new_folder_path)
-        base_path = os.path.abspath(base_path)
-        if not new_folder_path.startswith(base_path):
+        # Security check: ensure path is within base directory using realpath
+        try:
+            new_folder_path = os.path.realpath(new_folder_path)
+            base_path = os.path.realpath(base_path)
+            if not new_folder_path.startswith(base_path + os.sep) and new_folder_path != base_path:
+                return jsonify({
+                    'success': False,
+                    'error': 'Invalid path'
+                }), 403
+        except (OSError, ValueError):
             return jsonify({
                 'success': False,
                 'error': 'Invalid path'
