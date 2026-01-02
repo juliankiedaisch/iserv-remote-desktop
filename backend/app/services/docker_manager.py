@@ -495,3 +495,109 @@ class DockerManager:
         # Format matches wildcard SSL cert *.hub.mdg-hamburg.de
         # Apache's RewriteMap queries Flask API to get container IP:port
         return f"https://desktop-{container_record.proxy_path}.hub.mdg-hamburg.de/"
+    
+    def pull_image(self, image_name, emit_callback=None):
+        """
+        Pull a Docker image with real-time progress updates
+        
+        Args:
+            image_name: Name of the image to pull (e.g., 'kasmweb/ubuntu-jammy-desktop:1.15.0')
+            emit_callback: Callback function to emit progress updates
+                          Should accept (event, data) parameters
+        
+        Returns:
+            Dict with success status and message
+        """
+        try:
+            current_app.logger.info(f"Starting pull for image: {image_name}")
+            
+            if emit_callback:
+                emit_callback('image_pull_started', {
+                    'image': image_name,
+                    'status': 'started',
+                    'message': f'Starting pull for {image_name}'
+                })
+            
+            # Pull the image with progress tracking
+            response = self.client.api.pull(image_name, stream=True, decode=True)
+            
+            # Track layers to avoid duplicate progress messages
+            last_progress = {}
+            
+            for line in response:
+                if 'status' in line:
+                    status = line['status']
+                    layer_id = line.get('id', '')
+                    progress = line.get('progress', '')
+                    
+                    # Create a unique key for this layer's status
+                    progress_key = f"{layer_id}:{status}"
+                    
+                    # Only emit if progress changed for this layer
+                    if progress and progress != last_progress.get(progress_key):
+                        last_progress[progress_key] = progress
+                        
+                        if emit_callback:
+                            emit_callback('image_pull_progress', {
+                                'image': image_name,
+                                'status': status,
+                                'layer_id': layer_id,
+                                'progress': progress,
+                                'message': f'{status}: {layer_id} {progress}' if layer_id else status
+                            })
+                        
+                        current_app.logger.debug(f"Pull progress: {status} - {layer_id} {progress}")
+                    elif not layer_id and status:
+                        # Status message without layer (e.g., "Downloading", "Extracting")
+                        if emit_callback:
+                            emit_callback('image_pull_progress', {
+                                'image': image_name,
+                                'status': status,
+                                'message': status
+                            })
+                
+                if 'error' in line:
+                    error_msg = line['error']
+                    current_app.logger.error(f"Error pulling image {image_name}: {error_msg}")
+                    
+                    if emit_callback:
+                        emit_callback('image_pull_error', {
+                            'image': image_name,
+                            'status': 'error',
+                            'error': error_msg
+                        })
+                    
+                    return {
+                        'success': False,
+                        'error': error_msg
+                    }
+            
+            current_app.logger.info(f"Successfully pulled image: {image_name}")
+            
+            if emit_callback:
+                emit_callback('image_pull_completed', {
+                    'image': image_name,
+                    'status': 'completed',
+                    'message': f'Successfully pulled {image_name}'
+                })
+            
+            return {
+                'success': True,
+                'message': f'Successfully pulled {image_name}'
+            }
+            
+        except Exception as e:
+            error_msg = str(e)
+            current_app.logger.error(f"Failed to pull image {image_name}: {error_msg}")
+            
+            if emit_callback:
+                emit_callback('image_pull_error', {
+                    'image': image_name,
+                    'status': 'error',
+                    'error': error_msg
+                })
+            
+            return {
+                'success': False,
+                'error': error_msg
+            }

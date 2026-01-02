@@ -5,12 +5,14 @@ import { apiService } from './api';
 type StatusUpdateCallback = (update: ContainerStatusUpdate) => void;
 type MessageCallback = (message: WebSocketMessage) => void;
 type ConnectionCallback = (connected: boolean) => void;
+type ImagePullCallback = (event: string, data: any) => void;
 
 class WebSocketService {
   private socket: Socket | null = null;
   private statusUpdateCallbacks: Set<StatusUpdateCallback> = new Set();
   private messageCallbacks: Set<MessageCallback> = new Set();
   private connectionCallbacks: Set<ConnectionCallback> = new Set();
+  private imagePullCallbacks: Set<ImagePullCallback> = new Set();
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
@@ -105,6 +107,23 @@ class WebSocketService {
       };
       this.messageCallbacks.forEach(callback => callback(message));
     });
+
+    // Image pull events
+    this.socket.on('image_pull_started', (data: any) => {
+      this.imagePullCallbacks.forEach(callback => callback('started', data));
+    });
+
+    this.socket.on('image_pull_progress', (data: any) => {
+      this.imagePullCallbacks.forEach(callback => callback('progress', data));
+    });
+
+    this.socket.on('image_pull_completed', (data: any) => {
+      this.imagePullCallbacks.forEach(callback => callback('completed', data));
+    });
+
+    this.socket.on('image_pull_error', (data: any) => {
+      this.imagePullCallbacks.forEach(callback => callback('error', data));
+    });
   }
 
   disconnect(): void {
@@ -128,6 +147,11 @@ class WebSocketService {
   onConnectionChange(callback: ConnectionCallback): () => void {
     this.connectionCallbacks.add(callback);
     return () => this.connectionCallbacks.delete(callback);
+  }
+
+  onImagePull(callback: ImagePullCallback): () => void {
+    this.imagePullCallbacks.add(callback);
+    return () => this.imagePullCallbacks.delete(callback);
   }
 
   private notifyConnectionChange(connected: boolean): void {

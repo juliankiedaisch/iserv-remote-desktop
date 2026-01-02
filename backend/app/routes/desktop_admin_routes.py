@@ -237,3 +237,73 @@ def get_available_users(user):
     
     return jsonify({"success": True, "users": user_list})
 
+
+@desktop_admin_bp.route('/types/<int:type_id>/pull-image', methods=['POST'])
+@require_admin
+def pull_desktop_type_image(user, type_id):
+    """Pull/update the Docker image for a desktop type"""
+    from app.services.docker_manager import DockerManager
+    from app.routes.websocket_routes import emit_image_pull_event
+    
+    desktop_type = DesktopImage.query.get(type_id)
+    if not desktop_type:
+        return jsonify({"success": False, "error": "Desktop type not found"}), 404
+    
+    image_name = desktop_type.docker_image
+    
+    # Create emit callback for real-time updates
+    def emit_callback(event_type, data):
+        emit_image_pull_event(event_type, data, user_id=user.get('user_id'))
+    
+    # Pull the image in the current thread (will block until complete)
+    docker_manager = DockerManager()
+    result = docker_manager.pull_image(image_name, emit_callback=emit_callback)
+    
+    return jsonify(result)
+
+
+@desktop_admin_bp.route('/pull-images', methods=['POST'])
+@require_admin
+def pull_multiple_images(user):
+    """Pull/update multiple Docker images"""
+    from app.services.docker_manager import DockerManager
+    from app.routes.websocket_routes import emit_image_pull_event
+    
+    data = request.json
+    type_ids = data.get('type_ids', [])
+    
+    if not type_ids:
+        return jsonify({"success": False, "error": "No desktop types specified"}), 400
+    
+    results = []
+    docker_manager = DockerManager()
+    
+    # Create emit callback for real-time updates
+    def emit_callback(event_type, data):
+        emit_image_pull_event(event_type, data, user_id=user.get('user_id'))
+    
+    for type_id in type_ids:
+        desktop_type = DesktopImage.query.get(type_id)
+        if not desktop_type:
+            results.append({
+                'type_id': type_id,
+                'success': False,
+                'error': 'Desktop type not found'
+            })
+            continue
+        
+        image_name = desktop_type.docker_image
+        result = docker_manager.pull_image(image_name, emit_callback=emit_callback)
+        results.append({
+            'type_id': type_id,
+            'image': image_name,
+            **result
+        })
+    
+    # Check if all succeeded
+    all_success = all(r.get('success', False) for r in results)
+    
+    return jsonify({
+        "success": all_success,
+        "results": results
+    })

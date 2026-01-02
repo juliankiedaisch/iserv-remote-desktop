@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { Loading, Alert } from '../components';
 import { useAuth } from '../hooks/useAuth';
+import { wsService } from '../services/websocket';
 import './DesktopTypesManager.css';
 
 interface DesktopType {
@@ -23,6 +24,11 @@ export const DesktopTypesManager: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedType, setSelectedType] = useState<DesktopType | null>(null);
+  const [pullingImages, setPullingImages] = useState<Set<number>>(new Set());
+  const [pullProgress, setPullProgress] = useState<Record<number, string>>({});
+  const [selectedTypes, setSelectedTypes] = useState<Set<number>>(new Set());
+  const [showPullModal, setShowPullModal] = useState(false);
+  const [pullLogs, setPullLogs] = useState<Array<{image: string, message: string, timestamp: number}>>([]);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -38,6 +44,85 @@ export const DesktopTypesManager: React.FC = () => {
       loadDesktopTypes();
     }
   }, [isAdmin]);
+
+  useEffect(() => {
+    // Connect to WebSocket
+    wsService.connect();
+
+    // Listen for image pull events
+    const unsubscribe = wsService.onImagePull((event, data) => {
+      const typeId = desktopTypes.find(dt => dt.docker_image === data.image)?.id;
+      
+      if (event === 'started') {
+        if (typeId) {
+          setPullingImages(prev => new Set(prev).add(typeId));
+          setPullProgress(prev => ({ ...prev, [typeId]: 'Starting...' }));
+        }
+        setPullLogs(prev => [...prev, { 
+          image: data.image, 
+          message: data.message || 'Starting pull...', 
+          timestamp: Date.now() 
+        }]);
+      } else if (event === 'progress') {
+        if (typeId && data.progress) {
+          setPullProgress(prev => ({ ...prev, [typeId]: data.progress }));
+        }
+        // Only log significant progress updates to avoid spam
+        if (data.status === 'Downloading' || data.status === 'Extracting' || data.status === 'Pull complete') {
+          setPullLogs(prev => {
+            const recent = prev.slice(-100); // Keep last 100 logs
+            return [...recent, { 
+              image: data.image, 
+              message: data.message || data.status, 
+              timestamp: Date.now() 
+            }];
+          });
+        }
+      } else if (event === 'completed') {
+        if (typeId) {
+          setPullingImages(prev => {
+            const next = new Set(prev);
+            next.delete(typeId);
+            return next;
+          });
+          setPullProgress(prev => {
+            const next = { ...prev };
+            delete next[typeId];
+            return next;
+          });
+        }
+        setPullLogs(prev => [...prev, { 
+          image: data.image, 
+          message: '✅ ' + (data.message || 'Pull completed'), 
+          timestamp: Date.now() 
+        }]);
+        setSuccessMessage(`Successfully pulled ${data.image}`);
+      } else if (event === 'error') {
+        if (typeId) {
+          setPullingImages(prev => {
+            const next = new Set(prev);
+            next.delete(typeId);
+            return next;
+          });
+          setPullProgress(prev => {
+            const next = { ...prev };
+            delete next[typeId];
+            return next;
+          });
+        }
+        setPullLogs(prev => [...prev, { 
+          image: data.image, 
+          message: '❌ ' + (data.error || 'Pull failed'), 
+          timestamp: Date.now() 
+        }]);
+        setError(`Failed to pull ${data.image}: ${data.error}`);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [desktopTypes]);
 
   const loadDesktopTypes = async () => {
     try {
@@ -175,6 +260,88 @@ export const DesktopTypesManager: React.FC = () => {
     setShowEditModal(true);
   };
 
+  const handlePullImage = async (typeId: number) => {
+    setPullingImages(prev => new Set(prev).add(typeId));
+    setPullProgress(prev => ({ ...prev, [typeId]: 'Initializing...' }));
+    setPullLogs([]);
+    setShowPullModal(true);
+
+    try {
+      const response = await fetch(`/api/admin/desktops/types/${typeId}/pull-image`, {
+        method: 'POST',
+        headers: {
+          'X-Session-ID': localStorage.getItem('session_id') || '',
+        }
+      });
+      const data = await response.json();
+
+      if (!data.success) {
+        setError(data.error || 'Failed to pull image');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to pull image');
+      setPullingImages(prev => {
+        const next = new Set(prev);
+        next.delete(typeId);
+        return next;
+      });
+    }
+  };
+
+  const handlePullMultipleImages = async () => {
+    if (selectedTypes.size === 0) {
+      setError('Please select at least one desktop type');
+      return;
+    }
+
+    setPullLogs([]);
+    setShowPullModal(true);
+    selectedTypes.forEach(id => {
+      setPullingImages(prev => new Set(prev).add(id));
+      setPullProgress(prev => ({ ...prev, [id]: 'Queued...' }));
+    });
+
+    try {
+      const response = await fetch('/api/admin/desktops/pull-images', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Session-ID': localStorage.getItem('session_id') || '',
+        },
+        body: JSON.stringify({ type_ids: Array.from(selectedTypes) })
+      });
+      const data = await response.json();
+
+      if (!data.success) {
+        setError('Some images failed to pull. Check the logs for details.');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to pull images');
+    } finally {
+      setSelectedTypes(new Set());
+    }
+  };
+
+  const toggleSelection = (typeId: number) => {
+    setSelectedTypes(prev => {
+      const next = new Set(prev);
+      if (next.has(typeId)) {
+        next.delete(typeId);
+      } else {
+        next.add(typeId);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedTypes.size === desktopTypes.length) {
+      setSelectedTypes(new Set());
+    } else {
+      setSelectedTypes(new Set(desktopTypes.map(dt => dt.id)));
+    }
+  };
+
   if (authLoading) {
     return (
       <div className="container">
@@ -209,9 +376,23 @@ export const DesktopTypesManager: React.FC = () => {
       <div className="desktop-types-container">
         <div className="desktop-types-header">
           <h2>Available Desktop Types</h2>
-          <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
-            ➕ Create New Type
-          </button>
+          <div className="header-actions">
+            {selectedTypes.size > 0 && (
+              <>
+                <span className="selection-count">{selectedTypes.size} selected</span>
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={handlePullMultipleImages}
+                  disabled={pullingImages.size > 0}
+                >
+                  🔄 Pull Selected ({selectedTypes.size})
+                </button>
+              </>
+            )}
+            <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
+              ➕ Create New Type
+            </button>
+          </div>
         </div>
 
         {loading ? (
@@ -225,9 +406,30 @@ export const DesktopTypesManager: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className="desktop-types-grid">
-            {desktopTypes.map((type) => (
-              <div key={type.id} className={`desktop-type-card ${!type.enabled ? 'disabled' : ''}`}>
+          <>
+            {desktopTypes.length > 0 && (
+              <div className="bulk-actions">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={selectedTypes.size === desktopTypes.length && desktopTypes.length > 0}
+                    onChange={toggleSelectAll}
+                  />
+                  Select All
+                </label>
+              </div>
+            )}
+            <div className="desktop-types-grid">
+              {desktopTypes.map((type) => (
+              <div key={type.id} className={`desktop-type-card ${!type.enabled ? 'disabled' : ''} ${selectedTypes.has(type.id) ? 'selected' : ''}`}>
+                <div className="card-header-select">
+                  <input
+                    type="checkbox"
+                    checked={selectedTypes.has(type.id)}
+                    onChange={() => toggleSelection(type.id)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
                 <div className="desktop-type-icon">{type.icon}</div>
                 <h3>{type.name}</h3>
                 <p className="desktop-type-description">{type.description || 'No description'}</p>
@@ -240,7 +442,20 @@ export const DesktopTypesManager: React.FC = () => {
                     {type.assignment_count} assignment{type.assignment_count !== 1 ? 's' : ''}
                   </span>
                 </div>
+                {pullingImages.has(type.id) && (
+                  <div className="pull-progress">
+                    <div className="progress-spinner">⏳</div>
+                    <span className="progress-text">{pullProgress[type.id] || 'Pulling...'}</span>
+                  </div>
+                )}
                 <div className="desktop-type-actions">
+                  <button 
+                    className="btn btn-sm btn-secondary" 
+                    onClick={() => handlePullImage(type.id)}
+                    disabled={pullingImages.has(type.id)}
+                  >
+                    {pullingImages.has(type.id) ? '⏳ Pulling...' : '🔄 Pull Image'}
+                  </button>
                   <button className="btn btn-sm btn-primary" onClick={() => openEditModal(type)}>
                     Edit
                   </button>
@@ -250,7 +465,8 @@ export const DesktopTypesManager: React.FC = () => {
                 </div>
               </div>
             ))}
-          </div>
+            </div>
+          </>
         )}
       </div>
 
@@ -385,6 +601,42 @@ export const DesktopTypesManager: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Pull Progress Modal */}
+      {showPullModal && (
+        <div className="modal-overlay" onClick={() => setShowPullModal(false)}>
+          <div className="modal-content pull-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>🔄 Pulling Docker Images</h2>
+              <button className="modal-close" onClick={() => setShowPullModal(false)}>✕</button>
+            </div>
+            <div className="pull-logs-container">
+              {pullLogs.length === 0 ? (
+                <div className="pull-log-entry">
+                  <span className="log-message">Initializing pull operation...</span>
+                </div>
+              ) : (
+                pullLogs.map((log, index) => (
+                  <div key={index} className="pull-log-entry">
+                    <span className="log-image">{log.image.split('/').pop()}</span>
+                    <span className="log-message">{log.message}</span>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="modal-actions">
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                onClick={() => setShowPullModal(false)}
+                disabled={pullingImages.size > 0}
+              >
+                {pullingImages.size > 0 ? 'Pulling in progress...' : 'Close'}
+              </button>
+            </div>
           </div>
         </div>
       )}

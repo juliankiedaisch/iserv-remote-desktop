@@ -21,10 +21,32 @@
   color: #2c3e50;
 }
 
+.header-actions {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.selection-count {
+  padding: 0.5rem 1rem;
+  background: #e3f2fd;
+  color: #1976d2;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
 .desktop-types-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 1.5rem;
+}
+
+.bulk-actions {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
 }
 
 .desktop-type-card {
@@ -47,6 +69,23 @@
 .desktop-type-card.disabled {
   opacity: 0.6;
   background: #f8f9fa;
+}
+
+.desktop-type-card.selected {
+  border-color: var(--color-primary, #3e59d1);
+  background: #f0f4ff;
+}
+
+.card-header-select {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: -0.5rem;
+}
+
+.card-header-select input[type="checkbox"] {
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
 }
 
 .desktop-type-icon {
@@ -233,4 +272,88 @@
 .empty-state p {
   font-size: 1.1rem;
   margin-bottom: 1.5rem;
+}
+
+.pull-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: #e3f2fd;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #1976d2;
+}
+
+.progress-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.progress-text {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pull-modal {
+  max-width: 800px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.pull-logs-container {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 500px;
+  background: #1e1e1e;
+  border-radius: 8px;
+  padding: 1rem;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 0.85rem;
+}
+
+.pull-log-entry {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+  color: #d4d4d4;
+  line-height: 1.4;
+}
+
+.log-image {
+  color: #4ec9b0;
+  font-weight: 600;
+  min-width: 200px;
+  flex-shrink: 0;
+}
+
+.log-message {
+  color: #d4d4d4;
+  word-break: break-word;
+}
+
+/* Scroll styling for logs */
+.pull-logs-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.pull-logs-container::-webkit-scrollbar-track {
+  background: #2d2d2d;
+  border-radius: 4px;
+}
+
+.pull-logs-container::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 4px;
+}
+
+.pull-logs-container::-webkit-scrollbar-thumb:hover {
+  background: #777;
 }

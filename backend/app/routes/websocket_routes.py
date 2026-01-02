@@ -174,3 +174,30 @@ def emit_container_stopped(container, user_id=None):
         socketio.emit('container_stopped', event_data, room=f"user_{user_id}")
     
     socketio.emit('container_stopped', event_data, room="admins")
+
+
+def emit_image_pull_event(event_type, data, user_id=None):
+    """
+    Emit image pull events for real-time progress updates
+    
+    Args:
+        event_type: Type of event (image_pull_started, image_pull_progress, 
+                    image_pull_completed, image_pull_error)
+        data: Event data dict
+        user_id: Optional user_id to target specific user
+    """
+    if not socketio:
+        return
+    
+    event_data = {
+        **data,
+        'timestamp': datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Emit to specific user if provided
+    if user_id:
+        socketio.emit(event_type, event_data, room=f"user_{user_id}")
+    
+    # Always emit to admins for image pull events
+    socketio.emit(event_type, event_data, room="admins")
+
