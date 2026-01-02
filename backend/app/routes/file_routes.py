@@ -97,6 +97,12 @@ def list_files(oauth_session):
         
         # Get the base path on host
         base_path = get_container_path(user.id, space)
+        
+        # Ensure user directory exists for private space
+        if space == 'private':
+            from app.utils.directory_manager import ensure_user_directory
+            ensure_user_directory(user.id)
+        
         full_path = os.path.join(base_path, path.lstrip('/'))
         
         # Security check: ensure path is within base directory
@@ -107,8 +113,15 @@ def list_files(oauth_session):
                 'error': error_msg
             }), 403
         
-        # Check if path exists
+        # Check if path exists - if base directory doesn't exist, return empty list
         if not os.path.exists(full_path):
+            # If it's the base path itself that doesn't exist, return empty list instead of error
+            if full_path == base_path:
+                return jsonify({
+                    'success': True,
+                    'items': [],
+                    'current_path': path
+                })
             return jsonify({
                 'success': False,
                 'error': 'Directory not found'

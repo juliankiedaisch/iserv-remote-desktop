@@ -22,9 +22,6 @@ class ApiService {
       baseURL: API_BASE_URL,
       timeout: 30000,
       withCredentials: true,
-      headers: {
-        'Host': window.location.hostname,
-      }
     });
 
     // Load session from localStorage
