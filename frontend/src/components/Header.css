@@ -64,7 +64,7 @@
 }
 
 .files-icon {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  background: linear-gradient(135deg, #849cc6 0%, #3e5ebe 100%);
   color: white;
   width: 40px;
   height: 40px;
@@ -80,6 +80,26 @@
 }
 
 .files-icon:hover {
+  transform: scale(1.1);
+}
+
+.dashboard-icon {
+  background: linear-gradient(135deg, #acacac 0%, #7c7c7c 100%);
+  color: white;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  text-decoration: none;
+  font-weight: bold;
+  transition: transform 0.2s;
+  font-size: 18px;
+}
+
+.dashboard-icon:hover {
   transform: scale(1.1);
 }
 

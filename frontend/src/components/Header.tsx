@@ -36,6 +36,9 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
       <div className="user-info">
         <span className="username">{user?.username || 'Loading...'}</span>
+        <Link to="/" className="dashboard-icon" title="Dashboard">
+          🏠
+        </Link>
         <Link to="/files" className="files-icon" title="File Manager">
           📁
         </Link>
