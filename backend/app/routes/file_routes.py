@@ -408,3 +408,129 @@ def create_folder(oauth_session):
             'success': False,
             'error': str(e)
         }), 500
+
+
+@file_bp.route('/files/move', methods=['POST'])
+@require_session
+def move_file(oauth_session):
+    """Move a file or folder to a different location"""
+    try:
+        user = oauth_session.user
+        data = request.get_json() or {}
+        space = data.get('space', 'private')
+        source_path = data.get('source_path', '')
+        destination_path = data.get('destination_path', '')
+        
+        if not source_path or not destination_path:
+            return jsonify({
+                'success': False,
+                'error': 'Source and destination paths are required'
+            }), 400
+        
+        # Get the base path on host
+        base_path = get_container_path(user.id, space)
+        
+        # Build full paths
+        full_source = os.path.join(base_path, source_path.lstrip('/'))
+        full_destination = os.path.join(base_path, destination_path.lstrip('/'))
+        
+        # Security check: ensure both paths are within base directory
+        is_valid_source, error_msg = validate_path_security(base_path, full_source)
+        if not is_valid_source:
+            return jsonify({
+                'success': False,
+                'error': f'Invalid source path: {error_msg}'
+            }), 403
+        
+        is_valid_dest, error_msg = validate_path_security(base_path, full_destination)
+        if not is_valid_dest:
+            return jsonify({
+                'success': False,
+                'error': f'Invalid destination path: {error_msg}'
+            }), 403
+        
+        # Check if source exists
+        if not os.path.exists(full_source):
+            return jsonify({
+                'success': False,
+                'error': 'Source file or directory not found'
+            }), 404
+        
+        # Check if destination is a directory
+        if not os.path.isdir(full_destination):
+            return jsonify({
+                'success': False,
+                'error': 'Destination must be a directory'
+            }), 400
+        
+        # Get the name of the source file/folder
+        source_name = os.path.basename(full_source)
+        new_location = os.path.join(full_destination, source_name)
+        
+        # Security check for new location
+        is_valid_new, error_msg = validate_path_security(base_path, new_location)
+        if not is_valid_new:
+            return jsonify({
+                'success': False,
+                'error': f'Invalid new location: {error_msg}'
+            }), 403
+        
+        # Check if trying to move into itself (for directories)
+        if os.path.isdir(full_source):
+            try:
+                # Normalize paths to handle trailing slashes
+                source_real = os.path.realpath(full_source)
+                dest_real = os.path.realpath(full_destination)
+                
+                # Check if destination is inside source
+                if dest_real.startswith(source_real + os.sep) or dest_real == source_real:
+                    return jsonify({
+                        'success': False,
+                        'error': 'Cannot move a folder into itself'
+                    }), 400
+            except (OSError, ValueError) as e:
+                return jsonify({
+                    'success': False,
+                    'error': f'Path validation error: {str(e)}'
+                }), 400
+        
+        # Check if destination already exists
+        if os.path.exists(new_location):
+            return jsonify({
+                'success': False,
+                'error': f'A file or folder named "{source_name}" already exists in the destination'
+            }), 400
+        
+        # Move the file or directory
+        shutil.move(full_source, new_location)
+        
+        # Set proper permissions
+        try:
+            uid = current_app.config.get('CONTAINER_USER_ID', 1000)
+            gid = current_app.config.get('CONTAINER_GROUP_ID', 1000)
+            os.chown(new_location, uid, gid)
+            if os.path.isdir(new_location):
+                # Recursively set permissions for directories
+                for root, dirs, files in os.walk(new_location):
+                    os.chown(root, uid, gid)
+                    os.chmod(root, 0o755)
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        os.chown(file_path, uid, gid)
+                        os.chmod(file_path, 0o644)
+            else:
+                os.chmod(new_location, 0o644)
+        except Exception as e:
+            current_app.logger.warning(f"Could not set ownership/permissions: {str(e)}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Moved successfully'
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Failed to move file: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500

@@ -33,6 +33,15 @@ export const FileManager: React.FC = () => {
   const [dragOver, setDragOver] = useState(false);
   const [showNewFolderModal, setShowNewFolderModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
+  const [showHiddenFiles, setShowHiddenFiles] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [fileToDelete, setFileToDelete] = useState<FileItem | null>(null);
+  const [draggedItem, setDraggedItem] = useState<FileItem | null>(null);
+  const [dropTarget, setDropTarget] = useState<FileItem | null>(null);
+  const [openMenuPath, setOpenMenuPath] = useState<string | null>(null);
+  const [showFileDetailsModal, setShowFileDetailsModal] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadFiles = useCallback(async () => {
@@ -160,17 +169,73 @@ export const FileManager: React.FC = () => {
     }
   };
 
-  const handleDelete = async (file: FileItem) => {
-    if (!window.confirm(`Are you sure you want to delete "${file.name}"?`)) {
+  const handleDelete = (file: FileItem) => {
+    setFileToDelete(file);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!fileToDelete) return;
+
+    try {
+      await apiService.delete(`/api/files/delete?space=${space}&path=${encodeURIComponent(fileToDelete.path)}`);
+      setSuccess('Deleted successfully');
+      setShowDeleteModal(false);
+      setFileToDelete(null);
+      loadFiles();
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to delete');
+      setShowDeleteModal(false);
+      setFileToDelete(null);
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent, file: FileItem) => {
+    setDraggedItem(file);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragEnd = () => {
+    setDraggedItem(null);
+    setDropTarget(null);
+  };
+
+  const handleFileDragOver = (e: React.DragEvent, file: FileItem) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (draggedItem && file.is_directory && draggedItem.path !== file.path) {
+      e.dataTransfer.dropEffect = 'move';
+      setDropTarget(file);
+    }
+  };
+
+  const handleFileDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDropTarget(null);
+  };
+
+  const handleFileDrop = async (e: React.DragEvent, targetFolder: FileItem) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDropTarget(null);
+
+    if (!draggedItem || !targetFolder.is_directory || draggedItem.path === targetFolder.path) {
       return;
     }
 
     try {
-      await apiService.delete(`/api/files/delete?space=${space}&path=${encodeURIComponent(file.path)}`);
-      setSuccess('Deleted successfully');
+      await apiService.post('/api/files/move', {
+        space,
+        source_path: draggedItem.path,
+        destination_path: targetFolder.path,
+      });
+      setSuccess(`Moved "${draggedItem.name}" to "${targetFolder.name}"`);
+      setDraggedItem(null);
       loadFiles();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to delete');
+      setError(err.response?.data?.error || 'Failed to move file');
+      setDraggedItem(null);
     }
   };
 
@@ -207,6 +272,86 @@ export const FileManager: React.FC = () => {
     const date = new Date(dateString);
     return date.toLocaleString();
   };
+
+  const visibleFiles = showHiddenFiles 
+    ? files 
+    : files.filter(file => !file.name.startsWith('.'));
+
+  const toggleMenu = (path: string) => {
+    setOpenMenuPath(openMenuPath === path ? null : path);
+  };
+
+  const handleMenuAction = (action: 'download' | 'delete', file: FileItem) => {
+    setOpenMenuPath(null);
+    if (action === 'download') {
+      handleDownload(file);
+    } else if (action === 'delete') {
+      handleDelete(file);
+    }
+  };
+
+  const getFileExtension = (filename: string): string => {
+    const parts = filename.split('.');
+    return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : '';
+  };
+
+  const isPreviewable = (file: FileItem): boolean => {
+    if (file.is_directory) return false;
+    const ext = getFileExtension(file.name);
+    const previewableExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'txt', 'md', 'json', 'xml', 'csv', 'log', 'pdf'];
+    return previewableExtensions.includes(ext);
+  };
+
+  const handleFileClick = async (file: FileItem) => {
+    if (file.is_directory) {
+      handleNavigate(file.path);
+      return;
+    }
+    
+    setSelectedFile(file);
+    setShowFileDetailsModal(true);
+    
+    // Generate preview if possible
+    if (isPreviewable(file)) {
+      try {
+        const ext = getFileExtension(file.name);
+        const response = await apiService.get(
+          `/api/files/download?space=${space}&path=${encodeURIComponent(file.path)}`,
+          { responseType: ext === 'pdf' || ext.match(/jpg|jpeg|png|gif|bmp|webp|svg/) ? 'blob' : 'text' }
+        );
+        
+        if (ext === 'pdf' || ext.match(/jpg|jpeg|png|gif|bmp|webp|svg/)) {
+          const url = window.URL.createObjectURL(response.data);
+          setPreviewUrl(url);
+        } else {
+          // For text files, we'll store as text
+          setPreviewUrl(response.data);
+        }
+      } catch (err) {
+        console.error('Failed to load preview:', err);
+      }
+    }
+  };
+
+  const closeFileDetailsModal = () => {
+    setShowFileDetailsModal(false);
+    setSelectedFile(null);
+    if (previewUrl && typeof previewUrl === 'string' && previewUrl.startsWith('blob:')) {
+      window.URL.revokeObjectURL(previewUrl);
+    }
+    setPreviewUrl(null);
+  };
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (openMenuPath) {
+        setOpenMenuPath(null);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [openMenuPath]);
 
   if (authLoading) {
     return (
@@ -295,6 +440,12 @@ export const FileManager: React.FC = () => {
             <button className="btn btn-secondary" onClick={loadFiles}>
               🔄 Refresh
             </button>
+            <button 
+              className="btn btn-secondary" 
+              onClick={() => setShowHiddenFiles(!showHiddenFiles)}
+            >
+              {showHiddenFiles ? '👁️ Hide Hidden' : '👁️‍🗨️ Show Hidden'}
+            </button>
           </div>
 
           <input
@@ -314,7 +465,7 @@ export const FileManager: React.FC = () => {
         >
           {loading ? (
             <Loading message="Loading files..." />
-          ) : files.length === 0 ? (
+          ) : visibleFiles.length === 0 ? (
             <div className="empty-state">
               <p>No files here yet</p>
               <p className="empty-hint">Drag and drop files here or click "Upload Files"</p>
@@ -330,39 +481,62 @@ export const FileManager: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {files.map((file) => (
-                  <tr key={file.path}>
+                {visibleFiles.map((file) => (
+                  <tr 
+                    key={file.path}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, file)}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={(e) => handleFileDragOver(e, file)}
+                    onDragLeave={handleFileDragLeave}
+                    onDrop={(e) => handleFileDrop(e, file)}
+                    className={`${
+                      draggedItem?.path === file.path ? 'dragging' : ''
+                    } ${
+                      dropTarget?.path === file.path ? 'drop-target' : ''
+                    }`}
+                  >
                     <td>
-                      {file.is_directory ? (
-                        <button
-                          className="file-name-button"
-                          onClick={() => handleNavigate(file.path)}
-                        >
-                          📁 {file.name}
-                        </button>
-                      ) : (
-                        <span>📄 {file.name}</span>
-                      )}
+                      <button
+                        className="file-name-button"
+                        onClick={() => handleFileClick(file)}
+                      >
+                        {file.is_directory ? '📁' : '📄'} {file.name}
+                      </button>
                     </td>
                     <td>{formatSize(file.size)}</td>
                     <td>{formatDate(file.modified)}</td>
                     <td className="file-actions">
-                      {!file.is_directory && (
+                      <div className="action-menu-container">
                         <button
-                          className="btn-icon"
-                          onClick={() => handleDownload(file)}
-                          title="Download"
+                          className="btn-menu"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleMenu(file.path);
+                          }}
+                          title="Actions"
                         >
-                          ⬇️
+                          ⋮
                         </button>
-                      )}
-                      <button
-                        className="btn-icon btn-danger"
-                        onClick={() => handleDelete(file)}
-                        title="Delete"
-                      >
-                        🗑️
-                      </button>
+                        {openMenuPath === file.path && (
+                          <div className="action-menu-dropdown">
+                            {!file.is_directory && (
+                              <button
+                                className="menu-item"
+                                onClick={() => handleMenuAction('download', file)}
+                              >
+                                <span>⬇️</span> Download
+                              </button>
+                            )}
+                            <button
+                              className="menu-item menu-item-danger"
+                              onClick={() => handleMenuAction('delete', file)}
+                            >
+                              <span>🗑️</span> Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -423,6 +597,136 @@ export const FileManager: React.FC = () => {
                 onClick={handleCreateFolder}
               >
                 Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && fileToDelete && (
+        <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Confirm Delete</h2>
+              <button
+                className="modal-close"
+                onClick={() => setShowDeleteModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="modal-body">
+              <p>Are you sure you want to delete <strong>"{fileToDelete.name}"</strong>?</p>
+              {fileToDelete.is_directory && (
+                <p className="warning-text">This will delete the folder and all its contents.</p>
+              )}
+            </div>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setShowDeleteModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={confirmDelete}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* File Details Modal */}
+      {showFileDetailsModal && selectedFile && (
+        <div className="modal-overlay" onClick={closeFileDetailsModal}>
+          <div className="modal-content modal-large" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>📄 {selectedFile.name}</h2>
+              <button
+                className="modal-close"
+                onClick={closeFileDetailsModal}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="modal-body file-details-body">
+              {/* Preview Section */}
+              {isPreviewable(selectedFile) && previewUrl && (
+                <div className="file-preview">
+                  {getFileExtension(selectedFile.name).match(/jpg|jpeg|png|gif|bmp|webp|svg/) && (
+                    <img src={previewUrl} alt={selectedFile.name} className="preview-image" />
+                  )}
+                  {getFileExtension(selectedFile.name) === 'pdf' && (
+                    <iframe src={previewUrl} className="preview-pdf" title={selectedFile.name} />
+                  )}
+                  {getFileExtension(selectedFile.name).match(/txt|md|json|xml|csv|log/) && (
+                    <pre className="preview-text">{previewUrl}</pre>
+                  )}
+                </div>
+              )}
+              
+              {/* File Information */}
+              <div className="file-info">
+                <h3>File Information</h3>
+                <div className="info-grid">
+                  <div className="info-item">
+                    <span className="info-label">Name:</span>
+                    <span className="info-value">{selectedFile.name}</span>
+                  </div>
+                  <div className="info-item">
+                    <span className="info-label">Size:</span>
+                    <span className="info-value">{formatSize(selectedFile.size)}</span>
+                  </div>
+                  <div className="info-item">
+                    <span className="info-label">Modified:</span>
+                    <span className="info-value">{formatDate(selectedFile.modified)}</span>
+                  </div>
+                  <div className="info-item">
+                    <span className="info-label">Type:</span>
+                    <span className="info-value">
+                      {getFileExtension(selectedFile.name).toUpperCase() || 'Unknown'}
+                    </span>
+                  </div>
+                  <div className="info-item">
+                    <span className="info-label">Path:</span>
+                    <span className="info-value path-value">{selectedFile.path}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={closeFileDetailsModal}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  handleDownload(selectedFile);
+                  closeFileDetailsModal();
+                }}
+              >
+                ⬇️ Download
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={() => {
+                  closeFileDetailsModal();
+                  handleDelete(selectedFile);
+                }}
+              >
+                🗑️ Delete
               </button>
             </div>
           </div>
