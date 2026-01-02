@@ -57,6 +57,10 @@ with app.app_context():
     
     # Run migrations after creating tables
     run_migrations()
+    
+    # Start background scheduler for idle container monitoring
+    from app.services.scheduler import scheduler
+    scheduler.start()
 
 if __name__ == '__main__':
     # Use SocketIO server for WebSocket support (Socket.IO + flask-sock)

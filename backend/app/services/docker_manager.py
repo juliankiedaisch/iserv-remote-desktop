@@ -470,6 +470,55 @@ class DockerManager:
             current_app.logger.error(f"Failed to cleanup containers: {str(e)}")
             db.session.rollback()
     
+    def stop_idle_containers(self, idle_hours=6):
+        """
+        Stop containers that haven't been accessed for the specified time
+        
+        Args:
+            idle_hours: Number of hours of inactivity before stopping (default: 6)
+        """
+        try:
+            from datetime import timedelta
+            
+            # Calculate cutoff time
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=idle_hours)
+            
+            # Get all running containers that haven't been accessed recently
+            idle_containers = Container.query.filter(
+                Container.status == 'running',
+                Container.last_accessed < cutoff_time
+            ).all()
+            
+            stopped_count = 0
+            for container in idle_containers:
+                try:
+                    # Verify it's still running in Docker before stopping
+                    status_info = self.get_container_status(container)
+                    if status_info.get('status') == 'running':
+                        self.stop_container(container)
+                        stopped_count += 1
+                        current_app.logger.info(
+                            f"Stopped idle container {container.container_name} "
+                            f"(last accessed: {container.last_accessed})"
+                        )
+                except Exception as e:
+                    current_app.logger.error(
+                        f"Failed to stop idle container {container.container_name}: {str(e)}"
+                    )
+                    continue
+            
+            if stopped_count > 0:
+                current_app.logger.info(
+                    f"Auto-stopped {stopped_count} idle containers (idle > {idle_hours} hours)"
+                )
+            
+            return stopped_count
+            
+        except Exception as e:
+            current_app.logger.error(f"Failed to check idle containers: {str(e)}")
+            db.session.rollback()
+            return 0
+    
     def _find_available_port(self, start_port=7000, end_port=8000):
         """
         Find an available port in the specified range with database lock

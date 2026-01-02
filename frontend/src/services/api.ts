@@ -165,6 +165,13 @@ class ApiService {
     return response.data;
   }
 
+  async cleanupStoppedContainers(): Promise<{ success: boolean; removed_count: number; error?: string }> {
+    const response = await this.client.post<{ success: boolean; removed_count: number }>(
+      '/api/admin/containers/cleanup-stopped'
+    );
+    return response.data;
+  }
+
   // Theme endpoints
   async getTheme(): Promise<{ success: boolean; theme: any; error?: string }> {
     const response = await this.client.get<{ success: boolean; theme: any }>('/api/theme');

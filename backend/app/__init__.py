@@ -97,5 +97,15 @@ def create_app(debug=False):
     app.register_blueprint(teacher_bp)
     app.register_blueprint(theme_routes)
     app.register_blueprint(file_bp, url_prefix='/api')
+    
+    # Initialize and start background scheduler
+    from app.services.scheduler import scheduler, check_idle_containers, cleanup_old_containers
+    scheduler.init_app(app)
+    
+    # Add scheduled tasks
+    # Check for idle containers every 30 minutes
+    scheduler.add_task(check_idle_containers, interval_seconds=1800, name='check_idle_containers')
+    # Note: cleanup_old_containers is NOT scheduled - containers are kept so users can restart them
+    # Only manually cleanup old containers if needed via admin panel
 
     return app

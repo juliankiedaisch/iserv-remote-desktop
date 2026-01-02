@@ -200,3 +200,41 @@ def stop_all_containers(oauth_session):
             'success': False,
             'error': str(e)
         }), 500
+
+
+@admin_bp.route('/admin/containers/cleanup-stopped', methods=['POST'])
+@require_admin
+def cleanup_stopped_containers(oauth_session):
+    """Remove all stopped containers (admin only)"""
+    try:
+        docker_manager = DockerManager()
+        
+        # Get all stopped containers
+        stopped_containers = Container.query.filter_by(status='stopped').all()
+        
+        removed_count = 0
+        for container in stopped_containers:
+            try:
+                docker_manager.remove_container(container)
+                removed_count += 1
+            except Exception as e:
+                current_app.logger.error(
+                    f"Failed to remove container {container.container_name}: {str(e)}"
+                )
+        
+        current_app.logger.info(
+            f"Admin {oauth_session.user.username} removed {removed_count} stopped containers"
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': f'Removed {removed_count} stopped containers',
+            'removed_count': removed_count
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Failed to cleanup stopped containers: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500

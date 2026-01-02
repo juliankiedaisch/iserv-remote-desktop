@@ -28,6 +28,9 @@ class Config:
     # Data directory paths
     USER_DATA_BASE_DIR = os.environ.get('USER_DATA_BASE_DIR', '/data/users')
     SHARED_PUBLIC_DIR = os.environ.get('SHARED_PUBLIC_DIR', '/data/shared/public')
+    
+    # Container idle timeout (in hours) - containers inactive for this duration will be stopped
+    CONTAINER_IDLE_TIMEOUT_HOURS = int(os.environ.get('CONTAINER_IDLE_TIMEOUT_HOURS', 6))
 
 class DevelopmentConfig(Config):
     DEBUG = True

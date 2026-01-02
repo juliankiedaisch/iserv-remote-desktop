@@ -6,6 +6,15 @@ import { Container } from '../types';
 import { apiService } from '../services/api';
 import './AdminPanel.css';
 
+interface ConfirmModalState {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  confirmText: string;
+  onConfirm: () => void;
+  isDangerous?: boolean;
+}
+
 export const AdminPanel: React.FC = () => {
   const { user, isAdmin, logout, loading: authLoading } = useAuth();
   const [containers, setContainers] = useState<Container[]>([]);
@@ -13,6 +22,14 @@ export const AdminPanel: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<ConfirmModalState>({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'Confirm',
+    onConfirm: () => {},
+    isDangerous: false
+  });
 
   const loadContainers = useCallback(async () => {
     try {
@@ -47,7 +64,18 @@ export const AdminPanel: React.FC = () => {
   }, [containers]);
 
   const handleStopContainer = async (containerId: string, containerName: string) => {
-    if (!window.confirm(`Stop container "${containerName}"?`)) return;
+    setConfirmModal({
+      isOpen: true,
+      title: 'Stop Container',
+      message: `Are you sure you want to stop container "${containerName}"?`,
+      confirmText: 'Stop',
+      isDangerous: true,
+      onConfirm: () => stopContainer(containerId, containerName)
+    });
+  };
+
+  const stopContainer = async (containerId: string, containerName: string) => {
+    setConfirmModal({ ...confirmModal, isOpen: false });
 
     setActionLoading(true);
     try {
@@ -66,7 +94,18 @@ export const AdminPanel: React.FC = () => {
   };
 
   const handleRemoveContainer = async (containerId: string, containerName: string) => {
-    if (!window.confirm(`Remove container "${containerName}"? This action cannot be undone.`)) return;
+    setConfirmModal({
+      isOpen: true,
+      title: 'Remove Container',
+      message: `Are you sure you want to remove container "${containerName}"? This action cannot be undone.`,
+      confirmText: 'Remove',
+      isDangerous: true,
+      onConfirm: () => removeContainer(containerId, containerName)
+    });
+  };
+
+  const removeContainer = async (containerId: string, containerName: string) => {
+    setConfirmModal({ ...confirmModal, isOpen: false });
 
     setActionLoading(true);
     try {
@@ -85,7 +124,18 @@ export const AdminPanel: React.FC = () => {
   };
 
   const handleStopAll = async () => {
-    if (!window.confirm('Stop ALL running containers? This will affect all users!')) return;
+    setConfirmModal({
+      isOpen: true,
+      title: 'Stop All Containers',
+      message: 'Stop ALL running containers? This will affect all users!',
+      confirmText: 'Stop All',
+      isDangerous: true,
+      onConfirm: () => stopAllContainers()
+    });
+  };
+
+  const stopAllContainers = async () => {
+    setConfirmModal({ ...confirmModal, isOpen: false });
 
     setActionLoading(true);
     try {
@@ -98,6 +148,36 @@ export const AdminPanel: React.FC = () => {
       }
     } catch (err: any) {
       setError(err.message || 'Failed to stop all containers');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCleanupStopped = async () => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Remove Stopped Containers',
+      message: 'Remove ALL stopped containers? This cannot be undone!',
+      confirmText: 'Remove All',
+      isDangerous: true,
+      onConfirm: () => cleanupStoppedContainers()
+    });
+  };
+
+  const cleanupStoppedContainers = async () => {
+    setConfirmModal({ ...confirmModal, isOpen: false });
+
+    setActionLoading(true);
+    try {
+      const response = await apiService.cleanupStoppedContainers();
+      if (response.success) {
+        setSuccessMessage(`Successfully removed ${response.removed_count} stopped container(s)`);
+        await loadContainers();
+      } else {
+        setError(response.error || 'Failed to cleanup containers');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to cleanup stopped containers');
     } finally {
       setActionLoading(false);
     }
@@ -157,6 +237,9 @@ export const AdminPanel: React.FC = () => {
             </button>
             <button className="btn btn-danger" onClick={handleStopAll} disabled={actionLoading}>
               ⏹️ Stop All
+            </button>
+            <button className="btn btn-danger" onClick={handleCleanupStopped} disabled={actionLoading}>
+              🗑️ Remove Stopped
             </button>
           </div>
         </div>
@@ -245,6 +328,44 @@ export const AdminPanel: React.FC = () => {
           </table>
         )}
       </div>
+
+      {/* Confirmation Modal */}
+      {confirmModal.isOpen && (
+        <div className="modal-overlay" onClick={() => setConfirmModal({ ...confirmModal, isOpen: false })}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>{confirmModal.title}</h3>
+              <button 
+                className="modal-close" 
+                onClick={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="modal-body">
+              <p>{confirmModal.message}</p>
+            </div>
+            <div className="modal-footer">
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+                disabled={actionLoading}
+              >
+                Cancel
+              </button>
+              <button 
+                className={`btn ${confirmModal.isDangerous ? 'btn-danger' : 'btn-primary'}`}
+                onClick={() => {
+                  confirmModal.onConfirm();
+                }}
+                disabled={actionLoading}
+              >
+                {confirmModal.confirmText}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {actionLoading && (
         <div className="loading-overlay">
