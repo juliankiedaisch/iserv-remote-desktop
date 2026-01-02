@@ -24,6 +24,10 @@ class Config:
     # File management - UID/GID for container files (kasm user is typically 1000)
     CONTAINER_USER_ID = int(os.environ.get('CONTAINER_USER_ID', 1000))
     CONTAINER_GROUP_ID = int(os.environ.get('CONTAINER_GROUP_ID', 1000))
+    
+    # Data directory paths
+    USER_DATA_BASE_DIR = os.environ.get('USER_DATA_BASE_DIR', '/data/users')
+    SHARED_PUBLIC_DIR = os.environ.get('SHARED_PUBLIC_DIR', '/data/shared/public')
 
 class DevelopmentConfig(Config):
     DEBUG = True

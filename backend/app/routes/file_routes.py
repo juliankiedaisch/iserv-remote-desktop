@@ -54,9 +54,10 @@ def require_session(f):
 def get_container_path(user_id, space='private'):
     """Get the host path for user's container files"""
     if space == 'public':
-        return '/data/shared/public'
+        return current_app.config.get('SHARED_PUBLIC_DIR', '/data/shared/public')
     else:
-        return f'/data/{user_id}'
+        user_data_base = current_app.config.get('USER_DATA_BASE_DIR', '/data/users')
+        return os.path.join(user_data_base, str(user_id))
 
 
 def validate_path_security(base_path, full_path):

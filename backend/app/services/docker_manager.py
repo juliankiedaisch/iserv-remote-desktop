@@ -218,22 +218,12 @@ class DockerManager:
                 'USER': username,
             }
             
-            # Setup persistent home directory for user
-            # Mount to /home/kasm-user which is the actual user directory
-            # /home/kasm-default-profile is the template that gets copied on first run
-            user_data_dir = f"/data/{user_id}"
-            os.makedirs(user_data_dir, exist_ok=True)
+            # Get user data directory - ensure it exists
+            from app.utils.directory_manager import ensure_user_directory
+            user_data_dir = ensure_user_directory(user_id)
             
-            # Setup shared public directory accessible to all users
-            shared_public_dir = "/data/shared/public"
-            os.makedirs(shared_public_dir, exist_ok=True)
-            
-            # Set proper permissions for directories (kasm user is typically UID 1000)
-            try:
-                os.chown(user_data_dir, 1000, 1000)
-                os.chown(shared_public_dir, 1000, 1000)
-            except Exception as e:
-                current_app.logger.warning(f"Could not set ownership on directories: {str(e)}")
+            # Get shared public directory from config
+            shared_public_dir = current_app.config.get('SHARED_PUBLIC_DIR', '/data/shared/public')
             
             # Create and start container
             current_app.logger.info(f"Creating container {container_name} from image {kasm_image}")

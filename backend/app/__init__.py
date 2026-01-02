@@ -56,6 +56,11 @@ def create_app(debug=False):
     socketio = init_socketio(app)
     globals()['socketio'] = socketio
     
+    # Initialize base data directories
+    with app.app_context():
+        from app.utils.directory_manager import initialize_base_directories
+        initialize_base_directories()
+    
     # Register OAuth provider
     oauth.register(
         name='oauth_provider',
