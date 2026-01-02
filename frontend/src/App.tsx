@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Dashboard, AdminPanel, Login, ThemeEditor, DesktopTypesManager, AssignmentManager } from './pages';
+import { Dashboard, AdminPanel, Login, ThemeEditor, DesktopTypesManager, AssignmentManager, FileManager } from './pages';
 import { useAuth } from './hooks/useAuth';
 import { useTheme } from './hooks/useTheme';
 import { Loading } from './components';
@@ -71,6 +71,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <ThemeEditor />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/files"
+            element={
+              <ProtectedRoute>
+                <FileManager />
               </ProtectedRoute>
             }
           />

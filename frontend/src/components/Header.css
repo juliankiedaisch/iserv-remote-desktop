@@ -63,6 +63,26 @@
   transform: scale(1.1);
 }
 
+.files-icon {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  text-decoration: none;
+  font-weight: bold;
+  transition: transform 0.2s;
+  font-size: 18px;
+}
+
+.files-icon:hover {
+  transform: scale(1.1);
+}
+
 .admin-icon {
   background: var(--color-admin-badge);
   color: white;

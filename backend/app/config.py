@@ -20,6 +20,10 @@ class Config:
     #Rolemanagement
     ROLE_TEACHER = os.environ.get('ROLE_TEACHER')
     ROLE_ADMIN = os.environ.get('ROLE_ADMIN')
+    
+    # File management - UID/GID for container files (kasm user is typically 1000)
+    CONTAINER_USER_ID = int(os.environ.get('CONTAINER_USER_ID', 1000))
+    CONTAINER_GROUP_ID = int(os.environ.get('CONTAINER_GROUP_ID', 1000))
 
 class DevelopmentConfig(Config):
     DEBUG = True

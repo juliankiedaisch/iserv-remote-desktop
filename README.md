@@ -30,6 +30,11 @@ The application uses a **separated frontend-backend architecture**:
 - Automatic Kasm workspace provisioning
 - Session-based container lifecycle
 - Admin panel for managing all containers
+- **File Manager** for uploading and downloading files to/from containers
+  - Private and public file spaces
+  - Drag-and-drop upload support
+  - Folder management and navigation
+  - See [FILE_MANAGER.md](FILE_MANAGER.md) for details
 - **Real-time container status updates via WebSocket**
 - Last access timestamps for each desktop
 - Automatic cleanup of stopped containers
