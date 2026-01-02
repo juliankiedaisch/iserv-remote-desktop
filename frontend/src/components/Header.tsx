@@ -36,6 +36,9 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
       <div className="user-info">
         <span className="username">{user?.username || 'Loading...'}</span>
+        <Link to="/files" className="files-icon" title="File Manager">
+          📁
+        </Link>
         {isTeacher && (
           <Link to="/teacher/assignments" className="teacher-icon" title="Manage Assignments">
             📚

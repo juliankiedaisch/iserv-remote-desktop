@@ -1,0 +1,318 @@
+.file-manager {
+  max-width: 1200px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+.file-manager-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.file-manager-header h2 {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.space-tabs {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.space-tab {
+  padding: 0.5rem 1rem;
+  border: none;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.space-tab:hover {
+  background: var(--primary-hover);
+}
+
+.space-tab.active {
+  background: var(--primary-color);
+  color: white;
+}
+
+.file-manager-toolbar {
+  background: var(--card-bg);
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.breadcrumb-item {
+  background: none;
+  border: none;
+  color: var(--primary-color);
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.breadcrumb-item:hover {
+  background: var(--hover-bg);
+}
+
+.breadcrumb-separator {
+  color: var(--text-secondary);
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.file-drop-zone {
+  background: var(--card-bg);
+  border-radius: 8px;
+  min-height: 400px;
+  position: relative;
+  border: 2px dashed transparent;
+  transition: all 0.3s;
+}
+
+.file-drop-zone.drag-over {
+  border-color: var(--primary-color);
+  background: var(--hover-bg);
+}
+
+.file-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.file-table thead {
+  background: var(--hover-bg);
+}
+
+.file-table th,
+.file-table td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.file-table th {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.file-table td {
+  color: var(--text-secondary);
+}
+
+.file-table tr:hover {
+  background: var(--hover-bg);
+}
+
+.file-name-button {
+  background: none;
+  border: none;
+  color: var(--primary-color);
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+}
+
+.file-name-button:hover {
+  text-decoration: underline;
+}
+
+.file-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.btn-icon:hover {
+  background: var(--hover-bg);
+}
+
+.btn-icon.btn-danger:hover {
+  background: #dc3545;
+  color: white;
+}
+
+.drag-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 123, 255, 0.1);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.drag-message {
+  text-align: center;
+  color: var(--primary-color);
+  font-size: 1.2rem;
+}
+
+.drag-message p {
+  margin: 0.5rem 0;
+}
+
+.drag-message p:first-child {
+  font-size: 3rem;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--text-secondary);
+}
+
+.empty-state p {
+  margin: 0.5rem 0;
+}
+
+.empty-hint {
+  font-size: 0.9rem;
+  color: var(--text-tertiary);
+}
+
+/* Modal styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: var(--card-bg);
+  border-radius: 8px;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.25rem;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 0;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.modal-close:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.form-control {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 1rem;
+  background: var(--bg-color);
+  color: var(--text-primary);
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .file-manager-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .toolbar-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .toolbar-actions .btn {
+    width: 100%;
+  }
+
+  .file-table {
+    font-size: 0.9rem;
+  }
+
+  .file-table th,
+  .file-table td {
+    padding: 0.5rem;
+  }
+}
