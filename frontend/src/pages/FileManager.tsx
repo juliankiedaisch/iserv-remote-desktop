@@ -11,6 +11,12 @@ interface FileItem {
   is_directory: boolean;
   size: number | null;
   modified: string;
+  is_shared?: boolean;
+  assignment_info?: {
+    id: number;
+    folder_name: string;
+    desktop_image_id: number;
+  };
 }
 
 interface FileListResponse {
@@ -225,12 +231,21 @@ export const FileManager: React.FC = () => {
     }
 
     try {
-      await apiService.post('/api/files/move', {
+      const response = await apiService.post('/api/files/move', {
         space,
         source_path: draggedItem.path,
         destination_path: targetFolder.path,
       });
-      setSuccess(`Moved "${draggedItem.name}" to "${targetFolder.name}"`);
+      
+      let message = `Moved "${draggedItem.name}" to "${targetFolder.name}"`;
+      
+      // Check if assignments were updated
+      if (response.data.updated_assignments && response.data.updated_assignments.length > 0) {
+        const count = response.data.updated_assignments.length;
+        message += ` (${count} assignment${count > 1 ? 's' : ''} updated)`;
+      }
+      
+      setSuccess(message);
       setDraggedItem(null);
       loadFiles();
     } catch (err: any) {
@@ -502,6 +517,14 @@ export const FileManager: React.FC = () => {
                         onClick={() => handleFileClick(file)}
                       >
                         {file.is_directory ? '📁' : '📄'} {file.name}
+                        {file.is_shared && (
+                          <span 
+                            className="shared-badge" 
+                            title={`Shared as: ${file.assignment_info?.folder_name || 'Assignment'}`}
+                          >
+                            🔗
+                          </span>
+                        )}
                       </button>
                     </td>
                     <td>{formatSize(file.size)}</td>

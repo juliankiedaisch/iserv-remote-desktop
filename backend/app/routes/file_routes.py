@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, send_file, current_app
 from werkzeug.utils import secure_filename
 from app import db
 from app.models.oauth_session import OAuthSession
+from app.models.desktop_assignments import DesktopAssignment
 from functools import wraps
 import os
 import shutil
@@ -98,6 +99,11 @@ def list_files(oauth_session):
         # Get the base path on host
         base_path = get_container_path(user.id, space)
         
+        # Get user's assignments if they're a teacher to mark shared folders
+        teacher_assignments = []
+        if user.role == 'teacher' or user.role == 'admin':
+            teacher_assignments = DesktopAssignment.query.filter_by(created_by=user.id).all()
+        
         # Ensure user directory exists for private space
         if space == 'private':
             from app.utils.directory_manager import ensure_user_directory
@@ -134,12 +140,30 @@ def list_files(oauth_session):
             try:
                 stat = os.stat(item_path)
                 is_dir = os.path.isdir(item_path)
+                rel_item_path = os.path.join(path, item_name) if path else item_name
+                
+                # Check if this folder is associated with an assignment
+                is_shared = False
+                assignment_info = None
+                if is_dir and space == 'private' and teacher_assignments:
+                    for assignment in teacher_assignments:
+                        if assignment.assignment_folder_path and assignment.assignment_folder_path == rel_item_path:
+                            is_shared = True
+                            assignment_info = {
+                                'id': assignment.id,
+                                'folder_name': assignment.assignment_folder_name,
+                                'desktop_image_id': assignment.desktop_image_id
+                            }
+                            break
+                
                 items.append({
                     'name': item_name,
-                    'path': os.path.join(path, item_name) if path else item_name,
+                    'path': rel_item_path,
                     'is_directory': is_dir,
                     'size': stat.st_size if not is_dir else None,
-                    'modified': datetime.fromtimestamp(stat.st_mtime).isoformat()
+                    'modified': datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                    'is_shared': is_shared,
+                    'assignment_info': assignment_info
                 })
             except Exception as e:
                 current_app.logger.warning(f"Could not stat file {item_name}: {str(e)}")
@@ -515,6 +539,45 @@ def move_file(oauth_session):
                 'error': f'A file or folder named "{source_name}" already exists in the destination'
             }), 400
         
+        # Calculate the new relative path (relative to base_path)
+        new_relative_path = os.path.relpath(new_location, base_path)
+        
+        # Check if the source is associated with any assignments (for teachers)
+        source_relative_path = os.path.relpath(full_source, base_path)
+        updated_assignments = []
+        
+        if os.path.isdir(full_source) and space == 'private':
+            # Check if this folder or any parent folder has assignments
+            assignments = DesktopAssignment.query.filter_by(created_by=user.id).all()
+            for assignment in assignments:
+                if assignment.assignment_folder_path:
+                    # Check if the assignment path matches or is inside the moved folder
+                    if (assignment.assignment_folder_path == source_relative_path or
+                        assignment.assignment_folder_path.startswith(source_relative_path + os.sep)):
+                        
+                        # Calculate the new assignment path
+                        # Replace the old prefix with the new one
+                        if assignment.assignment_folder_path == source_relative_path:
+                            new_assignment_path = new_relative_path
+                        else:
+                            # For subfolders, preserve the relative structure
+                            suffix = assignment.assignment_folder_path[len(source_relative_path):].lstrip(os.sep)
+                            new_assignment_path = os.path.join(new_relative_path, suffix)
+                        
+                        # Update the assignment
+                        old_path = assignment.assignment_folder_path
+                        assignment.assignment_folder_path = new_assignment_path
+                        updated_assignments.append({
+                            'id': assignment.id,
+                            'old_path': old_path,
+                            'new_path': new_assignment_path
+                        })
+                        current_app.logger.info(f"Updated assignment {assignment.id} path from '{old_path}' to '{new_assignment_path}'")
+            
+            # Commit assignment updates
+            if updated_assignments:
+                db.session.commit()
+        
         # Move the file or directory
         shutil.move(full_source, new_location)
         
@@ -537,10 +600,16 @@ def move_file(oauth_session):
         except Exception as e:
             current_app.logger.warning(f"Could not set ownership/permissions: {str(e)}")
         
-        return jsonify({
+        response = {
             'success': True,
             'message': 'Moved successfully'
-        })
+        }
+        
+        if updated_assignments:
+            response['updated_assignments'] = updated_assignments
+            response['message'] = f'Moved successfully and updated {len(updated_assignments)} assignment(s)'
+        
+        return jsonify(response)
         
     except Exception as e:
         current_app.logger.error(f"Failed to move file: {str(e)}")
