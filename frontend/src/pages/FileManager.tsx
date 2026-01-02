@@ -81,19 +81,21 @@ export const FileManager: React.FC = () => {
     setSuccess(null);
 
     try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
+      // Upload files in parallel for better performance
+      const uploadPromises = Array.from(files).map(file => {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('space', space);
         formData.append('path', currentPath);
 
-        await apiService.post('/api/files/upload', formData, {
+        return apiService.post('/api/files/upload', formData, {
           headers: {
             'Content-Type': 'multipart/form-data',
           },
         });
-      }
+      });
+
+      await Promise.all(uploadPromises);
       setSuccess(`${files.length} file(s) uploaded successfully`);
       loadFiles();
     } catch (err: any) {
@@ -134,7 +136,7 @@ export const FileManager: React.FC = () => {
         { responseType: 'blob' }
       );
       
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const url = window.URL.createObjectURL(response.data);
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', file.name);

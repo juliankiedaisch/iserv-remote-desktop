@@ -86,7 +86,9 @@ def list_files(oauth_session):
             # Create the directory if it doesn't exist
             os.makedirs(full_path, exist_ok=True)
             try:
-                os.chown(full_path, 1000, 1000)
+                uid = current_app.config.get('CONTAINER_USER_ID', 1000)
+                gid = current_app.config.get('CONTAINER_GROUP_ID', 1000)
+                os.chown(full_path, uid, gid)
             except Exception as e:
                 current_app.logger.warning(f"Could not set ownership: {str(e)}")
         
@@ -177,7 +179,9 @@ def upload_file(oauth_session):
         
         # Set proper permissions
         try:
-            os.chown(file_path, 1000, 1000)
+            uid = current_app.config.get('CONTAINER_USER_ID', 1000)
+            gid = current_app.config.get('CONTAINER_GROUP_ID', 1000)
+            os.chown(file_path, uid, gid)
             os.chmod(file_path, 0o644)
         except Exception as e:
             current_app.logger.warning(f"Could not set ownership/permissions: {str(e)}")
@@ -364,7 +368,9 @@ def create_folder(oauth_session):
         
         # Set proper permissions
         try:
-            os.chown(new_folder_path, 1000, 1000)
+            uid = current_app.config.get('CONTAINER_USER_ID', 1000)
+            gid = current_app.config.get('CONTAINER_GROUP_ID', 1000)
+            os.chown(new_folder_path, uid, gid)
             os.chmod(new_folder_path, 0o755)
         except Exception as e:
             current_app.logger.warning(f"Could not set ownership/permissions: {str(e)}")
