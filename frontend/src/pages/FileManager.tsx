@@ -81,7 +81,9 @@ export const FileManager: React.FC = () => {
     setSuccess(null);
 
     try {
-      // Upload files in batches of 3 to avoid overwhelming the server
+      // Upload files in batches to balance performance and server load
+      // Batch size of 3 allows parallel uploads while preventing server overload
+      // and maintaining reasonable memory usage for large file sets
       const fileArray = Array.from(files);
       const batchSize = 3;
       let uploadedCount = 0;
