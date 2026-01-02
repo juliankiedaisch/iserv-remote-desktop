@@ -9,6 +9,23 @@
   align-items: center;
 }
 
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.header-icon {
+  max-width: 40px;
+  max-height: 40px;
+  object-fit: contain;
+}
+
+.header-icon-emoji {
+  font-size: 32px;
+  line-height: 1;
+}
+
 .header h1 {
   color: var(--color-text-primary);
   font-size: 24px;

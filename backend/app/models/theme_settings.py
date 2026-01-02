@@ -9,6 +9,8 @@ class ThemeSettings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     settings = db.Column(db.Text, nullable=False)  # JSON string of theme settings
     favicon = db.Column(db.Text, nullable=True)  # Base64 encoded favicon or URL
+    app_name = db.Column(db.String(255), nullable=True, default='MDG Remote Desktop')  # Application name
+    app_icon = db.Column(db.Text, nullable=True)  # Base64 encoded app icon or URL
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     @property
@@ -30,6 +32,8 @@ class ThemeSettings(db.Model):
             'id': self.id,
             'settings': self.theme_dict,
             'favicon': self.favicon,
+            'app_name': self.app_name or 'MDG Remote Desktop',
+            'app_icon': self.app_icon,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
     

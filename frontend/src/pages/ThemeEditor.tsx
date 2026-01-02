@@ -13,6 +13,8 @@ export const ThemeEditor: React.FC = () => {
   const { user, isAdmin, logout, loading: authLoading } = useAuth();
   const [theme, setTheme] = useState<ThemeSettings>({});
   const [favicon, setFavicon] = useState<string | null>(null);
+  const [appName, setAppName] = useState<string>('MDG Remote Desktop');
+  const [appIcon, setAppIcon] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +51,8 @@ export const ThemeEditor: React.FC = () => {
         const settings = response.theme.settings || {};
         setTheme(settings);
         setFavicon(response.theme.favicon);
+        setAppName(response.theme.app_name || 'MDG Remote Desktop');
+        setAppIcon(response.theme.app_icon);
       } else {
         setError('Failed to load theme');
       }
@@ -69,7 +73,7 @@ export const ThemeEditor: React.FC = () => {
     try {
       setSaving(true);
       setError(null);
-      const response = await apiService.updateTheme(theme, favicon || undefined);
+      const response = await apiService.updateTheme(theme, favicon || undefined, appName, appIcon || undefined);
       if (response.success) {
         setSuccessMessage('Theme saved successfully!');
         // Apply all colors
@@ -99,6 +103,8 @@ export const ThemeEditor: React.FC = () => {
         const settings = response.theme.settings || {};
         setTheme(settings);
         setFavicon(response.theme.favicon);
+        setAppName(response.theme.app_name || 'MDG Remote Desktop');
+        setAppIcon(response.theme.app_icon);
         setSuccessMessage('Theme reset to defaults!');
         // Apply default colors
         Object.keys(settings).forEach(key => {
@@ -160,6 +166,8 @@ export const ThemeEditor: React.FC = () => {
             setFavicon(response.theme.favicon);
             updateFaviconInDOM(response.theme.favicon);
           }
+          setAppName(response.theme.app_name || 'MDG Remote Desktop');
+          setAppIcon(response.theme.app_icon);
           setSuccessMessage('Theme imported successfully!');
           // Apply imported colors
           Object.keys(settings).forEach(key => {
@@ -208,6 +216,42 @@ export const ThemeEditor: React.FC = () => {
         setSuccessMessage('Favicon updated! Remember to save your changes.');
       } catch (err: any) {
         setError('Failed to upload favicon');
+      } finally {
+        event.target.value = '';
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleAppIconUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type by extension and MIME type
+    const validExtensions = ['png', 'jpg', 'jpeg', 'gif', 'svg'];
+    const fileExtension = file.name.split('.').pop()?.toLowerCase();
+    
+    if (!file.type.startsWith('image/') || !validExtensions.includes(fileExtension || '')) {
+      setError('Please upload a valid image file (PNG, JPG, GIF, or SVG)');
+      event.target.value = '';
+      return;
+    }
+
+    // Check file size (max 2MB)
+    if (file.size > 2097152) {
+      setError('App icon file size must be less than 2MB');
+      event.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const base64 = e.target?.result as string;
+        setAppIcon(base64);
+        setSuccessMessage('App icon updated! Remember to save your changes.');
+      } catch (err: any) {
+        setError('Failed to upload app icon');
       } finally {
         event.target.value = '';
       }
@@ -306,6 +350,59 @@ export const ThemeEditor: React.FC = () => {
               style={{ display: 'none' }}
             />
           </label>
+        </div>
+      </div>
+
+      <div className="theme-section">
+        <h3>Application Branding</h3>
+        <div className="branding-section">
+          <div className="form-group">
+            <label htmlFor="app-name">Application Name</label>
+            <input
+              id="app-name"
+              type="text"
+              value={appName}
+              onChange={(e) => setAppName(e.target.value)}
+              className="form-input"
+              placeholder="MDG Remote Desktop"
+              maxLength={255}
+            />
+            <p className="form-help">This name will appear in the login page and header</p>
+          </div>
+          
+          <div className="form-group">
+            <label>Application Icon</label>
+            <div className="icon-upload">
+              <div className="icon-preview">
+                {appIcon ? (
+                  <img src={appIcon} alt="App icon preview" />
+                ) : (
+                  <div className="icon-placeholder">🖥️</div>
+                )}
+              </div>
+              <div>
+                <label className="btn btn-primary file-upload-btn">
+                  Upload App Icon
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAppIconUpload}
+                    style={{ display: 'none' }}
+                  />
+                </label>
+                {appIcon && (
+                  <button 
+                    className="btn btn-secondary"
+                    onClick={() => setAppIcon(null)}
+                    style={{ marginLeft: '10px' }}
+                  >
+                    Remove Icon
+                  </button>
+                )}
+                <p className="form-help">Recommended: PNG or SVG, max 2MB</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

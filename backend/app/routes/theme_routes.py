@@ -43,6 +43,12 @@ def update_theme(user):
         if 'favicon' in data:
             theme.favicon = data['favicon']
         
+        if 'app_name' in data:
+            theme.app_name = data['app_name']
+        
+        if 'app_icon' in data:
+            theme.app_icon = data['app_icon']
+        
         db.session.commit()
         
         return jsonify({
@@ -68,7 +74,9 @@ def export_theme(user):
             'success': True,
             'theme': {
                 'settings': theme.theme_dict,
-                'favicon': theme.favicon
+                'favicon': theme.favicon,
+                'app_name': theme.app_name,
+                'app_icon': theme.app_icon
             }
         }), 200
     except Exception as e:
@@ -99,6 +107,12 @@ def import_theme(user):
         
         if 'favicon' in data:
             theme.favicon = data['favicon']
+        
+        if 'app_name' in data:
+            theme.app_name = data['app_name']
+        
+        if 'app_icon' in data:
+            theme.app_icon = data['app_icon']
         
         db.session.commit()
         
@@ -143,6 +157,8 @@ def reset_theme(user):
         
         theme.theme_dict = default_theme
         theme.favicon = None
+        theme.app_name = 'MDG Remote Desktop'
+        theme.app_icon = None
         
         db.session.commit()
         

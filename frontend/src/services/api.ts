@@ -174,10 +174,10 @@ class ApiService {
     return response.data;
   }
 
-  async updateTheme(settings: any, favicon?: string): Promise<{ success: boolean; theme: any; error?: string }> {
+  async updateTheme(settings: any, favicon?: string, appName?: string, appIcon?: string): Promise<{ success: boolean; theme: any; error?: string }> {
     const response = await this.client.put<{ success: boolean; theme: any }>(
       '/api/theme',
-      { settings, favicon }
+      { settings, favicon, app_name: appName, app_icon: appIcon }
     );
     return response.data;
   }

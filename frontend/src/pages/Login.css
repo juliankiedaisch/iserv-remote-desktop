@@ -16,6 +16,22 @@
   width: 100%;
 }
 
+.login-icon, .login-icon-emoji {
+  display: block;
+  margin: 0 auto 20px;
+}
+
+.login-icon {
+  max-width: 80px;
+  max-height: 80px;
+  object-fit: contain;
+}
+
+.login-icon-emoji {
+  font-size: 64px;
+  line-height: 1;
+}
+
 .login-header h1 {
   color: var(--color-text-primary);
   font-size: 28px;

@@ -2,10 +2,12 @@ import React, { useCallback, useState } from 'react';
 import { Header, DesktopCard, Loading, Alert } from '../components';
 import { useAuth } from '../hooks/useAuth';
 import { useContainers } from '../hooks/useContainers';
+import { useTheme } from '../hooks/useTheme';
 import './Dashboard.css';
 
 export const Dashboard: React.FC = () => {
   const { user, isAdmin, isTeacher, logout, loading: authLoading } = useAuth();
+  const { themeData } = useTheme();
   const {
     desktopTypes,
     loading,
@@ -81,6 +83,8 @@ export const Dashboard: React.FC = () => {
         isAdmin={isAdmin}
         isTeacher={isTeacher}
         onLogout={logout}
+        appName={themeData.app_name}
+        appIcon={themeData.app_icon}
       />
 
       {startError && (

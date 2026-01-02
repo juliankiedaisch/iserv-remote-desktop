@@ -9,12 +9,31 @@ interface HeaderProps {
   isAdmin: boolean;
   isTeacher?: boolean;
   onLogout: () => void;
+  appIcon?: string;
+  appName?: string;
 }
 
-export const Header: React.FC<HeaderProps> = ({ title, user, isAdmin, isTeacher, onLogout }) => {
+export const Header: React.FC<HeaderProps> = ({ 
+  title, 
+  user, 
+  isAdmin, 
+  isTeacher, 
+  onLogout,
+  appIcon,
+  appName
+}) => {
+  const displayTitle = appName || title;
+  
   return (
     <header className="header">
-      <h1>{title}</h1>
+      <div className="header-title">
+        {appIcon ? (
+          <img src={appIcon} alt={displayTitle} className="header-icon" />
+        ) : (
+          <span className="header-icon-emoji">🖥️</span>
+        )}
+        <h1>{displayTitle}</h1>
+      </div>
       <div className="user-info">
         <span className="username">{user?.username || 'Loading...'}</span>
         {isTeacher && (
