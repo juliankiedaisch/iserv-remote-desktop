@@ -57,7 +57,13 @@ export const DesktopCard: React.FC<DesktopCardProps> = ({
 
   return (
     <div className={`desktop-card ${isRunning ? 'running' : 'stopped'}`}>
-      <div className="desktop-icon">{desktopType.icon || '🖥️'}</div>
+      <div className="desktop-icon">
+        {desktopType.icon && desktopType.icon.startsWith('/api/') ? (
+          <img src={desktopType.icon} alt={desktopType.name} className="icon-image" />
+        ) : (
+          <span>{desktopType.icon || '🖥️'}</span>
+        )}
+      </div>
       <div className="desktop-name">{desktopType.name}</div>
       <div className="desktop-description">{desktopType.description || ''}</div>
       

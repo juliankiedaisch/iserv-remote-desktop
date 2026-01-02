@@ -4,6 +4,7 @@ from app.models.desktop_assignments import DesktopImage, DesktopAssignment
 from app.models.users import User
 from app.models.groups import Group
 from app.middlewares.auth import require_auth
+import os
 
 teacher_bp = Blueprint('teacher', __name__, url_prefix='/api/teacher')
 
@@ -103,7 +104,7 @@ def list_assignments(user):
 @teacher_bp.route('/assignments', methods=['POST'])
 @require_teacher
 def create_assignment(user):
-    """Create a new assignment"""
+    """Create a new assignment for multiple groups and/or users"""
     try:
         data = request.json
         
@@ -111,70 +112,126 @@ def create_assignment(user):
         if not data.get('desktop_image_id'):
             return jsonify({'success': False, 'error': 'desktop_image_id is required'}), 400
         
-        # Must have either group_id or user_id, but not both
-        has_group = data.get('group_id') is not None
-        has_user = data.get('user_id') is not None
+        # Get group_ids and user_ids arrays
+        group_ids = data.get('group_ids', [])
+        user_ids = data.get('user_ids', [])
         
-        if not has_group and not has_user:
-            return jsonify({'success': False, 'error': 'Either group_id or user_id is required'}), 400
-        
-        if has_group and has_user:
-            return jsonify({'success': False, 'error': 'Cannot specify both group_id and user_id'}), 400
+        # Must have at least one group or user
+        if not group_ids and not user_ids:
+            return jsonify({'success': False, 'error': 'At least one group or user is required'}), 400
         
         # Check if desktop image exists
         desktop_image = DesktopImage.query.get(data['desktop_image_id'])
         if not desktop_image:
             return jsonify({'success': False, 'error': 'Desktop image not found'}), 404
         
-        # Check for duplicate assignment
-        if has_group:
-            existing = DesktopAssignment.query.filter_by(
-                desktop_image_id=data['desktop_image_id'],
-                group_id=data['group_id']
-            ).first()
-            if existing:
-                return jsonify({'success': False, 'error': 'Assignment already exists for this group'}), 400
+        # Validate and prepare folder path
+        folder_path = data.get('assignment_folder_path') or ''
+        folder_path = folder_path.strip() if folder_path else ''
+        folder_name = None
         
-        if has_user:
-            existing = DesktopAssignment.query.filter_by(
-                desktop_image_id=data['desktop_image_id'],
-                user_id=data['user_id']
-            ).first()
-            if existing:
-                return jsonify({'success': False, 'error': 'Assignment already exists for this user'}), 400
+        current_app.logger.info(f"Received folder_path: '{folder_path}' (type: {type(folder_path)})")
         
-        # Validate folder path if provided
-        folder_path = data.get('assignment_folder_path', '').strip()
         if folder_path:
             # Prevent directory traversal
             if '..' in folder_path or folder_path.startswith('/'):
                 return jsonify({'success': False, 'error': 'Invalid folder path'}), 400
             
-            # Ensure it starts with assignments/
-            if not folder_path.startswith('assignments/'):
-                folder_path = f'assignments/{folder_path}'
+            # Extract folder name from path
+            folder_name = folder_path.split('/')[-1]
+            
+            # Validate folder exists in teacher's private space
+            user_data_base = current_app.config.get('USER_DATA_BASE_DIR', '/data/users')
+            teacher_private_path = os.path.join(
+                user_data_base,
+                user['user_id'],
+                folder_path
+            )
+            
+            current_app.logger.info(f"Checking folder at: {teacher_private_path}")
+            current_app.logger.info(f"Folder exists: {os.path.exists(teacher_private_path)}")
+            current_app.logger.info(f"Is directory: {os.path.isdir(teacher_private_path) if os.path.exists(teacher_private_path) else 'N/A'}")
+            
+            if not os.path.exists(teacher_private_path) or not os.path.isdir(teacher_private_path):
+                return jsonify({'success': False, 'error': 'Selected folder does not exist'}), 404
         
-        # Create assignment
-        assignment = DesktopAssignment(
-            desktop_image_id=data['desktop_image_id'],
-            group_id=data.get('group_id'),
-            user_id=data.get('user_id'),
-            assignment_folder_path=folder_path if folder_path else None,
-            assignment_folder_name=data.get('assignment_folder_name'),
-            created_by=user['id']
-        )
+        created_assignments = []
+        skipped = []
         
-        db.session.add(assignment)
+        # Create assignments for each group
+        for group_id in group_ids:
+            # Check for duplicate
+            existing = DesktopAssignment.query.filter_by(
+                desktop_image_id=data['desktop_image_id'],
+                group_id=group_id
+            ).first()
+            
+            if existing:
+                group = Group.query.get(group_id)
+                skipped.append(f"Group: {group.name if group else group_id} (already exists)")
+                continue
+            
+            assignment = DesktopAssignment(
+                desktop_image_id=data['desktop_image_id'],
+                group_id=group_id,
+                user_id=None,
+                assignment_folder_path=folder_path if folder_path else None,
+                assignment_folder_name=folder_name,
+                created_by=user['user_id']
+            )
+            db.session.add(assignment)
+            created_assignments.append(assignment)
+        
+        # Create assignments for each user
+        for user_id in user_ids:
+            # Check for duplicate
+            existing = DesktopAssignment.query.filter_by(
+                desktop_image_id=data['desktop_image_id'],
+                user_id=user_id
+            ).first()
+            
+            if existing:
+                assigned_user = User.query.get(user_id)
+                skipped.append(f"User: {assigned_user.username if assigned_user else user_id} (already exists)")
+                continue
+            
+            assignment = DesktopAssignment(
+                desktop_image_id=data['desktop_image_id'],
+                group_id=None,
+                user_id=user_id,
+                assignment_folder_path=folder_path if folder_path else None,
+                assignment_folder_name=folder_name,
+                created_by=user['user_id']
+            )
+            db.session.add(assignment)
+            created_assignments.append(assignment)
+        
         db.session.commit()
         
-        return jsonify({
+        # Reload assignments from database to ensure relationships are properly loaded
+        assignment_ids = [a.id for a in created_assignments]
+        reloaded_assignments = []
+        for assignment_id in assignment_ids:
+            assignment = DesktopAssignment.query.get(assignment_id)
+            if assignment:
+                reloaded_assignments.append(assignment)
+        
+        response = {
             'success': True,
-            'assignment': assignment.to_dict(include_relations=True)
-        }), 201
+            'created': len(reloaded_assignments),
+            'assignments': [a.to_dict(include_relations=True) for a in reloaded_assignments]
+        }
+        
+        if skipped:
+            response['skipped'] = skipped
+        
+        return jsonify(response), 201
         
     except Exception as e:
         db.session.rollback()
+        import traceback
         current_app.logger.error(f"Failed to create assignment: {str(e)}")
+        current_app.logger.error(traceback.format_exc())
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

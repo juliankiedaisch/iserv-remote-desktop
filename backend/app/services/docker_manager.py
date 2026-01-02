@@ -7,7 +7,8 @@ from datetime import datetime, timezone
 from sqlalchemy import or_
 from app import db
 from app.models.containers import Container
-from app.models.desktop_assignments import DesktopImage
+from app.models.desktop_assignments import DesktopImage, DesktopAssignment
+from app.models.users import User
 
 # Import WebSocket event emitters (lazy import to avoid circular dependencies)
 def _emit_container_created(container, user_id):
@@ -225,6 +226,48 @@ class DockerManager:
             # Get shared public directory from config
             shared_public_dir = current_app.config.get('SHARED_PUBLIC_DIR', '/data/shared/public')
             
+            # Setup volumes
+            volumes = {
+                user_data_dir: {
+                    'bind': '/home/kasm-user',
+                    'mode': 'rw'
+                },
+                shared_public_dir: {
+                    'bind': '/home/kasm-user/Public/shared',
+                    'mode': 'rw'
+                }
+            }
+            
+            # Check for assignment with folder path
+            if desktop_type_record:
+                user = User.query.get(user_id)
+                if user:
+                    user_group_ids = [g.id for g in user.groups]
+                    has_access, assignment = DesktopAssignment.check_access(
+                        desktop_type_record.id, user_id, user_group_ids
+                    )
+                    
+                    if assignment and assignment.assignment_folder_path:
+                        # Get teacher's private folder path
+                        user_data_base = current_app.config.get('USER_DATA_BASE_DIR', '/data/users')
+                        teacher_folder_path = os.path.join(
+                            user_data_base,
+                            assignment.created_by,
+                            assignment.assignment_folder_path
+                        )
+                        
+                        # Verify folder exists
+                        if os.path.exists(teacher_folder_path) and os.path.isdir(teacher_folder_path):
+                            # Mount as read-only in /home/kasm-user/public/[folder-name]
+                            folder_name = assignment.assignment_folder_name or assignment.assignment_folder_path.split('/')[-1]
+                            volumes[teacher_folder_path] = {
+                                'bind': f'/home/kasm-user/Public/{folder_name}',
+                                'mode': 'ro'  # Read-only
+                            }
+                            current_app.logger.info(
+                                f"Mounting assignment folder: {teacher_folder_path} -> /home/kasm-user/Public/{folder_name} (read-only)"
+                            )
+            
             # Create and start container
             current_app.logger.info(f"Creating container {container_name} from image {kasm_image}")
             
@@ -236,16 +279,7 @@ class DockerManager:
                 detach=True,
                 remove=False,
                 shm_size='512m',  # Increased shared memory for browser
-                volumes={
-                    user_data_dir: {
-                        'bind': '/home/kasm-user',
-                        'mode': 'rw'
-                    },
-                    shared_public_dir: {
-                        'bind': '/home/kasm-user/Public',
-                        'mode': 'rw'
-                    }
-                },
+                volumes=volumes,
                 labels={
                     'user_id': user_id,
                     'session_id': session_id,

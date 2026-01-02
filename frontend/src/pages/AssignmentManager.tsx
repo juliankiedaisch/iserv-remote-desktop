@@ -37,6 +37,16 @@ interface Assignment {
   group?: { id: number; name: string };
   assigned_user?: { id: string; username: string };
   teacher?: { id: string; username: string };
+  groups?: { id: number; name: string }[];
+  assigned_users?: { id: string; username: string }[];
+}
+
+interface FileItem {
+  name: string;
+  path: string;
+  is_directory: boolean;
+  size: number | null;
+  modified: string;
 }
 
 export const AssignmentManager: React.FC = () => {
@@ -48,17 +58,25 @@ export const AssignmentManager: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
+  const [assignmentToDelete, setAssignmentToDelete] = useState<Assignment | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
     desktop_image_id: '',
-    assignment_type: 'group', // 'group' or 'user'
-    group_id: '',
-    user_id: '',
+    group_ids: [] as number[],
+    user_ids: [] as string[],
     assignment_folder_path: '',
     assignment_folder_name: '',
   });
+
+  // Folder browser state
+  const [showFolderBrowser, setShowFolderBrowser] = useState(false);
+  const [currentBrowserPath, setCurrentBrowserPath] = useState<string>('');
+  const [browserFiles, setBrowserFiles] = useState<FileItem[]>([]);
+  const [loadingBrowser, setLoadingBrowser] = useState(false);
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -98,20 +116,34 @@ export const AssignmentManager: React.FC = () => {
     }
   };
 
+  const loadBrowserFiles = async (path: string = '') => {
+    setLoadingBrowser(true);
+    try {
+      const response = await apiService.get(
+        `/api/files/list?space=private&path=${encodeURIComponent(path)}`
+      );
+      if (response.data.success) {
+        // Only show directories
+        const directories = response.data.items.filter((item: FileItem) => item.is_directory);
+        setBrowserFiles(directories);
+      }
+    } catch (err: any) {
+      console.error('Error loading folders:', err);
+    } finally {
+      setLoadingBrowser(false);
+    }
+  };
+
   const handleCreateAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const payload: any = {
         desktop_image_id: parseInt(formData.desktop_image_id),
-        assignment_folder_path: formData.assignment_folder_path || null,
-        assignment_folder_name: formData.assignment_folder_name || null,
+        group_ids: formData.group_ids,
+        user_ids: formData.user_ids,
+        assignment_folder_path: selectedFolder,
+        assignment_folder_name: selectedFolder ? selectedFolder.split('/').pop() : null,
       };
-
-      if (formData.assignment_type === 'group') {
-        payload.group_id = parseInt(formData.group_id);
-      } else {
-        payload.user_id = formData.user_id;
-      }
 
       await apiService.post('/api/teacher/assignments', payload);
       setShowCreateModal(false);
@@ -128,8 +160,8 @@ export const AssignmentManager: React.FC = () => {
 
     try {
       await apiService.put(`/api/teacher/assignments/${selectedAssignment.id}`, {
-        assignment_folder_path: formData.assignment_folder_path || null,
-        assignment_folder_name: formData.assignment_folder_name || null,
+        assignment_folder_path: selectedFolder,
+        assignment_folder_name: selectedFolder ? selectedFolder.split('/').pop() : null,
       });
       setShowEditModal(false);
       setSelectedAssignment(null);
@@ -140,11 +172,18 @@ export const AssignmentManager: React.FC = () => {
     }
   };
 
-  const handleDeleteAssignment = async (id: number) => {
-    if (!window.confirm('Are you sure you want to delete this assignment?')) return;
+  const handleDeleteAssignment = (assignment: Assignment) => {
+    setAssignmentToDelete(assignment);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteAssignment = async () => {
+    if (!assignmentToDelete) return;
 
     try {
-      await apiService.delete(`/api/teacher/assignments/${id}`);
+      await apiService.delete(`/api/teacher/assignments/${assignmentToDelete.id}`);
+      setShowDeleteModal(false);
+      setAssignmentToDelete(null);
       loadData();
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to delete assignment');
@@ -161,32 +200,31 @@ export const AssignmentManager: React.FC = () => {
     setSelectedAssignment(assignment);
     setFormData({
       desktop_image_id: assignment.desktop_image_id.toString(),
-      assignment_type: assignment.group_id ? 'group' : 'user',
-      group_id: assignment.group_id?.toString() || '',
-      user_id: assignment.user_id || '',
+      group_ids: assignment.group_id ? [assignment.group_id] : [],
+      user_ids: assignment.user_id ? [assignment.user_id] : [],
       assignment_folder_path: assignment.assignment_folder_path || '',
       assignment_folder_name: assignment.assignment_folder_name || '',
     });
+    if (assignment.assignment_folder_path) {
+      setSelectedFolder(assignment.assignment_folder_path);
+    }
     setShowEditModal(true);
   };
 
   const resetForm = () => {
     setFormData({
       desktop_image_id: '',
-      assignment_type: 'group',
-      group_id: '',
-      user_id: '',
+      group_ids: [],
+      user_ids: [],
       assignment_folder_path: '',
       assignment_folder_name: '',
     });
+    setSelectedFolder(null);
+    setCurrentBrowserPath('');
+    setBrowserFiles([]);
   };
 
-  const handleAssignmentTypeChange = (type: 'group' | 'user') => {
-    setFormData({ ...formData, assignment_type: type, group_id: '', user_id: '' });
-    if (type === 'user') {
-      loadUsers();
-    }
-  };
+
 
   if (loading) {
     return <div className="assignment-manager"><div className="loading">Loading...</div></div>;
@@ -228,7 +266,11 @@ export const AssignmentManager: React.FC = () => {
               {assignments.map((assignment) => (
                 <tr key={assignment.id}>
                   <td>
-                    <span className="icon">{assignment.desktop_image?.icon}</span>
+                    {assignment.desktop_image?.icon && assignment.desktop_image.icon.startsWith('/api/') ? (
+                      <img src={assignment.desktop_image.icon} alt={assignment.desktop_image.name} className="icon-image" style={{ width: '24px', height: '24px', marginRight: '8px', verticalAlign: 'middle' }} />
+                    ) : (
+                      <span className="icon">{assignment.desktop_image?.icon}</span>
+                    )}
                     {assignment.desktop_image?.name}
                   </td>
                   <td>
@@ -261,7 +303,7 @@ export const AssignmentManager: React.FC = () => {
                     </button>
                     <button
                       className="btn btn-sm btn-danger"
-                      onClick={() => handleDeleteAssignment(assignment.id)}
+                      onClick={() => handleDeleteAssignment(assignment)}
                     >
                       Delete
                     </button>
@@ -289,92 +331,89 @@ export const AssignmentManager: React.FC = () => {
                   <option value="">Select an image...</option>
                   {desktopImages.map((img) => (
                     <option key={img.id} value={img.id}>
-                      {img.icon} {img.name}
+                      {img.name}
                     </option>
                   ))}
                 </select>
               </div>
 
               <div className="form-group">
-                <label>Assignment Type *</label>
-                <div className="radio-group">
-                  <label>
-                    <input
-                      type="radio"
-                      checked={formData.assignment_type === 'group'}
-                      onChange={() => handleAssignmentTypeChange('group')}
-                    />
-                    Group
-                  </label>
-                  <label>
-                    <input
-                      type="radio"
-                      checked={formData.assignment_type === 'user'}
-                      onChange={() => handleAssignmentTypeChange('user')}
-                    />
-                    Individual User
-                  </label>
-                </div>
-              </div>
-
-              {formData.assignment_type === 'group' ? (
-                <div className="form-group">
-                  <label>Group *</label>
-                  <select
-                    value={formData.group_id}
-                    onChange={(e) => setFormData({ ...formData, group_id: e.target.value })}
-                    required
-                  >
-                    <option value="">Select a group...</option>
-                    {groups.map((group) => (
-                      <option key={group.id} value={group.id}>
-                        {group.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ) : (
-                <div className="form-group">
-                  <label>User *</label>
-                  <select
-                    value={formData.user_id}
-                    onChange={(e) => setFormData({ ...formData, user_id: e.target.value })}
-                    required
-                  >
-                    <option value="">Select a user...</option>
-                    {users.map((user) => (
-                      <option key={user.id} value={user.id}>
-                        {user.username} ({user.email})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div className="form-group">
-                <label>Assignment Folder Name (optional)</label>
-                <input
-                  type="text"
-                  placeholder="e.g., Math 101 Homework"
-                  value={formData.assignment_folder_name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, assignment_folder_name: e.target.value })
-                  }
-                />
+                <label>Assign to Groups (optional)</label>
+                <select
+                  multiple
+                  value={formData.group_ids.map(String)}
+                  onChange={(e) => {
+                    const selected = Array.from(e.target.selectedOptions).map(opt => parseInt(opt.value));
+                    setFormData({ ...formData, group_ids: selected });
+                  }}
+                  size={5}
+                  style={{ minHeight: '100px' }}
+                >
+                  {groups.map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.name}
+                    </option>
+                  ))}
+                </select>
+                <small className="help-text">Hold Ctrl/Cmd to select multiple groups</small>
               </div>
 
               <div className="form-group">
-                <label>Assignment Folder Path (optional)</label>
-                <input
-                  type="text"
-                  placeholder="e.g., math101 or assignments/math101"
-                  value={formData.assignment_folder_path}
-                  onChange={(e) =>
-                    setFormData({ ...formData, assignment_folder_path: e.target.value })
-                  }
-                />
+                <label>Assign to Individual Users (optional)</label>
+                <select
+                  multiple
+                  value={formData.user_ids}
+                  onChange={(e) => {
+                    const selected = Array.from(e.target.selectedOptions).map(opt => opt.value);
+                    setFormData({ ...formData, user_ids: selected });
+                  }}
+                  onFocus={() => users.length === 0 && loadUsers()}
+                  size={5}
+                  style={{ minHeight: '100px' }}
+                >
+                  {users.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.username} ({user.email})
+                    </option>
+                  ))}
+                </select>
+                <small className="help-text">Hold Ctrl/Cmd to select multiple users</small>
+              </div>
+
+              <div className="form-group">
+                <label>Assignment Folder (optional)</label>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      setShowFolderBrowser(true);
+                      loadBrowserFiles('');
+                    }}
+                  >
+                    📁 Browse Folders
+                  </button>
+                  {selectedFolder && (
+                    <div style={{ flex: 1 }}>
+                      <strong>{selectedFolder.split('/').pop()}</strong>
+                      <br />
+                      <small className="path">{selectedFolder}</small>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-danger"
+                        onClick={() => setSelectedFolder(null)}
+                        style={{ marginLeft: '10px' }}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  )}
+                  {!selectedFolder && (
+                    <span className="text-muted">No folder selected</span>
+                  )}
+                </div>
                 <small className="help-text">
-                  Path will be created at: /home/kasm-user/public/assignments/your-path
+                  Selected folder will be mounted at: /home/kasm-user/public/[folder-name]
                 </small>
               </div>
 
@@ -400,7 +439,12 @@ export const AssignmentManager: React.FC = () => {
               <div className="form-group">
                 <label>Desktop Image</label>
                 <div className="readonly-field">
-                  {selectedAssignment.desktop_image?.icon} {selectedAssignment.desktop_image?.name}
+                  {selectedAssignment.desktop_image?.icon && selectedAssignment.desktop_image.icon.startsWith('/api/') ? (
+                    <img src={selectedAssignment.desktop_image.icon} alt={selectedAssignment.desktop_image.name} className="icon-image" style={{ width: '20px', height: '20px', marginRight: '8px', verticalAlign: 'middle' }} />
+                  ) : (
+                    <span>{selectedAssignment.desktop_image?.icon}</span>
+                  )}
+                  {selectedAssignment.desktop_image?.name}
                 </div>
               </div>
 
@@ -412,27 +456,40 @@ export const AssignmentManager: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label>Assignment Folder Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g., Math 101 Homework"
-                  value={formData.assignment_folder_name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, assignment_folder_name: e.target.value })
-                  }
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Assignment Folder Path</label>
-                <input
-                  type="text"
-                  placeholder="e.g., math101 or assignments/math101"
-                  value={formData.assignment_folder_path}
-                  onChange={(e) =>
-                    setFormData({ ...formData, assignment_folder_path: e.target.value })
-                  }
-                />
+                <label>Assignment Folder (optional)</label>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      setShowFolderBrowser(true);
+                      loadBrowserFiles('');
+                    }}
+                  >
+                    📁 Browse Folders
+                  </button>
+                  {selectedFolder && (
+                    <div style={{ flex: 1 }}>
+                      <strong>{selectedFolder.split('/').pop()}</strong>
+                      <br />
+                      <small className="path">{selectedFolder}</small>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-danger"
+                        onClick={() => setSelectedFolder(null)}
+                        style={{ marginLeft: '10px' }}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  )}
+                  {!selectedFolder && (
+                    <span className="text-muted">No folder selected</span>
+                  )}
+                </div>
+                <small className="help-text">
+                  Selected folder will be mounted at: /home/kasm-user/public/[folder-name]
+                </small>
               </div>
 
               <div className="modal-actions">
@@ -444,6 +501,164 @@ export const AssignmentManager: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Folder Browser Modal */}
+      {showFolderBrowser && (
+        <div className="modal-overlay" onClick={() => setShowFolderBrowser(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2>📁 Select Folder from Your Private Space</h2>
+            
+            <div className="folder-browser">
+              <div className="breadcrumb" style={{ marginBottom: '15px' }}>
+                <button 
+                  onClick={() => {
+                    setCurrentBrowserPath('');
+                    loadBrowserFiles('');
+                  }} 
+                  className="breadcrumb-item"
+                >
+                  🏠 Home
+                </button>
+                {currentBrowserPath.split('/').filter(p => p).map((part, index, arr) => {
+                  const path = arr.slice(0, index + 1).join('/');
+                  return (
+                    <React.Fragment key={path}>
+                      <span className="breadcrumb-separator">/</span>
+                      <button 
+                        onClick={() => {
+                          setCurrentBrowserPath(path);
+                          loadBrowserFiles(path);
+                        }} 
+                        className="breadcrumb-item"
+                      >
+                        {part}
+                      </button>
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+
+              {loadingBrowser ? (
+                <div style={{ padding: '20px', textAlign: 'center' }}>Loading...</div>
+              ) : browserFiles.length === 0 ? (
+                <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
+                  No folders in this directory
+                </div>
+              ) : (
+                <div className="folder-list" style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #ddd', borderRadius: '4px' }}>
+                  {browserFiles.map((folder) => (
+                    <div
+                      key={folder.path}
+                      className="folder-item"
+                      style={{
+                        padding: '12px',
+                        borderBottom: '1px solid #eee',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        cursor: 'pointer',
+                        transition: 'background 0.2s'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = '#f5f5f5'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <div
+                        onClick={() => {
+                          setCurrentBrowserPath(folder.path);
+                          loadBrowserFiles(folder.path);
+                        }}
+                        style={{ flex: 1 }}
+                      >
+                        📁 {folder.name}
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary"
+                        onClick={() => {
+                          setSelectedFolder(folder.path);
+                          setShowFolderBrowser(false);
+                        }}
+                      >
+                        Select
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="modal-actions" style={{ marginTop: '15px' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setShowFolderBrowser(false)}
+              >
+                Cancel
+              </button>
+              {currentBrowserPath && (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => {
+                    setSelectedFolder(currentBrowserPath);
+                    setShowFolderBrowser(false);
+                  }}
+                >
+                  Select Current Folder
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && assignmentToDelete && (
+        <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Delete Assignment</h2>
+              <button className="modal-close" onClick={() => setShowDeleteModal(false)}>
+                ✕
+              </button>
+            </div>
+            <div className="modal-body">
+              <p>Are you sure you want to delete this assignment?</p>
+              <div style={{ marginTop: '15px', padding: '15px', background: '#f5f5f5', borderRadius: '4px' }}>
+                <strong>Desktop:</strong> {assignmentToDelete.desktop_image?.name}
+                <br />
+                <strong>Assigned to:</strong>{' '}
+                {assignmentToDelete.group?.name || assignmentToDelete.assigned_user?.username}
+                {assignmentToDelete.assignment_folder_name && (
+                  <>
+                    <br />
+                    <strong>Folder:</strong> {assignmentToDelete.assignment_folder_name}
+                  </>
+                )}
+              </div>
+              <p style={{ marginTop: '15px', color: '#d32f2f' }}>
+                <strong>Warning:</strong> This action cannot be undone.
+              </p>
+            </div>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setShowDeleteModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={confirmDeleteAssignment}
+              >
+                Delete Assignment
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -94,7 +94,7 @@ class DesktopAssignment(db.Model):
         Args:
             desktop_image_id: ID of desktop image
             user_id: User's UUID
-            user_group_ids: List of group IDs user belongs to
+            user_group_ids: List of group IDs (integers) or group names/external_ids (strings) user belongs to
             
         Returns:
             Tuple of (has_access: bool, assignment: DesktopAssignment or None)
@@ -110,10 +110,22 @@ class DesktopAssignment(db.Model):
         
         # Check for group assignment
         if user_group_ids:
-            group_assignment = cls.query.filter(
-                cls.desktop_image_id == desktop_image_id,
-                cls.group_id.in_(user_group_ids)
-            ).first()
+            # Check if we have integer IDs or string names
+            if user_group_ids and isinstance(user_group_ids[0], str):
+                # We have group names/external_ids, need to join with groups table
+                from app.models.groups import Group
+                group_assignment = cls.query.join(
+                    Group, cls.group_id == Group.id
+                ).filter(
+                    cls.desktop_image_id == desktop_image_id,
+                    Group.external_id.in_(user_group_ids)
+                ).first()
+            else:
+                # We have integer group IDs
+                group_assignment = cls.query.filter(
+                    cls.desktop_image_id == desktop_image_id,
+                    cls.group_id.in_(user_group_ids)
+                ).first()
             
             if group_assignment:
                 return True, group_assignment

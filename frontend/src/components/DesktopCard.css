@@ -28,6 +28,13 @@
   text-align: center;
 }
 
+.desktop-icon .icon-image {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
 .desktop-name {
   font-size: 20px;
   font-weight: bold;
