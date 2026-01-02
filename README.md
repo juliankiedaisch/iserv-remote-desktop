@@ -104,9 +104,73 @@ The application uses a **separated frontend-backend architecture**:
 
 ### Docker Compose (Full Stack)
 
+The application provides a complete Docker Compose setup with separate services for the database, backend, and frontend.
+
+#### Prerequisites
+1. Docker and Docker Compose installed
+2. Configure environment files:
+   ```bash
+   # Backend configuration
+   cp backend/.env.example backend/.env
+   # Edit backend/.env with your OAuth credentials and settings
+   
+   # Frontend configuration (optional)
+   cp frontend/.env.example frontend/.env
+   # Edit frontend/.env if backend is on different host
+   ```
+
+3. Set required environment variables in backend/.env:
+   - OAuth credentials (OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET, etc.)
+   - Database password (POSTGRES_PASSWORD)
+   - SECRET_KEY for Flask sessions
+   - Frontend URL (FRONTEND_URL)
+
+#### Services
+The docker-compose.yml defines three services:
+
+1. **postgres**: PostgreSQL 15 database
+   - Stores user sessions, container metadata, and application data
+   - Data persisted in named volume
+
+2. **backend**: Python Flask API server
+   - Runs on port 5021 (mapped to host)
+   - Handles authentication, container management, and WebSocket connections
+   - Requires Docker socket access for container operations
+   - Reads configuration from backend/.env
+
+3. **frontend**: React application served by nginx
+   - Runs on port 3000 (mapped to host)
+   - Static files built during Docker image creation
+   - Reads configuration from frontend/.env
+
+#### Usage
+Start all services:
 ```bash
-docker-compose up
+docker compose up -d
 ```
+
+View logs:
+```bash
+docker compose logs -f
+```
+
+Stop all services:
+```bash
+docker compose down
+```
+
+Rebuild after code changes:
+```bash
+docker compose build
+docker compose up -d
+```
+
+#### External Apache Proxy
+This docker-compose setup is designed to work with an external Apache proxy server (see apache.conf). The services expose ports directly to the host:
+- Backend API: Port 5021 → Apache proxies /api and /ws to this port
+- Frontend: Port 3000 → Apache proxies / (root) to this port
+
+The Apache server should be configured to proxy requests to these ports on the Docker host machine.
 
 For detailed usage examples, see [USAGE.md](USAGE.md).
 
@@ -201,9 +265,10 @@ The application supports two deployment options:
 #### Option 1: With External Apache Proxy (Recommended for existing Apache servers)
 If you have an existing Apache server handling SSL/TLS:
 1. Apache handles SSL termination and WebSocket proxying on port 443
-2. Flask application runs on port 5020 (configured in docker-compose.yml)
-3. Access the application through Apache
-4. **Apache Setup**: See [APACHE_SETUP.md](APACHE_SETUP.md) for detailed Apache configuration
+2. Backend Flask application runs on port 5021 (configured in docker-compose.yml)
+3. Frontend React application runs on port 3000 (configured in docker-compose.yml)
+4. Access the application through Apache
+5. **Apache Setup**: See [APACHE_SETUP.md](APACHE_SETUP.md) for detailed Apache configuration or reference apache.conf
 
 #### Option 2: With Internal Nginx Proxy (Standalone deployment)
 For standalone deployments without external proxy:
@@ -266,7 +331,7 @@ If you see errors like "Connection closed (code: 1006)" or "Failed when connecti
 
 3. Verify the fix with test script:
    ```bash
-   ./scripts/test_apache_websocket_headers.sh localhost:5020 http
+   ./scripts/test_apache_websocket_headers.sh localhost:5021 http
    ```
 
 **Detailed Information:**
