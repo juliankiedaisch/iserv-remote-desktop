@@ -388,7 +388,7 @@ export const FileManager: React.FC = () => {
                 placeholder="Folder name"
                 value={newFolderName}
                 onChange={(e) => setNewFolderName(e.target.value)}
-                onKeyPress={(e) => {
+                onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     handleCreateFolder();
                   }

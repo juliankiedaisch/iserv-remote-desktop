@@ -2,12 +2,9 @@ from flask import Blueprint, request, jsonify, send_file, current_app
 from werkzeug.utils import secure_filename
 from app import db
 from app.models.oauth_session import OAuthSession
-from app.models.containers import Container
 from functools import wraps
 import os
-import io
-import tarfile
-import tempfile
+import shutil
 from datetime import datetime, timezone
 
 file_bp = Blueprint('file', __name__)
@@ -301,7 +298,6 @@ def delete_file(oauth_session):
         if os.path.isfile(target_path):
             os.remove(target_path)
         else:
-            import shutil
             shutil.rmtree(target_path)
         
         return jsonify({
