@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify, request
 from app import db
 from app.models.theme_settings import ThemeSettings
 from app.middlewares.auth import require_auth, require_admin
+from app.i18n import get_message, get_language_from_request
 import json
 
 theme_routes = Blueprint('theme', __name__)
@@ -28,13 +29,15 @@ def get_theme():
 @require_admin
 def update_theme(user):
     """Update theme settings (admin only)."""
+    lang = get_language_from_request()
+    
     try:
         data = request.get_json()
         
         if not data or 'settings' not in data:
             return jsonify({
                 'success': False,
-                'error': 'Theme settings are required'
+                'error': get_message('theme_settings_required', lang)
             }), 400
         
         theme = ThemeSettings.get_current_theme()
@@ -91,13 +94,15 @@ def export_theme(user):
 @require_admin
 def import_theme(user):
     """Import theme from JSON data (admin only)."""
+    lang = get_language_from_request()
+    
     try:
         data = request.get_json()
         
         if not data:
             return jsonify({
                 'success': False,
-                'error': 'Theme data is required'
+                'error': get_message('theme_data_required', lang)
             }), 400
         
         theme = ThemeSettings.get_current_theme()
@@ -179,13 +184,15 @@ def reset_theme(user):
 @require_admin
 def upload_favicon(user):
     """Upload a new favicon (admin only)."""
+    lang = get_language_from_request()
+    
     try:
         data = request.get_json()
         
         if not data or 'favicon' not in data:
             return jsonify({
                 'success': False,
-                'error': 'Favicon data is required'
+                'error': get_message('favicon_data_required', lang)
             }), 400
         
         favicon_data = data['favicon']
@@ -194,14 +201,14 @@ def upload_favicon(user):
         if not favicon_data.startswith('data:image/'):
             return jsonify({
                 'success': False,
-                'error': 'Invalid favicon format. Must be a base64 encoded image.'
+                'error': get_message('invalid_favicon_format', lang)
             }), 400
         
         # Check size (limit to 1MB)
         if len(favicon_data) > 1048576:  # 1MB in bytes
             return jsonify({
                 'success': False,
-                'error': 'Favicon size exceeds 1MB limit'
+                'error': get_message('favicon_size_exceeded', lang)
             }), 400
         
         theme = ThemeSettings.get_current_theme()

@@ -4,6 +4,7 @@ from app.models.oauth_session import OAuthSession
 from app.models.containers import Container
 from app.models.desktop_assignments import DesktopImage, DesktopAssignment
 from app.services.docker_manager import DockerManager
+from app.i18n import get_message, get_language_from_request
 from datetime import datetime, timezone
 from functools import wraps
 
@@ -13,6 +14,8 @@ def require_session(f):
     """Decorator to require valid session"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        lang = get_language_from_request()
+        
         # Get session ID from various sources
         session_id = request.args.get('session_id')
         
@@ -25,12 +28,12 @@ def require_session(f):
                 session_id = auth_header.split(' ')[1]
         
         if not session_id:
-            return jsonify({'error': 'No session ID provided'}), 400
+            return jsonify({'error': get_message('no_session_id_provided', lang)}), 400
         
         # Validate session
         oauth_session = OAuthSession.query.filter_by(id=session_id).first()
         if not oauth_session:
-            return jsonify({'error': 'Invalid session'}), 401
+            return jsonify({'error': get_message('invalid_session', lang)}), 401
         
         # Check if session is expired
         current_time = datetime.now(timezone.utc)
@@ -39,7 +42,7 @@ def require_session(f):
             expires_at = expires_at.replace(tzinfo=timezone.utc)
         
         if expires_at < current_time:
-            return jsonify({'error': 'Session expired'}), 401
+            return jsonify({'error': get_message('session_expired', lang)}), 401
         
         # Update last accessed
         oauth_session.last_accessed = current_time
@@ -55,6 +58,8 @@ def require_session(f):
 @require_session
 def start_container(oauth_session):
     """Start a new container for the user"""
+    lang = get_language_from_request()
+    
     try:
         user = oauth_session.user
         
@@ -72,7 +77,7 @@ def start_container(oauth_session):
             if not desktop_type_record.enabled:
                 return jsonify({
                     'success': False,
-                    'error': f'Desktop type "{desktop_type}" is currently disabled'
+                    'error': get_message('desktop_type_disabled', lang, desktop_type=desktop_type)
                 }), 403
             
             # Check user permission
@@ -80,7 +85,7 @@ def start_container(oauth_session):
             if not DesktopAssignment.check_access(desktop_type_record.id, user.id, user_groups):
                 return jsonify({
                     'success': False,
-                    'error': f'You do not have permission to access "{desktop_type}" desktops'
+                    'error': get_message('no_desktop_permission', lang, desktop_type=desktop_type)
                 }), 403
         # If desktop_type_record is None, it's a legacy desktop type - allow for backward compatibility
         
@@ -103,7 +108,7 @@ def start_container(oauth_session):
                 url = docker_manager.get_container_url(existing)
                 return jsonify({
                     'success': True,
-                    'message': 'Container already running',
+                    'message': get_message('container_already_running', lang),
                     'container': existing.to_dict(),
                     'url': url
                 })
@@ -122,7 +127,7 @@ def start_container(oauth_session):
         
         return jsonify({
             'success': True,
-            'message': 'Container started successfully',
+            'message': get_message('container_started', lang),
             'container': container.to_dict(),
             'url': url
         }), 201
@@ -139,6 +144,8 @@ def start_container(oauth_session):
 @require_session
 def get_container_status(oauth_session):
     """Get status of user's container"""
+    lang = get_language_from_request()
+    
     try:
         # Get container for this session
         container = Container.get_by_session(oauth_session.id)
@@ -147,7 +154,7 @@ def get_container_status(oauth_session):
             return jsonify({
                 'success': True,
                 'has_container': False,
-                'message': 'No container for this session'
+                'message': get_message('no_container', lang)
             })
         
         # Get current status from Docker
@@ -175,6 +182,8 @@ def get_container_status(oauth_session):
 @require_session
 def stop_container(oauth_session):
     """Stop user's container"""
+    lang = get_language_from_request()
+    
     try:
         # Get desktop type from request
         data = request.get_json() or {}
@@ -200,7 +209,7 @@ def stop_container(oauth_session):
             current_app.logger.warning(f"No running container found. User has {len(all_user_containers)} total containers: {[c.desktop_type for c in all_user_containers]}")
             return jsonify({
                 'success': False,
-                'error': 'No running container found'
+                'error': get_message('no_running_container', lang)
             }), 404
         
         # Stop the container
@@ -209,7 +218,7 @@ def stop_container(oauth_session):
         
         return jsonify({
             'success': True,
-            'message': 'Container stopped successfully'
+            'message': get_message('container_stopped', lang)
         })
         
     except Exception as e:
@@ -224,6 +233,8 @@ def stop_container(oauth_session):
 @require_session
 def remove_container(oauth_session):
     """Remove user's container"""
+    lang = get_language_from_request()
+    
     try:
         # Get container for this session
         container = Container.get_by_session(oauth_session.id)
@@ -235,7 +246,7 @@ def remove_container(oauth_session):
         if not container:
             return jsonify({
                 'success': False,
-                'error': 'No container found'
+                'error': get_message('container_not_found', lang)
             }), 404
         
         # Remove the container
@@ -244,7 +255,7 @@ def remove_container(oauth_session):
         
         return jsonify({
             'success': True,
-            'message': 'Container removed successfully'
+            'message': get_message('container_removed', lang)
         })
         
     except Exception as e:
@@ -362,13 +373,15 @@ def get_available_desktop_types(oauth_session):
 @require_session
 def check_container_health(oauth_session):
     """Check if a specific container is ready and responding"""
+    lang = get_language_from_request()
+    
     try:
         desktop_type = request.args.get('desktop_type')
         
         if not desktop_type:
             return jsonify({
                 'success': False,
-                'error': 'desktop_type parameter required'
+                'error': get_message('desktop_type_param_required', lang)
             }), 400
         
         # Get container for this user and desktop type
@@ -382,7 +395,7 @@ def check_container_health(oauth_session):
             return jsonify({
                 'success': False,
                 'ready': False,
-                'error': 'Container not found or not running'
+                'error': get_message('container_not_running', lang)
             }), 404
         
         # Check Docker container status

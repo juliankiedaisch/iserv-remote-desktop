@@ -1,6 +1,7 @@
 from flask import Blueprint, redirect, session, url_for, jsonify, request, current_app
 from app import oauth, db
 from app.models.oauth_session import OAuthSession
+from app.i18n import get_message, get_language_from_request
 from werkzeug.exceptions import Unauthorized
 from datetime import datetime, timezone
 import secrets  # Add this import for generating secure random strings
@@ -105,6 +106,8 @@ def authorize():
 @auth_bp.route('/session', methods=['GET'])
 def get_session():
     """Validate and return session details with token refresh support"""
+    lang = get_language_from_request()
+    
     # Check for session ID in different locations
     session_id = request.args.get('session_id')
     
@@ -120,13 +123,13 @@ def get_session():
     
     if not session_id:
         current_app.logger.debug("Session request without session ID")
-        return jsonify({'error': 'No session ID provided'}), 400
+        return jsonify({'error': get_message('no_session_id_provided', lang)}), 400
         
     # Get the session from database with row-level lock
     oauth_session = OAuthSession.query.filter_by(id=session_id).with_for_update().first()
     if not oauth_session:
         current_app.logger.debug(f"Invalid session ID requested: {session_id}")
-        return jsonify({'error': 'Invalid session'}), 401
+        return jsonify({'error': get_message('invalid_session', lang)}), 401
     
     # Check if session is expired
     current_time = datetime.now(timezone.utc)
@@ -161,9 +164,9 @@ def get_session():
             except Exception as e:
                 current_app.logger.error(f"Token refresh failed: {str(e)}")
                 db.session.rollback()
-                return jsonify({'error': 'Session expired and refresh failed'}), 401
+                return jsonify({'error': get_message('session_expired_refresh_failed', lang)}), 401
         else:
-            return jsonify({'error': 'Session expired'}), 401
+            return jsonify({'error': get_message('session_expired', lang)}), 401
     
     # Update last accessed timestamp
     oauth_session.last_accessed = current_time
@@ -191,6 +194,8 @@ def get_session():
 @auth_bp.route('/logout', methods=['POST', 'GET'])
 def logout():
     """Log out the current user by invalidating their session"""
+    lang = get_language_from_request()
+    
     try:
         # Get session ID from various possible sources
         session_id = None
@@ -211,7 +216,7 @@ def logout():
         if not session_id:
             return jsonify({
                 'success': False,
-                'message': 'No session ID provided'
+                'message': get_message('no_session_id_provided', lang)
             }), 400
             
         # Find the session
@@ -231,7 +236,7 @@ def logout():
         # Create response
         response = jsonify({
             'success': True,
-            'message': 'Successfully logged out'
+            'message': get_message('successfully_logged_out', lang)
         })
         
         return response
@@ -240,5 +245,5 @@ def logout():
         current_app.logger.error(f"Logout error: {str(e)}")
         return jsonify({
             'success': False,
-            'message': f'Error during logout: {str(e)}'
+            'message': get_message('logout_error', lang, error=str(e))
         }), 500

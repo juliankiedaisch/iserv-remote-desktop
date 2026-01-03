@@ -4,6 +4,7 @@ from app.models.desktop_assignments import DesktopImage, DesktopAssignment
 from app.models.users import User
 from app.models.groups import Group
 from app.middlewares.auth import require_auth
+from app.i18n import get_message, get_language_from_request
 import os
 
 teacher_bp = Blueprint('teacher', __name__, url_prefix='/api/teacher')
@@ -13,8 +14,9 @@ def require_teacher(f):
     """Decorator to require teacher or admin role"""
     @require_auth
     def wrapper(user, *args, **kwargs):
+        lang = get_language_from_request()
         if not (user.get('role') == 'teacher' or user.get('role') == 'admin'):
-            return jsonify({'success': False, 'error': 'Teacher or admin role required'}), 403
+            return jsonify({'success': False, 'error': get_message('teacher_required', lang)}), 403
         return f(user, *args, **kwargs)
     wrapper.__name__ = f.__name__
     return wrapper
@@ -54,6 +56,8 @@ def list_groups(user):
 @require_teacher
 def list_users(user):
     """List all users for assignment"""
+    lang = get_language_from_request()
+    
     try:
         # Optional: filter by group_id
         group_id = request.args.get('group_id', type=int)
@@ -61,7 +65,7 @@ def list_users(user):
         if group_id:
             group = Group.query.get(group_id)
             if not group:
-                return jsonify({'success': False, 'error': 'Group not found'}), 404
+                return jsonify({'success': False, 'error': get_message('group_not_found', lang)}), 404
             users = group.members
         else:
             users = User.query.all()
@@ -105,12 +109,14 @@ def list_assignments(user):
 @require_teacher
 def create_assignment(user):
     """Create a new assignment for multiple groups and/or users"""
+    lang = get_language_from_request()
+    
     try:
         data = request.json
         
         # Validation
         if not data.get('desktop_image_id'):
-            return jsonify({'success': False, 'error': 'desktop_image_id is required'}), 400
+            return jsonify({'success': False, 'error': get_message('desktop_image_id_required', lang)}), 400
         
         # Get group_ids and user_ids arrays
         group_ids = data.get('group_ids', [])
@@ -118,12 +124,12 @@ def create_assignment(user):
         
         # Must have at least one group or user
         if not group_ids and not user_ids:
-            return jsonify({'success': False, 'error': 'At least one group or user is required'}), 400
+            return jsonify({'success': False, 'error': get_message('at_least_one_group_or_user', lang)}), 400
         
         # Check if desktop image exists
         desktop_image = DesktopImage.query.get(data['desktop_image_id'])
         if not desktop_image:
-            return jsonify({'success': False, 'error': 'Desktop image not found'}), 404
+            return jsonify({'success': False, 'error': get_message('desktop_type_not_found', lang)}), 404
         
         # Validate and prepare folder path
         folder_path = data.get('assignment_folder_path') or ''
@@ -135,7 +141,7 @@ def create_assignment(user):
         if folder_path:
             # Prevent directory traversal
             if '..' in folder_path or folder_path.startswith('/'):
-                return jsonify({'success': False, 'error': 'Invalid folder path'}), 400
+                return jsonify({'success': False, 'error': get_message('invalid_folder_path', lang)}), 400
             
             # Extract folder name from path
             folder_name = folder_path.split('/')[-1]
@@ -153,7 +159,7 @@ def create_assignment(user):
             current_app.logger.info(f"Is directory: {os.path.isdir(teacher_private_path) if os.path.exists(teacher_private_path) else 'N/A'}")
             
             if not os.path.exists(teacher_private_path) or not os.path.isdir(teacher_private_path):
-                return jsonify({'success': False, 'error': 'Selected folder does not exist'}), 404
+                return jsonify({'success': False, 'error': get_message('folder_not_exist', lang)}), 404
         
         created_assignments = []
         skipped = []
@@ -239,14 +245,16 @@ def create_assignment(user):
 @require_teacher
 def get_assignment(user, assignment_id):
     """Get assignment details"""
+    lang = get_language_from_request()
+    
     try:
         assignment = DesktopAssignment.query.get(assignment_id)
         if not assignment:
-            return jsonify({'success': False, 'error': 'Assignment not found'}), 404
+            return jsonify({'success': False, 'error': get_message('assignment_not_found', lang)}), 404
         
         # Teachers can only see their own assignments
         if user.get('role') == 'teacher' and assignment.created_by != user['id']:
-            return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+            return jsonify({'success': False, 'error': get_message('unauthorized', lang)}), 403
         
         return jsonify({
             'success': True,
@@ -261,14 +269,16 @@ def get_assignment(user, assignment_id):
 @require_teacher
 def update_assignment(user, assignment_id):
     """Update an assignment"""
+    lang = get_language_from_request()
+    
     try:
         assignment = DesktopAssignment.query.get(assignment_id)
         if not assignment:
-            return jsonify({'success': False, 'error': 'Assignment not found'}), 404
+            return jsonify({'success': False, 'error': get_message('assignment_not_found', lang)}), 404
         
         # Teachers can only edit their own assignments
         if user.get('role') == 'teacher' and assignment.created_by != user['id']:
-            return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+            return jsonify({'success': False, 'error': get_message('unauthorized', lang)}), 403
         
         data = request.json
         
@@ -278,7 +288,7 @@ def update_assignment(user, assignment_id):
             if folder_path:
                 # Validate
                 if '..' in folder_path or folder_path.startswith('/'):
-                    return jsonify({'success': False, 'error': 'Invalid folder path'}), 400
+                    return jsonify({'success': False, 'error': get_message('invalid_folder_path', lang)}), 400
             assignment.assignment_folder_path = folder_path
         
         # Update folder name
@@ -302,14 +312,16 @@ def update_assignment(user, assignment_id):
 @require_teacher
 def delete_assignment(user, assignment_id):
     """Delete an assignment"""
+    lang = get_language_from_request()
+    
     try:
         assignment = DesktopAssignment.query.get(assignment_id)
         if not assignment:
-            return jsonify({'success': False, 'error': 'Assignment not found'}), 404
+            return jsonify({'success': False, 'error': get_message('assignment_not_found', lang)}), 404
         
         # Teachers can only delete their own assignments
         if user.get('role') == 'teacher' and assignment.created_by != user['id']:
-            return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+            return jsonify({'success': False, 'error': get_message('unauthorized', lang)}), 403
         
         db.session.delete(assignment)
         db.session.commit()
