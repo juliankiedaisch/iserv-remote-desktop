@@ -16,9 +16,12 @@ const getInitialLanguage = (): string => {
   if (browserLanguage.startsWith('de')) {
     return 'de';
   }
+  if (browserLanguage.startsWith('en')) {
+    return 'en';
+  }
 
-  // Default to English
-  return 'en';
+  // Default to German
+  return 'de';
 };
 
 i18n
@@ -33,7 +36,7 @@ i18n
       }
     },
     lng: getInitialLanguage(),
-    fallbackLng: 'en',
+    fallbackLng: 'de',
     interpolation: {
       escapeValue: false // React already escapes values
     }
