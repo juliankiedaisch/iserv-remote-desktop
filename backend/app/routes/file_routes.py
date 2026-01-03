@@ -279,6 +279,8 @@ def upload_file(oauth_session):
 @require_session
 def download_file(oauth_session):
     """Download a file from user's private or public space"""
+    lang = get_language_from_request()
+    
     try:
         user = oauth_session.user
         space = request.args.get('space', 'private')
@@ -287,7 +289,7 @@ def download_file(oauth_session):
         if not path:
             return jsonify({
                 'success': False,
-                'error': 'No file path provided'
+                'error': get_message('no_file_path_provided', lang)
             }), 400
         
         # Get the base path on host
@@ -299,20 +301,20 @@ def download_file(oauth_session):
         if not is_valid:
             return jsonify({
                 'success': False,
-                'error': error_msg
+                'error': get_message('invalid_path', lang)
             }), 403
         
         # Check if file exists and is a file
         if not os.path.exists(file_path):
             return jsonify({
                 'success': False,
-                'error': 'File not found'
+                'error': get_message('file_not_found', lang)
             }), 404
         
         if not os.path.isfile(file_path):
             return jsonify({
                 'success': False,
-                'error': 'Path is not a file'
+                'error': get_message('path_not_file', lang)
             }), 400
         
         # Send the file
@@ -334,6 +336,8 @@ def download_file(oauth_session):
 @require_session
 def delete_file(oauth_session):
     """Delete a file or directory from user's private or public space"""
+    lang = get_language_from_request()
+    
     try:
         user = oauth_session.user
         space = request.args.get('space', 'private')
@@ -342,7 +346,7 @@ def delete_file(oauth_session):
         if not path:
             return jsonify({
                 'success': False,
-                'error': 'No file path provided'
+                'error': get_message('no_file_path_provided', lang)
             }), 400
         
         # Get the base path on host
@@ -354,21 +358,21 @@ def delete_file(oauth_session):
         if not is_valid:
             return jsonify({
                 'success': False,
-                'error': error_msg
+                'error': get_message('invalid_path', lang)
             }), 403
         
         # Don't allow deleting the base directory itself
         if target_path == base_path:
             return jsonify({
                 'success': False,
-                'error': 'Cannot delete base directory'
+                'error': get_message('cannot_delete_base_directory', lang)
             }), 403
         
         # Check if path exists
         if not os.path.exists(target_path):
             return jsonify({
                 'success': False,
-                'error': 'File or directory not found'
+                'error': get_message('file_or_directory_not_found', lang)
             }), 404
         
         # Delete the file or directory
@@ -379,7 +383,7 @@ def delete_file(oauth_session):
         
         return jsonify({
             'success': True,
-            'message': 'Deleted successfully'
+            'message': get_message('file_deleted', lang)
         })
         
     except Exception as e:
@@ -394,6 +398,8 @@ def delete_file(oauth_session):
 @require_session
 def create_folder(oauth_session):
     """Create a new folder in user's private or public space"""
+    lang = get_language_from_request()
+    
     try:
         user = oauth_session.user
         data = request.get_json() or {}
@@ -404,7 +410,7 @@ def create_folder(oauth_session):
         if not folder_name:
             return jsonify({
                 'success': False,
-                'error': 'No folder name provided'
+                'error': get_message('no_folder_name_provided', lang)
             }), 400
         
         # Secure the folder name
@@ -412,7 +418,7 @@ def create_folder(oauth_session):
         if not folder_name:
             return jsonify({
                 'success': False,
-                'error': 'Invalid folder name'
+                'error': get_message('invalid_folder_name', lang)
             }), 400
         
         # Get the base path on host
@@ -425,14 +431,14 @@ def create_folder(oauth_session):
         if not is_valid:
             return jsonify({
                 'success': False,
-                'error': error_msg
+                'error': get_message('invalid_path', lang)
             }), 403
         
         # Check if folder already exists
         if os.path.exists(new_folder_path):
             return jsonify({
                 'success': False,
-                'error': 'Folder already exists'
+                'error': get_message('folder_already_exists', lang)
             }), 400
         
         # Create the folder
@@ -449,7 +455,7 @@ def create_folder(oauth_session):
         
         return jsonify({
             'success': True,
-            'message': 'Folder created successfully',
+            'message': get_message('folder_created', lang),
             'folder_name': folder_name
         })
         
@@ -465,6 +471,8 @@ def create_folder(oauth_session):
 @require_session
 def move_file(oauth_session):
     """Move a file or folder to a different location"""
+    lang = get_language_from_request()
+    
     try:
         user = oauth_session.user
         data = request.get_json() or {}
@@ -475,7 +483,7 @@ def move_file(oauth_session):
         if not source_path or not destination_path:
             return jsonify({
                 'success': False,
-                'error': 'Source and destination paths are required'
+                'error': get_message('source_dest_paths_required', lang)
             }), 400
         
         # Get the base path on host
@@ -490,28 +498,28 @@ def move_file(oauth_session):
         if not is_valid_source:
             return jsonify({
                 'success': False,
-                'error': f'Invalid source path: {error_msg}'
+                'error': get_message('invalid_path', lang)
             }), 403
         
         is_valid_dest, error_msg = validate_path_security(base_path, full_destination)
         if not is_valid_dest:
             return jsonify({
                 'success': False,
-                'error': f'Invalid destination path: {error_msg}'
+                'error': get_message('invalid_path', lang)
             }), 403
         
         # Check if source exists
         if not os.path.exists(full_source):
             return jsonify({
                 'success': False,
-                'error': 'Source file or directory not found'
+                'error': get_message('source_not_found', lang)
             }), 404
         
         # Check if destination is a directory
         if not os.path.isdir(full_destination):
             return jsonify({
                 'success': False,
-                'error': 'Destination must be a directory'
+                'error': get_message('dest_must_be_directory', lang)
             }), 400
         
         # Get the name of the source file/folder
@@ -523,7 +531,7 @@ def move_file(oauth_session):
         if not is_valid_new:
             return jsonify({
                 'success': False,
-                'error': f'Invalid new location: {error_msg}'
+                'error': get_message('invalid_path', lang)
             }), 403
         
         # Check if trying to move into itself (for directories)
@@ -537,19 +545,19 @@ def move_file(oauth_session):
                 if dest_real.startswith(source_real + os.sep) or dest_real == source_real:
                     return jsonify({
                         'success': False,
-                        'error': 'Cannot move a folder into itself'
+                        'error': get_message('cannot_move_into_itself', lang)
                     }), 400
             except (OSError, ValueError) as e:
                 return jsonify({
                     'success': False,
-                    'error': f'Path validation error: {str(e)}'
+                    'error': str(e)
                 }), 400
         
         # Check if destination already exists
         if os.path.exists(new_location):
             return jsonify({
                 'success': False,
-                'error': f'A file or folder named "{source_name}" already exists in the destination'
+                'error': get_message('item_exists_in_dest', lang, name=source_name)
             }), 400
         
         # Calculate the new relative path (relative to base_path)
@@ -615,12 +623,11 @@ def move_file(oauth_session):
         
         response = {
             'success': True,
-            'message': 'Moved successfully'
+            'message': get_message('moved_successfully', lang) if not updated_assignments else get_message('moved_and_updated_assignments', lang, count=len(updated_assignments))
         }
         
         if updated_assignments:
             response['updated_assignments'] = updated_assignments
-            response['message'] = f'Moved successfully and updated {len(updated_assignments)} assignment(s)'
         
         return jsonify(response)
         
