@@ -48,6 +48,7 @@ export const DesktopTypesManager: React.FC = () => {
     if (isAdmin) {
       loadDesktopTypes();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
   useEffect(() => {
@@ -127,6 +128,7 @@ export const DesktopTypesManager: React.FC = () => {
     return () => {
       unsubscribe();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [desktopTypes]);
 
   const loadDesktopTypes = async () => {

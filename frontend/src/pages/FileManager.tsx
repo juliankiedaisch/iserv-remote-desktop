@@ -69,6 +69,7 @@ export const FileManager: React.FC = () => {
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [space, currentPath]);
 
   useEffect(() => {

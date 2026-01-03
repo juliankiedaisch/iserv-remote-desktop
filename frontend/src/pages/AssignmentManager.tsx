@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Header, Loading } from '../components';
 import { useAuth } from '../hooks/useAuth';
@@ -83,11 +83,7 @@ export const AssignmentManager: React.FC = () => {
   const [loadingBrowser, setLoadingBrowser] = useState(false);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setError(null);
 
@@ -104,7 +100,11 @@ export const AssignmentManager: React.FC = () => {
       setError(err.response?.data?.error || t('assignments.failedToLoad'));
       console.error('Error loading data:', err);
     }
-  };
+  }, [t]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const loadUsers = async (groupId?: number) => {
     try {

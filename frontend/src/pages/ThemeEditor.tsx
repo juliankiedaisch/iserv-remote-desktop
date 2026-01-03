@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiService } from '../services/api';
@@ -11,7 +11,7 @@ interface ThemeSettings {
 }
 
 export const ThemeEditor: React.FC = () => {
-  const { user, isAdmin, logout, loading: authLoading } = useAuth();
+  const { user, isAdmin, loading: authLoading } = useAuth();
   const { t } = useTranslation();
   const [theme, setTheme] = useState<ThemeSettings>({});
   const [favicon, setFavicon] = useState<string | null>(null);
@@ -41,11 +41,7 @@ export const ThemeEditor: React.FC = () => {
     { key: 'color-admin-button-hover', label: t('theme.colorAdminButtonHover'), description: t('theme.colorAdminButtonHoverDesc') },
   ];
 
-  useEffect(() => {
-    loadTheme();
-  }, []);
-
-  const loadTheme = async () => {
+  const loadTheme = useCallback(async () => {
     try {
       setLoading(true);
       const response = await apiService.getTheme();
@@ -63,7 +59,11 @@ export const ThemeEditor: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
+
+  useEffect(() => {
+    loadTheme();
+  }, [loadTheme]);
 
   const handleColorChange = (key: string, value: string) => {
     setTheme(prev => ({ ...prev, [key]: value }));
