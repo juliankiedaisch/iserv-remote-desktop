@@ -258,25 +258,25 @@ class DockerManager:
                         user_data_base = current_app.config.get('USER_DATA_BASE_DIR', '/data/users')
                         teacher_folder_path = os.path.join(
                             user_data_base,
-                            assignment.created_by,
+                            str(assignment.created_by),
                             assignment.assignment_folder_path
                         )
                         extern_user_data_base = current_app.config.get('EXTERN_USERADATA_BASE_DIR', '/data/users')
                         extern_teacher_folder_path = os.path.join(
                             extern_user_data_base,
-                            assignment.created_by,
+                            str(assignment.created_by),
                             assignment.assignment_folder_path
                         )                        
                         # Verify folder exists
                         if os.path.exists(teacher_folder_path) and os.path.isdir(teacher_folder_path):
                             # Mount as read-only in /home/kasm-user/public/[folder-name]
                             folder_name = assignment.assignment_folder_name or assignment.assignment_folder_path.split('/')[-1]
-                            volumes[extern_user_data_base] = {
+                            volumes[extern_teacher_folder_path] = {
                                 'bind': f'/home/kasm-user/Public/{folder_name}',
                                 'mode': 'ro'  # Read-only
                             }
                             current_app.logger.info(
-                                f"Mounting assignment folder: {teacher_folder_path} -> /home/kasm-user/Public/{folder_name} (read-only)"
+                                f"Mounting assignment folder: {extern_teacher_folder_path} -> /home/kasm-user/Public/{folder_name} (read-only)"
                             )
             
             # Create and start container
