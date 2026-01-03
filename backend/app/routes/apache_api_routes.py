@@ -35,6 +35,7 @@ def get_container_target(proxy_path):
     
     # Return Docker host IP with mapped port
     # Apache can access the host's mapped ports (7000, 7001, etc.)
-    docker_host = os.environ.get('DOCKER_HOST_IP', '172.22.0.27')
+    # Use host.docker.internal when running in Docker, or actual host IP
+    docker_host = os.environ.get('DOCKER_HOST_IP', 'host.docker.internal')
     
     return jsonify({"target": f"{docker_host}:{container.host_port}"})

@@ -5,21 +5,30 @@ This application provides remote desktop access via Kasm Workspaces in Docker co
 
 ## Architecture
 
-The application uses a **separated frontend-backend architecture**:
+The application uses a **multi-tier architecture with nginx reverse proxy**:
 
 ```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│  React Frontend │────▶│  Flask Backend  │────▶│ Docker Host     │
-│  (Static files) │     │  (API + WS)     │     │ (Containers)    │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-         │                       │
-         │    WebSocket (WS)     │
-         └───────────────────────┘
+┌──────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│ Remote Apache    │────▶│  Nginx Proxy     │────▶│ Backend/Frontend│
+│ (SSL/TLS)        │     │  (Routing)       │     │ (API + WS)      │
+└──────────────────┘     └──────────────────┘     └─────────────────┘
+                                                            │
+                                                            ▼
+                                                   ┌─────────────────┐
+                                                   │ Docker Host     │
+                                                   │ (VNC Containers)│
+                                                   └─────────────────┘
 ```
 
+- **Nginx Proxy**: Handles all routing (main domain, API, WebSocket, VNC subdomains)
 - **Frontend**: React SPA with TypeScript, communicates via REST API and WebSocket
-- **Backend**: Flask API server with Socket.IO for real-time updates
-- **WebSocket**: Socket.IO for container status updates, flask-sock for VNC proxy
+- **Backend**: Flask API server with Socket.IO for real-time updates and container proxy
+- **Apache**: SSL/TLS termination only (simplified configuration)
+- **VNC Containers**: Dynamically created with published ports (7000-8000)
+
+For detailed architecture information, see:
+- [PROXY_ARCHITECTURE.md](PROXY_ARCHITECTURE.md) - Proxy architecture and routing
+- [DOCKER_COMPOSE_GUIDE.md](DOCKER_COMPOSE_GUIDE.md) - Docker Compose setup
 
 ## Features
 
@@ -36,11 +45,59 @@ The application uses a **separated frontend-backend architecture**:
   - Folder management and navigation
   - See [FILE_MANAGER.md](FILE_MANAGER.md) for details
 - **Real-time container status updates via WebSocket**
+- **Nginx reverse proxy** for simplified Apache configuration
+- **Dynamic VNC subdomain routing** (desktop-*.domain.com)
 - Last access timestamps for each desktop
 - Automatic cleanup of stopped containers
 - **Scalable to 50-100+ concurrent users** (see [SCALABILITY_GUIDE.md](SCALABILITY_GUIDE.md))
 
-## Setup
+## Quick Start with Docker Compose
+
+### Prerequisites
+- Docker and Docker Compose installed
+- OAuth/OIDC provider configured (e.g., IServ)
+- Domain with wildcard SSL certificate (*.your-domain.com)
+
+### Setup
+
+1. Clone the repository and copy environment file:
+   ```bash
+   git clone https://github.com/juliankiedaisch/iserv-remote-desktop.git
+   cd iserv-remote-desktop
+   cp .env.example .env
+   ```
+
+2. Configure `.env` with your settings:
+   ```bash
+   # Required: OAuth credentials
+   OAUTH_CLIENT_ID=your_client_id
+   OAUTH_CLIENT_SECRET=your_client_secret
+   OAUTH_AUTHORIZE_URL=https://your-iserv.com/iserv/oauth/v2/auth
+   # ... see .env.example for all options
+   
+   # Important: Set this for docker-compose
+   DOCKER_HOST_IP=host.docker.internal
+   ```
+
+3. Start all services:
+   ```bash
+   docker-compose up -d
+   ```
+
+4. Configure external Apache (on your remote server):
+   ```apache
+   # Use simplified configuration from apache-simplified.conf
+   ProxyPass / http://your-docker-host:8080/ upgrade=any
+   ProxyPassReverse / http://your-docker-host:8080/
+   ```
+
+5. Access the application:
+   - Main domain: `https://desktop.your-domain.com`
+   - VNC containers: `https://desktop-{user}-{type}.your-domain.com`
+
+For detailed setup instructions, see [DOCKER_COMPOSE_GUIDE.md](DOCKER_COMPOSE_GUIDE.md).
+
+## Development Setup
 
 ### Backend Setup
 
