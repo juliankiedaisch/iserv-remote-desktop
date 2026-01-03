@@ -4,80 +4,112 @@ This document describes the Docker Compose setup for the IServ Remote Desktop ap
 
 ## Architecture Overview
 
-The application uses a three-tier architecture with separate services:
+The application uses a multi-tier architecture with an nginx reverse proxy handling internal routing:
 
 ```
-┌─────────────────────────────────────────────────┐
-│           External Apache Proxy                  │
-│         (Handles SSL/TLS & Routing)              │
-│  - Port 443 (HTTPS)                              │
-│  - Routes /api → backend:5021                    │
-│  - Routes /ws → backend:5021 (WebSocket)         │
-│  - Routes / → frontend:3000                      │
-└─────────────────────────────────────────────────┘
-                      ▼
-┌─────────────────────────────────────────────────┐
-│            Docker Compose Services               │
-│                                                  │
-│  ┌────────────────┐  ┌────────────────┐         │
-│  │   Frontend     │  │    Backend     │         │
-│  │   (React)      │  │    (Flask)     │         │
-│  │   Port: 3000   │  │   Port: 5021   │         │
-│  │   (nginx)      │  │                │         │
-│  └────────────────┘  └────────────────┘         │
-│           │                  │                   │
-│           │                  ▼                   │
-│           │          ┌────────────────┐          │
-│           │          │   PostgreSQL   │          │
-│           │          │   Port: 5432   │          │
-│           │          │  (Internal)    │          │
-│           │          └────────────────┘          │
-│           │                  │                   │
-│           └──────────────────┘                   │
-└─────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│           External Apache Proxy (Remote Server)             │
+│         (Handles SSL/TLS Termination Only)                   │
+│  - Port 443 (HTTPS)                                         │
+│  - Simple proxy to nginx on port 8080                       │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│            Docker Compose Services                          │
+│                                                             │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │  Nginx Proxy (Port: 8080, exposed)                   │  │
+│  │  - Main domain routing (/, /api, /ws)                │  │
+│  │  - VNC subdomain routing (desktop-*.domain.com)      │  │
+│  └──────────────────────────────────────────────────────┘  │
+│                          │                                  │
+│                          ▼                                  │
+│  ┌────────────────┐  ┌────────────────┐                    │
+│  │   Frontend     │  │    Backend     │                    │
+│  │   (React)      │  │    (Flask)     │                    │
+│  │   Port: 3000   │  │   Port: 5021   │                    │
+│  │   (internal)   │  │   (internal)   │                    │
+│  └────────────────┘  └────────────────┘                    │
+│           │                  │                              │
+│           │                  ▼                              │
+│           │          ┌────────────────┐                     │
+│           │          │   PostgreSQL   │                     │
+│           │          │   Port: 5432   │                     │
+│           │          │  (Internal)    │                     │
+│           │          └────────────────┘                     │
+│           │                  │                              │
+│           └──────────────────┘                              │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+        ┌─────────────────────────────────────────┐
+        │  VNC Desktop Containers                 │
+        │  (Dynamically created)                  │
+        │  Published ports: 7000-8000             │
+        └─────────────────────────────────────────┘
 ```
 
 ## Services
 
 ### 1. PostgreSQL Database
-- **Image**: postgres:15-alpine
+- **Image**: postgres:17-alpine
 - **Purpose**: Stores user sessions, container metadata, and application data
 - **Port**: 5432 (internal only, not exposed to host)
 - **Volume**: postgres_data (persistent storage)
 - **Health Check**: pg_isready command
 
 ### 2. Backend (Python Flask)
-- **Build**: Built from backend/Dockerfile
-- **Purpose**: REST API, authentication, container management, WebSocket server
-- **Port**: 5021 (exposed to host for Apache proxy)
-- **Configuration**: backend/.env
+- **Image**: teacherki/mdg-desktop-backend:latest or built from backend/Dockerfile
+- **Purpose**: REST API, authentication, container management, WebSocket server, container proxy
+- **Port**: 5021 (internal only, accessed via nginx proxy)
+- **Configuration**: .env in project root
 - **Key Features**:
   - OAuth/OIDC authentication
   - Docker container lifecycle management
   - Socket.IO for real-time updates
   - File upload/download management
+  - Container proxy for VNC subdomain routing
 - **Dependencies**: PostgreSQL database
-- **Special Requirements**: Access to Docker socket (/var/run/docker.sock)
+- **Special Requirements**: 
+  - Access to Docker socket (/var/run/docker.sock)
+  - Access to host network via host.docker.internal (for VNC containers)
 
 ### 3. Frontend (React + nginx)
-- **Build**: Built from frontend/Dockerfile (multi-stage build)
+- **Image**: teacherki/mdg-desktop-frontend:latest or built from frontend/Dockerfile
 - **Purpose**: User interface served as static files
-- **Port**: 3000 (exposed to host for Apache proxy)
-- **Configuration**: frontend/.env
-- **Build Process**:
+- **Port**: 3000 (internal only, accessed via nginx proxy)
+- **Configuration**: .env in project root
+- **Build Process** (when building from Dockerfile):
   1. Node.js stage: npm install and npm run build
   2. Nginx stage: Serve static files with React Router support
+
+### 4. Nginx Proxy (NEW)
+- **Image**: nginx:alpine
+- **Purpose**: Reverse proxy for all services, handles routing logic
+- **Port**: 8080 (exposed to host for external Apache proxy)
+- **Configuration**: nginx/nginx.conf and nginx/conf.d/*.conf
+- **Key Features**:
+  - Routes main domain requests to backend/frontend
+  - Routes VNC subdomain requests to backend's container proxy
+  - Handles WebSocket upgrades
+  - Simplifies external Apache configuration
+- **Special Requirements**: Access to host network via host.docker.internal (for VNC containers)
 
 ## Configuration
 
 ### Environment Files
 
-#### Backend (.env)
-Located at `backend/.env`, copy from `backend/.env.example`:
+#### Root .env File
+Located at `.env` in project root, copy from `.env.example`:
 
 **Required Variables:**
 - `SECRET_KEY`: Flask session secret
+- `APACHE_API_KEY`: API key for Apache RewriteMap (if using old architecture)
+- `POSTGRES_USER`: Database user
 - `POSTGRES_PASSWORD`: Database password
+- `POSTGRES_DB`: Database name
+- `POSTGRES_SERVER_NAME`: Database hostname (default: postgres)
 - `OAUTH_CLIENT_ID`: OAuth client ID
 - `OAUTH_CLIENT_SECRET`: OAuth client secret
 - `OAUTH_AUTHORIZE_URL`: OAuth authorization endpoint
@@ -87,17 +119,21 @@ Located at `backend/.env`, copy from `backend/.env.example`:
 - `OAUTH_REDIRECT_URI`: OAuth redirect URI
 - `FRONTEND_URL`: Frontend URL (e.g., https://desktop.example.com)
 
+**Important Variables for New Architecture:**
+- `DOCKER_HOST_IP`: IP address for accessing published container ports (default: host.docker.internal)
+  - Use `host.docker.internal` when running in Docker
+  - Use actual host IP (e.g., 172.22.0.27) when running outside Docker
+
 **Optional Variables:**
 - `DEBUG`: Enable debug mode (default: False)
 - `FLASK_ENV`: Flask environment (default: production)
-- `POSTGRES_USER`: Database user (default: scratch4school)
-- `POSTGRES_DB`: Database name (default: scratch4school)
-- `KASM_IMAGE`: Docker image for workspaces
-- `VNC_USER`: VNC username
-- `VNC_PASSWORD`: VNC password
-- See backend/.env.example for complete list
+- `ROLE_ADMIN`: IServ group name for admin role
+- `ROLE_TEACHER`: IServ group name for teacher role
+- `USER_DATA_BASE_DIR`: Base directory for user data (default: /data/users)
+- `SHARED_PUBLIC_DIR`: Shared public directory (default: /data/shared/public)
+- See .env.example for complete list
 
-#### Frontend (.env)
+#### Legacy Frontend .env (Optional)
 Located at `frontend/.env`, copy from `frontend/.env.example`:
 
 **Optional Variables:**
@@ -174,11 +210,17 @@ docker compose logs backend
 ## Network Configuration
 
 The services communicate via a Docker bridge network called `app-network`. Within this network:
+- Nginx proxy connects to backend via hostname `backend:5021`
+- Nginx proxy connects to frontend via hostname `frontend:3000`
 - Backend connects to PostgreSQL via hostname `postgres:5432`
-- Frontend → Backend communication happens through the external Apache proxy
-- Containers use the connection string from DATABASE_URI environment variable
+- Backend and nginx proxy access VNC containers via `host.docker.internal` (published ports)
+- External Apache connects to nginx proxy on host port 8080
 
 ## Volume Mounts
+
+### Nginx Proxy Service
+- `./nginx/nginx.conf:/etc/nginx/nginx.conf:ro` - Main nginx configuration
+- `./nginx/conf.d:/etc/nginx/conf.d:ro` - Server block configurations
 
 ### Backend Service
 - `/var/run/docker.sock:/var/run/docker.sock` - Docker socket for container management (⚠️ requires elevated privileges)
@@ -190,42 +232,50 @@ The services communicate via a Docker bridge network called `app-network`. Withi
 
 ## Integration with Apache
 
-This docker-compose setup is designed to work with an external Apache proxy server. The Apache configuration (see `apache.conf`) should:
+This docker-compose setup is designed to work with an external Apache proxy server.
+
+### Recommended Setup (New Architecture)
+
+Use the simplified Apache configuration (`apache-simplified.conf`):
 
 1. **SSL/TLS Termination**: Handle HTTPS on port 443
-2. **Backend Proxying**: 
-   - Proxy `/api/*` to `http://<docker-host>:5021/api/`
-   - Proxy `/ws/*` to `http://<docker-host>:5021/ws/` with WebSocket upgrade
-3. **Frontend Proxying**: 
-   - Proxy `/` to `http://<docker-host>:3000/`
-4. **Container Subdomain Routing**: Handle dynamic subdomain routing for desktop containers
+2. **Simple Proxy to Nginx**: Proxy all requests to nginx on port 8080
 
-Example Apache proxy configuration:
+Example Apache configuration:
 ```apache
-# Backend API
-ProxyPass /api http://172.22.0.27:5021/api upgrade=any
-ProxyPassReverse /api http://172.22.0.27:5021/api
+<VirtualHost *:443>
+    ServerName desktop.hub.mdg-hamburg.de
+    ServerAlias desktop-*.hub.mdg-hamburg.de
 
-# Backend WebSocket
-ProxyPass /ws http://172.22.0.27:5021/ws upgrade=websocket
-ProxyPassReverse /ws http://172.22.0.27:5021/ws
+    SSLEngine on
+    SSLCertificateFile /etc/ssl/certs/hub.combined
+    SSLCertificateKeyFile /etc/ssl/private/hub.key
 
-# Frontend
-ProxyPass / http://172.22.0.27:3000/
-ProxyPassReverse / http://172.22.0.27:3000/
+    # Simple proxy to internal nginx service
+    ProxyPass / http://172.22.0.27:8080/ upgrade=any
+    ProxyPassReverse / http://172.22.0.27:8080/
+</VirtualHost>
 ```
 
 Replace `172.22.0.27` with your Docker host IP address.
+
+### Legacy Setup (Old Architecture)
+
+If you prefer the old architecture with Apache RewriteMap, see the original `apache.conf`.
+This requires exposing backend (5021) and frontend (3000) ports directly.
+
+For detailed information about the proxy architecture, see [PROXY_ARCHITECTURE.md](PROXY_ARCHITECTURE.md).
 
 ## Troubleshooting
 
 ### Service Won't Start
 ```bash
 # Check service logs
+docker compose logs proxy
 docker compose logs backend
 
 # Check if port is already in use
-sudo netstat -tlnp | grep 5021
+sudo netstat -tlnp | grep 8080
 
 # Rebuild image
 docker compose build backend

@@ -57,7 +57,7 @@ services:
       # Single port exposed for external Apache proxy
       - "8080:80"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # Only mount custom server configurations, use default nginx.conf
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
     environment:
       - APACHE_API_KEY=${APACHE_API_KEY:-change-this-in-production}
