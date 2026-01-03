@@ -42,7 +42,7 @@ class DevelopmentConfig(Config):
     # Supports both SQLite and PostgreSQL
     # SQLite: sqlite:///path/to/db/main.db
     # PostgreSQL: postgresql://user:password@host:port/dbname
-    SQLALCHEMY_DATABASE_URI = f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_SERVER_NAME}:5432/{POSTGRES_DB}?client_encoding=utf8"
+    SQLALCHEMY_DATABASE_URI = f"postgresql://{Config.POSTGRES_USER}:{Config.POSTGRES_PASSWORD}@{Config.POSTGRES_SERVER_NAME}:5432/{Config.POSTGRES_DB}?client_encoding=utf8"
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_size': 20,
         'pool_recycle': 3600,
@@ -55,7 +55,7 @@ class ProductionConfig(Config):
     # Supports both SQLite and PostgreSQL
     # SQLite: sqlite:///path/to/db/main.db
     # PostgreSQL: postgresql://user:password@host:port/dbname
-    SQLALCHEMY_DATABASE_URI = f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_SERVER_NAME}:5432/{POSTGRES_DB}?client_encoding=utf8"
+    SQLALCHEMY_DATABASE_URI = f"postgresql://{Config.POSTGRES_USER}:{Config.POSTGRES_PASSWORD}@{Config.POSTGRES_SERVER_NAME}:5432/{Config.POSTGRES_DB}?client_encoding=utf8"
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_size': 20,
         'pool_recycle': 3600,

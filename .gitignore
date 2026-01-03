@@ -463,3 +463,6 @@ FodyWeavers.xsd
 
 #data
 data/
+
+#postgres data directory (created by docker-compose-dev.yml)
+postgres/
