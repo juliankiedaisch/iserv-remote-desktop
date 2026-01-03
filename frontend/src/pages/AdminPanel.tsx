@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Loading, Alert } from '../components';
+import { Header, Loading, Alert } from '../components';
 import { useAuth } from '../hooks/useAuth';
+import { useTheme } from '../hooks/useTheme';
 import { Container } from '../types';
 import { apiService } from '../services/api';
 import './AdminPanel.css';
@@ -17,7 +18,8 @@ interface ConfirmModalState {
 }
 
 export const AdminPanel: React.FC = () => {
-  const { user, isAdmin, logout, loading: authLoading } = useAuth();
+  const { user, isAdmin, isTeacher, logout, loading: authLoading } = useAuth();
+  const { themeData } = useTheme();
   const { t } = useTranslation();
   const [containers, setContainers] = useState<Container[]>([]);
   const [loading, setLoading] = useState(true);
@@ -204,24 +206,15 @@ export const AdminPanel: React.FC = () => {
 
   return (
     <div className="container">
-      <header className="header">
-        <h1>⚙️ {t('admin.title')}</h1>
-        <div className="user-info">
-          <span className="username">{user?.username} ({t('admin.admin')})</span>
-          <Link to="/admin/theme" className="btn btn-primary">
-            {t('admin.themeSettings')}
-          </Link>
-          <Link to="/admin/desktop-types" className="btn btn-primary">
-            {t('admin.desktopTypes')}
-          </Link>
-          <Link to="/" className="btn btn-secondary">
-            {t('admin.backToDesktops')}
-          </Link>
-          <button className="btn btn-secondary" onClick={logout}>
-            {t('common.logout')}
-          </button>
-        </div>
-      </header>
+      <Header
+        title="🖥️ MDG Remote Desktop"
+        user={user}
+        isAdmin={isAdmin}
+        isTeacher={isTeacher}
+        onLogout={logout}
+        appName={themeData.app_name}
+        appIcon={themeData.app_icon}
+      />
 
       {error && (
         <Alert type="error" message={error} onDismiss={() => setError(null)} />
@@ -232,8 +225,14 @@ export const AdminPanel: React.FC = () => {
 
       <div className="admin-container">
         <div className="admin-header">
-          <h2>{t('admin.containerManagement')}</h2>
+          <h2>⚙️ {t('admin.title')}</h2>
           <div className="admin-actions">
+            <Link to="/admin/theme" className="btn btn-primary">
+              {t('admin.themeSettings')}
+            </Link>
+            <Link to="/admin/desktop-types" className="btn btn-primary">
+              {t('admin.desktopTypes')}
+            </Link>
             <button className="btn btn-primary" onClick={loadContainers} disabled={actionLoading}>
               🔄 {t('common.refresh')}
             </button>

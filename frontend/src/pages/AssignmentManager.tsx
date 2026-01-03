@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { Header, Loading } from '../components';
+import { useAuth } from '../hooks/useAuth';
+import { useTheme } from '../hooks/useTheme';
 import { apiService } from '../services/api';
 import './AssignmentManager.css';
 
@@ -51,12 +54,13 @@ interface FileItem {
 }
 
 export const AssignmentManager: React.FC = () => {
+  const { user, isAdmin, isTeacher, logout, loading: authLoading } = useAuth();
+  const { themeData } = useTheme();
   const { t } = useTranslation();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [desktopImages, setDesktopImages] = useState<DesktopImage[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -86,7 +90,6 @@ export const AssignmentManager: React.FC = () => {
 
   const loadData = async () => {
     try {
-      setLoading(true);
       setError(null);
 
       const [assignmentsRes, imagesRes, groupsRes] = await Promise.all([
@@ -101,8 +104,6 @@ export const AssignmentManager: React.FC = () => {
     } catch (err: any) {
       setError(err.response?.data?.error || t('assignments.failedToLoad'));
       console.error('Error loading data:', err);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -228,27 +229,41 @@ export const AssignmentManager: React.FC = () => {
 
 
 
-  if (loading) {
-    return <div className="assignment-manager"><div className="loading">{t('assignments.loading')}</div></div>;
+  if (authLoading) {
+    return (
+      <div className="container">
+        <Loading message={t('common.checkingSession')} />
+      </div>
+    );
   }
 
   return (
-    <div className="assignment-manager">
-      <div className="header">
-        <h1>📚 {t('assignments.title')}</h1>
-        <div className="header-actions">
-          <button className="btn btn-primary" onClick={openCreateModal}>
-            {t('assignments.createAssignment')}
-          </button>
-          <Link to="/" className="btn btn-secondary">
-            {t('assignments.backToDesktops')}
-          </Link>
+    <div className="container">
+      <Header
+        title="🖥️ MDG Remote Desktop"
+        user={user}
+        isAdmin={isAdmin}
+        isTeacher={isTeacher}
+        onLogout={logout}
+        appName={themeData.app_name}
+        appIcon={themeData.app_icon}
+      />
+
+      <div className="assignment-manager">
+        <div className="assignment-header">
+          <h2>📚 {t('assignments.title')}</h2>
+          <div className="assignment-actions">
+            <button className="btn btn-primary" onClick={openCreateModal}>
+              {t('assignments.createAssignment')}
+            </button>
+            <Link to="/" className="btn btn-secondary">
+              {t('assignments.backToDesktops')}
+            </Link>
+          </div>
         </div>
-      </div>
 
-      {error && <div className="error-message">{error}</div>}
+        {error && <div className="error-message">{error}</div>}
 
-      <div className="assignments-list">
         {assignments.length === 0 ? (
           <div className="empty-state">
             <p>{t('assignments.noAssignments')}</p>
@@ -315,7 +330,6 @@ export const AssignmentManager: React.FC = () => {
             </tbody>
           </table>
         )}
-      </div>
 
       {/* Create Assignment Modal */}
       {showCreateModal && (
@@ -664,6 +678,7 @@ export const AssignmentManager: React.FC = () => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };
