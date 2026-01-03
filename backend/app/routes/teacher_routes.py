@@ -279,8 +279,6 @@ def update_assignment(user, assignment_id):
                 # Validate
                 if '..' in folder_path or folder_path.startswith('/'):
                     return jsonify({'success': False, 'error': 'Invalid folder path'}), 400
-                if not folder_path.startswith('assignments/'):
-                    folder_path = f'assignments/{folder_path}'
             assignment.assignment_folder_path = folder_path
         
         # Update folder name
