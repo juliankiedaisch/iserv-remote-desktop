@@ -5,6 +5,7 @@ This is used by the nginx reverse proxy to route subdomain requests to container
 from flask import Blueprint, request, Response, redirect
 import requests
 import os
+import base64
 from app.models.containers import Container
 
 container_proxy_bp = Blueprint('container_proxy', __name__)
@@ -12,6 +13,12 @@ container_proxy_bp = Blueprint('container_proxy', __name__)
 # Docker host IP for accessing published container ports
 # When running in Docker, use host.docker.internal to access host ports
 DOCKER_HOST_IP = os.environ.get('DOCKER_HOST_IP', 'host.docker.internal')
+
+# KasmVNC credentials - these match the VNC_USER and VNC_PASSWORD used when creating containers
+# Format: base64(VNC_USER:VNC_PASSWORD)
+VNC_USER = os.environ.get('VNC_USER', 'kasm_user')
+VNC_PASSWORD = os.environ.get('VNC_PASSWORD', 'password')
+VNC_AUTH_HEADER = 'Basic ' + base64.b64encode(f'{VNC_USER}:{VNC_PASSWORD}'.encode()).decode()
 
 @container_proxy_bp.route('/container-proxy/<proxy_path>', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'])
 @container_proxy_bp.route('/container-proxy/<proxy_path>/<path:subpath>', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'])
@@ -56,17 +63,23 @@ def proxy_to_container(proxy_path, subpath=''):
     
     # Add KasmVNC Basic Auth credentials for seamless access
     # This matches the credentials configured in containers
-    headers['Authorization'] = 'Basic a2FzbV91c2VyOnBhc3N3b3Jk'
+    headers['Authorization'] = VNC_AUTH_HEADER
     
     try:
         # Forward the request to the container
+        # NOTE: SSL verification is disabled because Kasm containers use self-signed certificates
+        # This is acceptable in this context because:
+        # 1. Containers are accessed via localhost/host.docker.internal (trusted network)
+        # 2. Containers are managed by this application (not external services)
+        # 3. Authentication is handled via Basic Auth credentials
+        # For production with multiple hosts, consider using a custom CA or certificate pinning
         resp = requests.request(
             method=request.method,
             url=target_url,
             headers=headers,
             data=request.get_data(),
             allow_redirects=False,
-            verify=False,  # Containers use self-signed certificates
+            verify=False,  # Containers use self-signed certificates (see note above)
             stream=True,   # Stream response for large files and WebSocket upgrade
             timeout=3600   # Long timeout for desktop sessions
         )

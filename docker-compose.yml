@@ -59,8 +59,6 @@ services:
     volumes:
       # Only mount custom server configurations, use default nginx.conf
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
-    environment:
-      - APACHE_API_KEY=${APACHE_API_KEY:-change-this-in-production}
     extra_hosts:
       # Allow nginx to access host's published container ports via backend proxy
       - "host.docker.internal:host-gateway"
