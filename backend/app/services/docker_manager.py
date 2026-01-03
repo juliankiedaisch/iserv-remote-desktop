@@ -227,17 +227,18 @@ class DockerManager:
             # Get user data directory - ensure it exists
             from app.utils.directory_manager import ensure_user_directory
             user_data_dir = ensure_user_directory(user_id)
+            extern_user_data_dir = os.path.join(current_app.config.get('EXTERN_USERADATA_BASE_DIR'), str(user_id))
             
             # Get shared public directory from config
-            shared_public_dir = current_app.config.get('SHARED_PUBLIC_DIR', '/data/shared/public')
+            extern_shared_public_dir = current_app.config.get('EXTERN_SHARED_DIR', '/data/shared/public')
             
             # Setup volumes
             volumes = {
-                user_data_dir: {
+                extern_user_data_dir: {
                     'bind': '/home/kasm-user',
                     'mode': 'rw'
                 },
-                shared_public_dir: {
+                extern_shared_public_dir: {
                     'bind': '/home/kasm-user/Public/shared',
                     'mode': 'rw'
                 }
@@ -260,12 +261,17 @@ class DockerManager:
                             assignment.created_by,
                             assignment.assignment_folder_path
                         )
-                        
+                        extern_user_data_base = current_app.config.get('EXTERN_USERADATA_BASE_DIR', '/data/users')
+                        extern_teacher_folder_path = os.path.join(
+                            extern_user_data_base,
+                            assignment.created_by,
+                            assignment.assignment_folder_path
+                        )                        
                         # Verify folder exists
                         if os.path.exists(teacher_folder_path) and os.path.isdir(teacher_folder_path):
                             # Mount as read-only in /home/kasm-user/public/[folder-name]
                             folder_name = assignment.assignment_folder_name or assignment.assignment_folder_path.split('/')[-1]
-                            volumes[teacher_folder_path] = {
+                            volumes[extern_user_data_base] = {
                                 'bind': f'/home/kasm-user/Public/{folder_name}',
                                 'mode': 'ro'  # Read-only
                             }

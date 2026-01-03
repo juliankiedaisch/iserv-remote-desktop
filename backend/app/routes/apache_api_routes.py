@@ -1,7 +1,7 @@
 """
 API endpoint for Apache RewriteMap to query container targets.
 """
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from app.models.containers import Container
 import subprocess
 import os
@@ -22,6 +22,7 @@ def get_container_target(proxy_path):
     # Authenticate Apache server
     api_key = request.headers.get('X-API-Key')
     if api_key != APACHE_API_KEY:
+        current_app.logger.warning(f"Error Apache API: No Correct API KEY")
         return jsonify({"error": "Unauthorized"}), 401
     
     # Look up running container by proxy_path
@@ -31,10 +32,12 @@ def get_container_target(proxy_path):
     ).first()
     
     if not container or not container.host_port:
+        current_app.logger.warning(f"Error Apache API: No Target, {proxy_path}")
         return jsonify({"target": None})
     
     # Return Docker host IP with mapped port
     # Apache can access the host's mapped ports (7000, 7001, etc.)
-    docker_host = os.environ.get('DOCKER_HOST_IP', '172.22.0.27')
+    docker_host = os.environ.get('DOCKER_HOST_IP', '172.22.0.36')
+    current_app.logger.info(f"Apache API: {docker_host}:{container.host_port}")
     
     return jsonify({"target": f"{docker_host}:{container.host_port}"})

@@ -29,6 +29,8 @@ class Config:
     # Data directory paths
     USER_DATA_BASE_DIR = os.environ.get('USER_DATA_BASE_DIR', '/data/users')
     SHARED_PUBLIC_DIR = os.environ.get('SHARED_PUBLIC_DIR', '/data/shared/public')
+    EXTERN_USERADATA_BASE_DIR = os.environ.get('EXTERN_USERADATA_BASE_DIR', '/data/users')
+    EXTERN_SHARED_DIR = os.environ.get('EXTERN_SHARED_DIR', '/data/shared/public')
     
     # Container idle timeout (in hours) - containers inactive for this duration will be stopped
     CONTAINER_IDLE_TIMEOUT_HOURS = int(os.environ.get('CONTAINER_IDLE_TIMEOUT_HOURS', 6))
@@ -37,6 +39,8 @@ class Config:
     POSTGRES_PASSWORD = os.environ.get('POSTGRES_PASSWORD')
     POSTGRES_SERVER_NAME = os.environ.get('POSTGRES_SERVER_NAME')
     POSTGRES_DB = os.environ.get('POSTGRES_DB')
+
+    DOCKER_HOST_IP = os.environ.get('DOCKER_HOST_IP')
 
 class DevelopmentConfig(Config):
     DEBUG = True
