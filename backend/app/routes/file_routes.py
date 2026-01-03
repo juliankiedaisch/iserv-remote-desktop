@@ -3,6 +3,7 @@ from werkzeug.utils import secure_filename
 from app import db
 from app.models.oauth_session import OAuthSession
 from app.models.desktop_assignments import DesktopAssignment
+from app.i18n import get_message, get_language_from_request
 from functools import wraps
 import os
 import shutil
@@ -14,6 +15,8 @@ def require_session(f):
     """Decorator to require valid session"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        lang = get_language_from_request()
+        
         # Get session ID from various sources
         session_id = request.args.get('session_id')
         
@@ -26,12 +29,12 @@ def require_session(f):
                 session_id = auth_header.split(' ')[1]
         
         if not session_id:
-            return jsonify({'error': 'No session ID provided'}), 400
+            return jsonify({'error': get_message('no_session_id_provided', lang)}), 400
         
         # Validate session
         oauth_session = OAuthSession.query.filter_by(id=session_id).first()
         if not oauth_session:
-            return jsonify({'error': 'Invalid session'}), 401
+            return jsonify({'error': get_message('invalid_session', lang)}), 401
         
         # Check if session is expired
         current_time = datetime.now(timezone.utc)
@@ -40,7 +43,7 @@ def require_session(f):
             expires_at = expires_at.replace(tzinfo=timezone.utc)
         
         if expires_at < current_time:
-            return jsonify({'error': 'Session expired'}), 401
+            return jsonify({'error': get_message('session_expired', lang)}), 401
         
         # Update last accessed
         oauth_session.last_accessed = current_time
@@ -91,6 +94,8 @@ def validate_path_security(base_path, full_path):
 @require_session
 def list_files(oauth_session):
     """List files in user's private or public space"""
+    lang = get_language_from_request()
+    
     try:
         user = oauth_session.user
         space = request.args.get('space', 'private')  # 'private' or 'public'
@@ -116,7 +121,7 @@ def list_files(oauth_session):
         if not is_valid:
             return jsonify({
                 'success': False,
-                'error': error_msg
+                'error': get_message('invalid_path', lang)
             }), 403
         
         # Check if path exists - if base directory doesn't exist, return empty list
@@ -130,7 +135,7 @@ def list_files(oauth_session):
                 })
             return jsonify({
                 'success': False,
-                'error': 'Directory not found'
+                'error': get_message('directory_not_found', lang)
             }), 404
         
         # List files and directories
@@ -196,6 +201,8 @@ def list_files(oauth_session):
 @require_session
 def upload_file(oauth_session):
     """Upload a file to user's private or public space"""
+    lang = get_language_from_request()
+    
     try:
         user = oauth_session.user
         space = request.form.get('space', 'private')
@@ -204,14 +211,14 @@ def upload_file(oauth_session):
         if 'file' not in request.files:
             return jsonify({
                 'success': False,
-                'error': 'No file provided'
+                'error': get_message('no_file_provided', lang)
             }), 400
         
         file = request.files['file']
         if file.filename == '':
             return jsonify({
                 'success': False,
-                'error': 'No file selected'
+                'error': get_message('no_file_selected', lang)
             }), 400
         
         # Get the base path on host
@@ -223,14 +230,14 @@ def upload_file(oauth_session):
         if not is_valid:
             return jsonify({
                 'success': False,
-                'error': error_msg
+                'error': get_message('invalid_path', lang)
             }), 403
         
         # Validate that parent directory exists (no implicit directory creation)
         if not os.path.exists(target_dir):
             return jsonify({
                 'success': False,
-                'error': 'Upload directory does not exist. Please create it first.'
+                'error': get_message('upload_directory_not_exist', lang)
             }), 400
         
         # Secure the filename
@@ -238,7 +245,7 @@ def upload_file(oauth_session):
         if not filename:
             return jsonify({
                 'success': False,
-                'error': 'Invalid filename'
+                'error': get_message('invalid_filename', lang)
             }), 400
         
         # Save the file
@@ -256,7 +263,7 @@ def upload_file(oauth_session):
         
         return jsonify({
             'success': True,
-            'message': 'File uploaded successfully',
+            'message': get_message('file_uploaded', lang),
             'filename': filename
         })
         

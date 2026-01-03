@@ -10,6 +10,7 @@ from app import db
 from app.models.desktop_assignments import DesktopImage, DesktopAssignment
 from app.models.users import User
 from app.middlewares.auth import require_auth
+from app.i18n import get_message, get_language_from_request
 
 desktop_admin_bp = Blueprint('desktop_admin', __name__, url_prefix='/api/admin/desktops')
 
@@ -19,11 +20,12 @@ def require_admin(f):
     @wraps(f)
     @require_auth
     def decorated_function(user, *args, **kwargs):
+        lang = get_language_from_request()
         # user is a dict with keys: session_id, user_id, username, email, role
         if not user or user.get('role') != 'admin':
             return jsonify({
                 'success': False,
-                'error': 'Admin access required'
+                'error': get_message('admin_required', lang)
             }), 403
         
         return f(user, *args, **kwargs)
@@ -47,18 +49,20 @@ def allowed_file(filename):
 @require_admin
 def upload_icon(user):
     """Upload an icon image for desktop types"""
+    lang = get_language_from_request()
+    
     if 'icon' not in request.files:
-        return jsonify({"success": False, "error": "No file provided"}), 400
+        return jsonify({"success": False, "error": get_message('no_file_provided', lang)}), 400
     
     file = request.files['icon']
     
     if file.filename == '':
-        return jsonify({"success": False, "error": "No file selected"}), 400
+        return jsonify({"success": False, "error": get_message('no_file_selected', lang)}), 400
     
     if not allowed_file(file.filename):
         return jsonify({
             "success": False, 
-            "error": f"Invalid file type. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
+            "error": get_message('invalid_file_type_allowed', lang, types=', '.join(ALLOWED_EXTENSIONS))
         }), 400
     
     # Check file size
@@ -69,7 +73,7 @@ def upload_icon(user):
     if file_size > MAX_FILE_SIZE:
         return jsonify({
             "success": False,
-            "error": "File too large. Maximum size is 2MB"
+            "error": get_message('file_size_exceeded', lang)
         }), 400
     
     # Generate unique filename
@@ -116,16 +120,17 @@ def list_desktop_types(user):
 @require_admin
 def create_desktop_type(user):
     """Create new desktop type"""
+    lang = get_language_from_request()
     data = request.json
     
     # Validate required fields
     if not data.get('name') or not data.get('docker_image'):
-        return jsonify({"success": False, "error": "Name and docker_image are required"}), 400
+        return jsonify({"success": False, "error": get_message('name_and_image_required', lang)}), 400
     
     # Check if name already exists
     existing = DesktopImage.query.filter_by(name=data['name']).first()
     if existing:
-        return jsonify({"success": False, "error": "Desktop type with this name already exists"}), 400
+        return jsonify({"success": False, "error": get_message('desktop_type_exists', lang)}), 400
     
     desktop_type = DesktopImage(
         name=data['name'],
@@ -145,9 +150,10 @@ def create_desktop_type(user):
 @require_admin
 def update_desktop_type(user, type_id):
     """Update desktop type"""
+    lang = get_language_from_request()
     desktop_type = DesktopImage.query.get(type_id)
     if not desktop_type:
-        return jsonify({"success": False, "error": "Desktop type not found"}), 404
+        return jsonify({"success": False, "error": get_message('desktop_type_not_found', lang)}), 404
     
     data = request.json
     
@@ -172,9 +178,10 @@ def update_desktop_type(user, type_id):
 @require_admin
 def delete_desktop_type(user, type_id):
     """Delete desktop type"""
+    lang = get_language_from_request()
     desktop_type = DesktopImage.query.get(type_id)
     if not desktop_type:
-        return jsonify({"success": False, "error": "Desktop type not found"}), 404
+        return jsonify({"success": False, "error": get_message('desktop_type_not_found', lang)}), 404
     
     db.session.delete(desktop_type)
     db.session.commit()
@@ -186,9 +193,10 @@ def delete_desktop_type(user, type_id):
 @require_admin
 def list_assignments(user, type_id):
     """List assignments for a desktop type"""
+    lang = get_language_from_request()
     desktop_type = DesktopImage.query.get(type_id)
     if not desktop_type:
-        return jsonify({"success": False, "error": "Desktop type not found"}), 404
+        return jsonify({"success": False, "error": get_message('desktop_type_not_found', lang)}), 404
     
     assignments = []
     for a in desktop_type.assignments:
@@ -210,15 +218,16 @@ def list_assignments(user, type_id):
 @require_admin
 def create_assignment(user, type_id):
     """Create new assignment"""
+    lang = get_language_from_request()
     desktop_type = DesktopImage.query.get(type_id)
     if not desktop_type:
-        return jsonify({"success": False, "error": "Desktop type not found"}), 404
+        return jsonify({"success": False, "error": get_message('desktop_type_not_found', lang)}), 404
     
     data = request.json
     
     # Validate: must have either group_id or user_id
     if not data.get('group_id') and not data.get('user_id'):
-        return jsonify({"success": False, "error": "Either group_id or user_id is required"}), 400
+        return jsonify({"success": False, "error": get_message('group_or_user_required', lang)}), 400
     
     # Check for duplicate
     if data.get('group_id'):
@@ -227,7 +236,7 @@ def create_assignment(user, type_id):
             group_id=data['group_id']
         ).first()
         if existing:
-            return jsonify({"success": False, "error": "Assignment already exists"}), 400
+            return jsonify({"success": False, "error": get_message('assignment_exists', lang)}), 400
     
     if data.get('user_id'):
         existing = DesktopAssignment.query.filter_by(
@@ -235,7 +244,7 @@ def create_assignment(user, type_id):
             user_id=data['user_id']
         ).first()
         if existing:
-            return jsonify({"success": False, "error": "Assignment already exists"}), 400
+            return jsonify({"success": False, "error": get_message('assignment_exists', lang)}), 400
     
     assignment = DesktopAssignment(
         desktop_image_id=type_id,
@@ -256,9 +265,10 @@ def create_assignment(user, type_id):
 @require_admin
 def delete_assignment(user, assignment_id):
     """Delete assignment"""
+    lang = get_language_from_request()
     assignment = DesktopAssignment.query.get(assignment_id)
     if not assignment:
-        return jsonify({"success": False, "error": "Assignment not found"}), 404
+        return jsonify({"success": False, "error": get_message('assignment_not_found', lang)}), 404
     
     db.session.delete(assignment)
     db.session.commit()
@@ -313,9 +323,10 @@ def pull_desktop_type_image(user, type_id):
     from app.services.docker_manager import DockerManager
     from app.routes.websocket_routes import emit_image_pull_event
     
+    lang = get_language_from_request()
     desktop_type = DesktopImage.query.get(type_id)
     if not desktop_type:
-        return jsonify({"success": False, "error": "Desktop type not found"}), 404
+        return jsonify({"success": False, "error": get_message('desktop_type_not_found', lang)}), 404
     
     image_name = desktop_type.docker_image
     
@@ -337,11 +348,12 @@ def pull_multiple_images(user):
     from app.services.docker_manager import DockerManager
     from app.routes.websocket_routes import emit_image_pull_event
     
+    lang = get_language_from_request()
     data = request.json
     type_ids = data.get('type_ids', [])
     
     if not type_ids:
-        return jsonify({"success": False, "error": "No desktop types specified"}), 400
+        return jsonify({"success": False, "error": get_message('desktop_types_required', lang)}), 400
     
     results = []
     docker_manager = DockerManager()
@@ -356,7 +368,7 @@ def pull_multiple_images(user):
             results.append({
                 'type_id': type_id,
                 'success': False,
-                'error': 'Desktop type not found'
+                'error': get_message('desktop_type_not_found', lang)
             })
             continue
         
