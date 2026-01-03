@@ -25,6 +25,11 @@ The application uses a **separated frontend-backend architecture**:
 
 - OAuth/OIDC authentication (IServ compatible)
 - **React-based web interface** with real-time updates
+- **Multi-language support** (German and English)
+  - Automatic browser language detection
+  - Easy language switching with toggle button
+  - Easily extensible for additional languages
+  - See [I18N_GUIDE.md](I18N_GUIDE.md) for details
 - Multiple desktop types (Ubuntu with VSCode, Ubuntu Desktop, Ubuntu with Chromium)
 - Per-user Docker container management
 - Automatic Kasm workspace provisioning

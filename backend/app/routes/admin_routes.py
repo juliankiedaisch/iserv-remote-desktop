@@ -4,6 +4,7 @@ from app.models.oauth_session import OAuthSession
 from app.models.containers import Container
 from app.models.users import User
 from app.services.docker_manager import DockerManager
+from app.i18n import get_message, get_language_from_request
 from datetime import datetime, timezone
 from functools import wraps
 
@@ -13,6 +14,8 @@ def require_admin(f):
     """Decorator to require admin role"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        lang = get_language_from_request()
+        
         # Get session ID from various sources
         session_id = request.args.get('session_id')
         
@@ -25,12 +28,12 @@ def require_admin(f):
                 session_id = auth_header.split(' ')[1]
         
         if not session_id:
-            return jsonify({'error': 'No session ID provided'}), 400
+            return jsonify({'error': get_message('session_required', lang)}), 400
         
         # Validate session
         oauth_session = OAuthSession.query.filter_by(id=session_id).first()
         if not oauth_session:
-            return jsonify({'error': 'Invalid session'}), 401
+            return jsonify({'error': get_message('invalid_session', lang)}), 401
         
         # Check if session is expired
         current_time = datetime.now(timezone.utc)
@@ -39,26 +42,26 @@ def require_admin(f):
             expires_at = expires_at.replace(tzinfo=timezone.utc)
         
         if expires_at < current_time:
-            return jsonify({'error': 'Session expired'}), 401
+            return jsonify({'error': get_message('invalid_session', lang)}), 401
         
         # Check if user is admin
         user = oauth_session.user
         if not user.is_admin:
-            return jsonify({'error': 'Admin access required'}), 403
+            return jsonify({'error': get_message('admin_required', lang)}), 403
         
         # Update last accessed
         oauth_session.last_accessed = current_time
         db.session.commit()
         
-        # Pass session to the route
-        return f(oauth_session, *args, **kwargs)
+        # Pass session and language to the route
+        return f(oauth_session, lang, *args, **kwargs)
     
     return decorated_function
 
 
 @admin_bp.route('/admin/containers', methods=['GET'])
 @require_admin
-def list_all_containers(oauth_session):
+def list_all_containers(oauth_session, lang):
     """List all containers from all users (admin only)"""
     try:
         # Get all containers
@@ -92,13 +95,13 @@ def list_all_containers(oauth_session):
         current_app.logger.error(f"Failed to list all containers: {str(e)}")
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': get_message('error_occurred', lang)
         }), 500
 
 
 @admin_bp.route('/admin/container/<container_id>/stop', methods=['POST'])
 @require_admin
-def stop_container_admin(oauth_session, container_id):
+def stop_container_admin(oauth_session, lang, container_id):
     """Stop a specific container (admin only)"""
     try:
         container = Container.query.get(container_id)
@@ -106,7 +109,7 @@ def stop_container_admin(oauth_session, container_id):
         if not container:
             return jsonify({
                 'success': False,
-                'error': 'Container not found'
+                'error': get_message('container_not_found', lang)
             }), 404
         
         # Stop the container
@@ -119,20 +122,20 @@ def stop_container_admin(oauth_session, container_id):
         
         return jsonify({
             'success': True,
-            'message': 'Container stopped successfully'
+            'message': get_message('container_stopped', lang)
         })
         
     except Exception as e:
         current_app.logger.error(f"Failed to stop container: {str(e)}")
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': get_message('failed_to_stop_container', lang)
         }), 500
 
 
 @admin_bp.route('/admin/container/<container_id>/remove', methods=['DELETE'])
 @require_admin
-def remove_container_admin(oauth_session, container_id):
+def remove_container_admin(oauth_session, lang, container_id):
     """Remove a specific container (admin only)"""
     try:
         container = Container.query.get(container_id)
@@ -140,7 +143,7 @@ def remove_container_admin(oauth_session, container_id):
         if not container:
             return jsonify({
                 'success': False,
-                'error': 'Container not found'
+                'error': get_message('container_not_found', lang)
             }), 404
         
         # Remove the container
@@ -153,20 +156,20 @@ def remove_container_admin(oauth_session, container_id):
         
         return jsonify({
             'success': True,
-            'message': 'Container removed successfully'
+            'message': get_message('container_removed', lang)
         })
         
     except Exception as e:
         current_app.logger.error(f"Failed to remove container: {str(e)}")
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': get_message('failed_to_remove_container', lang)
         }), 500
 
 
 @admin_bp.route('/admin/containers/stop-all', methods=['POST'])
 @require_admin
-def stop_all_containers(oauth_session):
+def stop_all_containers(oauth_session, lang):
     """Stop all running containers (admin only)"""
     try:
         # Get all running containers
@@ -190,7 +193,7 @@ def stop_all_containers(oauth_session):
         
         return jsonify({
             'success': True,
-            'message': f'Stopped {stopped_count} containers',
+            'message': get_message('containers_stopped', lang, count=stopped_count),
             'stopped_count': stopped_count
         })
         
@@ -198,13 +201,13 @@ def stop_all_containers(oauth_session):
         current_app.logger.error(f"Failed to stop all containers: {str(e)}")
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': get_message('error_occurred', lang)
         }), 500
 
 
 @admin_bp.route('/admin/containers/cleanup-stopped', methods=['POST'])
 @require_admin
-def cleanup_stopped_containers(oauth_session):
+def cleanup_stopped_containers(oauth_session, lang):
     """Remove all stopped containers (admin only)"""
     try:
         docker_manager = DockerManager()
@@ -228,7 +231,7 @@ def cleanup_stopped_containers(oauth_session):
         
         return jsonify({
             'success': True,
-            'message': f'Removed {removed_count} stopped containers',
+            'message': get_message('containers_removed', lang, count=removed_count),
             'removed_count': removed_count
         })
         
@@ -236,5 +239,5 @@ def cleanup_stopped_containers(oauth_session):
         current_app.logger.error(f"Failed to cleanup stopped containers: {str(e)}")
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': get_message('error_occurred', lang)
         }), 500

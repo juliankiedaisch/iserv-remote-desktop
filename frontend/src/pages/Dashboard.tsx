@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Header, DesktopCard, Loading, Alert } from '../components';
 import { useAuth } from '../hooks/useAuth';
 import { useContainers } from '../hooks/useContainers';
@@ -8,6 +9,7 @@ import './Dashboard.css';
 export const Dashboard: React.FC = () => {
   const { user, isAdmin, isTeacher, logout, loading: authLoading } = useAuth();
   const { themeData } = useTheme();
+  const { t } = useTranslation();
   const {
     desktopTypes,
     loading,
@@ -26,23 +28,23 @@ export const Dashboard: React.FC = () => {
 
   const handleStart = useCallback(async (desktopType: string) => {
     setStartError(null);
-    setStartingProgress('Creating container...');
+    setStartingProgress(t('dashboard.creatingContainer'));
     
     try {
       const url = await startContainer(desktopType);
       if (url) {
-        setStartingProgress('Opening desktop...');
+        setStartingProgress(t('dashboard.openingDesktop'));
         window.open(url, '_blank');
         setStartingProgress(null);
       } else {
-        setStartError('Failed to start container');
+        setStartError(t('dashboard.failedToStart'));
         setStartingProgress(null);
       }
     } catch (error: any) {
-      setStartError(error.message || 'Failed to start container');
+      setStartError(error.message || t('dashboard.failedToStart'));
       setStartingProgress(null);
     }
-  }, [startContainer]);
+  }, [startContainer, t]);
 
   const handleStop = useCallback((desktopType: string) => {
     setContainerToStop(desktopType);
@@ -70,7 +72,7 @@ export const Dashboard: React.FC = () => {
   if (authLoading) {
     return (
       <div className="container">
-        <Loading message="Checking session..." />
+        <Loading message={t('common.checkingSession')} />
       </div>
     );
   }
@@ -78,7 +80,7 @@ export const Dashboard: React.FC = () => {
   return (
     <div className="container">
       <Header
-        title="🖥️ MDG Remote Desktop"
+        title={t('dashboard.title')}
         user={user}
         isAdmin={isAdmin}
         isTeacher={isTeacher}
@@ -111,7 +113,7 @@ export const Dashboard: React.FC = () => {
       )}
 
       {loading ? (
-        <Loading message="Loading desktops..." />
+        <Loading message={t('dashboard.loadingDesktops')} />
       ) : (
         <div className="desktop-grid">
           {desktopTypes.length > 0 ? (
@@ -129,7 +131,7 @@ export const Dashboard: React.FC = () => {
             ))
           ) : (
             <div className="empty-state">
-              <p>No desktop types available for your account</p>
+              <p>{t('dashboard.noDesktops')}</p>
             </div>
           )}
         </div>
@@ -140,19 +142,19 @@ export const Dashboard: React.FC = () => {
         <div className="modal-overlay" onClick={cancelStop}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Stop Container</h2>
+              <h2>{t('dashboard.stopContainer')}</h2>
               <button className="modal-close" onClick={cancelStop}>✕</button>
             </div>
             <div className="modal-body">
-              <p>Are you sure you want to stop the <strong>{containerToStop}</strong> container?</p>
-              <p className="modal-warning">This will close your active session.</p>
+              <p>{t('dashboard.stopConfirmation', { desktopType: containerToStop })}</p>
+              <p className="modal-warning">{t('dashboard.stopWarning')}</p>
             </div>
             <div className="modal-actions">
               <button type="button" className="btn btn-secondary" onClick={cancelStop}>
-                Cancel
+                {t('common.cancel')}
               </button>
               <button type="button" className="btn btn-danger" onClick={confirmStop}>
-                Stop Container
+                {t('dashboard.stopContainer')}
               </button>
             </div>
           </div>

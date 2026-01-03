@@ -1,6 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { User } from '../types';
+import { LanguageSwitcher } from './LanguageSwitcher';
 import './Header.css';
 
 interface HeaderProps {
@@ -22,6 +24,7 @@ export const Header: React.FC<HeaderProps> = ({
   appIcon,
   appName
 }) => {
+  const { t } = useTranslation();
   const displayTitle = appName || title;
   
   return (
@@ -35,25 +38,26 @@ export const Header: React.FC<HeaderProps> = ({
         <h1>{displayTitle}</h1>
       </div>
       <div className="user-info">
-        <span className="username">{user?.username || 'Loading...'}</span>
-        <Link to="/" className="dashboard-icon" title="Dashboard">
+        <span className="username">{user?.username || t('header.loading')}</span>
+        <Link to="/" className="dashboard-icon" title={t('header.dashboard')}>
           🏠
         </Link>
-        <Link to="/files" className="files-icon" title="File Manager">
+        <Link to="/files" className="files-icon" title={t('header.fileManager')}>
           📁
         </Link>
         {isTeacher && (
-          <Link to="/teacher/assignments" className="teacher-icon" title="Manage Assignments">
+          <Link to="/teacher/assignments" className="teacher-icon" title={t('header.manageAssignments')}>
             📚
           </Link>
         )}
         {isAdmin && (
-          <Link to="/admin" className="admin-icon" title="Admin Panel">
+          <Link to="/admin" className="admin-icon" title={t('header.adminPanel')}>
             ⚙️
           </Link>
         )}
+        <LanguageSwitcher />
         <button className="btn btn-secondary" onClick={onLogout}>
-          Logout
+          {t('common.logout')}
         </button>
       </div>
     </header>
