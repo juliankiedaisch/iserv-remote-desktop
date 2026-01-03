@@ -266,10 +266,17 @@ class DockerManager:
                             extern_user_data_base,
                             str(assignment.created_by),
                             assignment.assignment_folder_path
-                        )                        
+                        )
+                        
+                        current_app.logger.info(f"Assignment folder check - Path: {assignment.assignment_folder_path}")
+                        current_app.logger.info(f"Teacher folder path (backend view): {teacher_folder_path}")
+                        current_app.logger.info(f"Extern folder path (host): {extern_teacher_folder_path}")
+                        current_app.logger.info(f"Folder exists: {os.path.exists(teacher_folder_path)}")
+                        current_app.logger.info(f"Is directory: {os.path.isdir(teacher_folder_path) if os.path.exists(teacher_folder_path) else 'N/A'}")
+                        
                         # Verify folder exists
                         if os.path.exists(teacher_folder_path) and os.path.isdir(teacher_folder_path):
-                            # Mount as read-only in /home/kasm-user/public/[folder-name]
+                            # Mount as read-only in /home/kasm-user/Public/[folder-name]
                             folder_name = assignment.assignment_folder_name or assignment.assignment_folder_path.split('/')[-1]
                             volumes[extern_teacher_folder_path] = {
                                 'bind': f'/home/kasm-user/Public/{folder_name}',

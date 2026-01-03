@@ -147,14 +147,20 @@ def list_files(oauth_session):
                 assignment_info = None
                 if is_dir and space == 'private' and teacher_assignments:
                     for assignment in teacher_assignments:
-                        if assignment.assignment_folder_path and assignment.assignment_folder_path == rel_item_path:
-                            is_shared = True
-                            assignment_info = {
-                                'id': assignment.id,
-                                'folder_name': assignment.assignment_folder_name,
-                                'desktop_image_id': assignment.desktop_image_id
-                            }
-                            break
+                        if assignment.assignment_folder_path:
+                            # Normalize paths for comparison (remove leading/trailing slashes)
+                            assignment_path = assignment.assignment_folder_path.strip('/')
+                            item_path = rel_item_path.strip('/')
+                            
+                            # Check for exact match
+                            if assignment_path == item_path:
+                                is_shared = True
+                                assignment_info = {
+                                    'id': assignment.id,
+                                    'folder_name': assignment.assignment_folder_name,
+                                    'desktop_image_id': assignment.desktop_image_id
+                                }
+                                break
                 
                 items.append({
                     'name': item_name,

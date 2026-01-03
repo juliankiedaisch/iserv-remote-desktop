@@ -413,7 +413,7 @@ export const AssignmentManager: React.FC = () => {
                   )}
                 </div>
                 <small className="help-text">
-                  Selected folder will be mounted at: /home/kasm-user/public/[folder-name]
+                  Selected folder will be mounted at: /home/kasm-user/Public/[folder-name]
                 </small>
               </div>
 
@@ -488,7 +488,7 @@ export const AssignmentManager: React.FC = () => {
                   )}
                 </div>
                 <small className="help-text">
-                  Selected folder will be mounted at: /home/kasm-user/public/[folder-name]
+                  Selected folder will be mounted at: /home/kasm-user/Public/[folder-name]
                 </small>
               </div>
 
