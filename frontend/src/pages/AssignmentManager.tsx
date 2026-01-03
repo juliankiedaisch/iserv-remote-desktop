@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Header, Loading } from '../components';
 import { useAuth } from '../hooks/useAuth';
@@ -256,9 +255,6 @@ export const AssignmentManager: React.FC = () => {
             <button className="btn btn-primary" onClick={openCreateModal}>
               {t('assignments.createAssignment')}
             </button>
-            <Link to="/" className="btn btn-secondary">
-              {t('assignments.backToDesktops')}
-            </Link>
           </div>
         </div>
 

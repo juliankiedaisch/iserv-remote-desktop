@@ -292,12 +292,6 @@ export const ThemeEditor: React.FC = () => {
           <Link to="/admin" className="btn btn-secondary">
             {t('theme.backToAdmin')}
           </Link>
-          <Link to="/" className="btn btn-secondary">
-            {t('theme.desktops')}
-          </Link>
-          <button className="btn btn-secondary" onClick={logout}>
-            {t('common.logout')}
-          </button>
         </div>
       </header>
 

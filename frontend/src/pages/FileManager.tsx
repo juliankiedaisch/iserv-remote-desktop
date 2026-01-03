@@ -141,16 +141,27 @@ export const FileManager: React.FC = () => {
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setDragOver(true);
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
-    setDragOver(false);
+    e.stopPropagation();
+    // Only set dragOver to false if we're actually leaving the drop zone container
+    // and not just entering a child element
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX;
+    const y = e.clientY;
+    
+    if (x <= rect.left || x >= rect.right || y <= rect.top || y >= rect.bottom) {
+      setDragOver(false);
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setDragOver(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       handleFileUpload(e.dataTransfer.files);
@@ -210,25 +221,38 @@ export const FileManager: React.FC = () => {
 
   const handleFileDragOver = (e: React.DragEvent, file: FileItem) => {
     e.preventDefault();
-    e.stopPropagation();
-    if (draggedItem && file.is_directory && draggedItem.path !== file.path) {
-      e.dataTransfer.dropEffect = 'move';
-      setDropTarget(file);
+    // Only stop propagation if we're dragging an internal item
+    // Allow external file drops to bubble up to the drop zone
+    if (draggedItem) {
+      e.stopPropagation();
+      if (file.is_directory && draggedItem.path !== file.path) {
+        e.dataTransfer.dropEffect = 'move';
+        setDropTarget(file);
+      }
     }
   };
 
   const handleFileDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
-    e.stopPropagation();
+    // Only stop propagation if we're dragging an internal item
+    if (draggedItem) {
+      e.stopPropagation();
+    }
     setDropTarget(null);
   };
 
   const handleFileDrop = async (e: React.DragEvent, targetFolder: FileItem) => {
     e.preventDefault();
-    e.stopPropagation();
     setDropTarget(null);
 
-    if (!draggedItem || !targetFolder.is_directory || draggedItem.path === targetFolder.path) {
+    // Only handle internal item moves, let external drops bubble up
+    if (!draggedItem) {
+      return;
+    }
+    
+    e.stopPropagation();
+
+    if (!targetFolder.is_directory || draggedItem.path === targetFolder.path) {
       return;
     }
 

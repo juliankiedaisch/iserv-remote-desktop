@@ -1,14 +1,17 @@
 .file-manager {
-  max-width: 1200px;
-  margin: 2rem auto;
-  padding: 0 1rem;
+  background: var(--color-bg-white);
+  border-radius: 10px;
+  padding: 30px;
+  box-shadow: var(--shadow-sm);
 }
 
 .file-manager-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.5rem;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid var(--color-gray-border-light);
   flex-wrap: wrap;
   gap: 1rem;
 }
@@ -16,6 +19,7 @@
 .file-manager-header h2 {
   margin: 0;
   color: var(--color-text-primary);
+  font-size: 28px;
 }
 
 .space-tabs {
@@ -43,9 +47,7 @@
 }
 
 .file-manager-toolbar {
-  background: var(--color-bg-white);
-  padding: 1rem;
-  border-radius: 8px;
+  padding: 1rem 0;
   margin-bottom: 1rem;
   display: flex;
   flex-direction: column;
