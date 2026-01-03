@@ -27,7 +27,8 @@ services:
       - "5021:5021"
     env_file:
       - .env
-
+    environment:
+      - POSTGRES_SERVER_NAME=postgres
     volumes:
       # Mount Docker socket to allow container creation
       # WARNING: This grants full Docker daemon access
