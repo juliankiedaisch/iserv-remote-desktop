@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, Navigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Loading, Alert } from '../components';
 import { useAuth } from '../hooks/useAuth';
 import { Container } from '../types';
@@ -17,6 +18,7 @@ interface ConfirmModalState {
 
 export const AdminPanel: React.FC = () => {
   const { user, isAdmin, logout, loading: authLoading } = useAuth();
+  const { t } = useTranslation();
   const [containers, setContainers] = useState<Container[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +28,7 @@ export const AdminPanel: React.FC = () => {
     isOpen: false,
     title: '',
     message: '',
-    confirmText: 'Confirm',
+    confirmText: t('common.confirm'),
     onConfirm: () => {},
     isDangerous: false
   });
@@ -38,14 +40,14 @@ export const AdminPanel: React.FC = () => {
         setContainers(response.containers);
         setError(null);
       } else {
-        setError(response.error || 'Failed to load containers');
+        setError(response.error || t('admin.failedToLoadContainers'));
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to load containers');
+      setError(err.message || t('admin.failedToLoadContainers'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -66,9 +68,9 @@ export const AdminPanel: React.FC = () => {
   const handleStopContainer = async (containerId: string, containerName: string) => {
     setConfirmModal({
       isOpen: true,
-      title: 'Stop Container',
-      message: `Are you sure you want to stop container "${containerName}"?`,
-      confirmText: 'Stop',
+      title: t('admin.stopContainerTitle'),
+      message: t('admin.stopContainerMessage', { containerName }),
+      confirmText: t('common.stop'),
       isDangerous: true,
       onConfirm: () => stopContainer(containerId, containerName)
     });
@@ -81,13 +83,13 @@ export const AdminPanel: React.FC = () => {
     try {
       const response = await apiService.stopAdminContainer(containerId);
       if (response.success) {
-        setSuccessMessage('Container stopped successfully');
+        setSuccessMessage(t('admin.containerStopped'));
         await loadContainers();
       } else {
-        setError(response.error || 'Failed to stop container');
+        setError(response.error || t('admin.failedToStopContainer'));
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to stop container');
+      setError(err.message || t('admin.failedToStopContainer'));
     } finally {
       setActionLoading(false);
     }
@@ -96,9 +98,9 @@ export const AdminPanel: React.FC = () => {
   const handleRemoveContainer = async (containerId: string, containerName: string) => {
     setConfirmModal({
       isOpen: true,
-      title: 'Remove Container',
-      message: `Are you sure you want to remove container "${containerName}"? This action cannot be undone.`,
-      confirmText: 'Remove',
+      title: t('admin.removeContainerTitle'),
+      message: t('admin.removeContainerMessage', { containerName }),
+      confirmText: t('common.remove'),
       isDangerous: true,
       onConfirm: () => removeContainer(containerId, containerName)
     });
@@ -111,13 +113,13 @@ export const AdminPanel: React.FC = () => {
     try {
       const response = await apiService.removeAdminContainer(containerId);
       if (response.success) {
-        setSuccessMessage('Container removed successfully');
+        setSuccessMessage(t('admin.containerRemoved'));
         await loadContainers();
       } else {
-        setError(response.error || 'Failed to remove container');
+        setError(response.error || t('admin.failedToRemoveContainer'));
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to remove container');
+      setError(err.message || t('admin.failedToRemoveContainer'));
     } finally {
       setActionLoading(false);
     }
@@ -126,9 +128,9 @@ export const AdminPanel: React.FC = () => {
   const handleStopAll = async () => {
     setConfirmModal({
       isOpen: true,
-      title: 'Stop All Containers',
-      message: 'Stop ALL running containers? This will affect all users!',
-      confirmText: 'Stop All',
+      title: t('admin.stopAllTitle'),
+      message: t('admin.stopAllMessage'),
+      confirmText: t('admin.stopAllConfirm'),
       isDangerous: true,
       onConfirm: () => stopAllContainers()
     });
@@ -141,13 +143,13 @@ export const AdminPanel: React.FC = () => {
     try {
       const response = await apiService.stopAllContainers();
       if (response.success) {
-        setSuccessMessage(`Successfully stopped ${response.stopped_count} container(s)`);
+        setSuccessMessage(t('admin.containersStopped', { count: response.stopped_count }));
         await loadContainers();
       } else {
-        setError(response.error || 'Failed to stop containers');
+        setError(response.error || t('admin.failedToStopAll'));
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to stop all containers');
+      setError(err.message || t('admin.failedToStopAll'));
     } finally {
       setActionLoading(false);
     }
@@ -156,9 +158,9 @@ export const AdminPanel: React.FC = () => {
   const handleCleanupStopped = async () => {
     setConfirmModal({
       isOpen: true,
-      title: 'Remove Stopped Containers',
-      message: 'Remove ALL stopped containers? This cannot be undone!',
-      confirmText: 'Remove All',
+      title: t('admin.removeStoppedTitle'),
+      message: t('admin.removeStoppedMessage'),
+      confirmText: t('admin.removeAllConfirm'),
       isDangerous: true,
       onConfirm: () => cleanupStoppedContainers()
     });
@@ -171,27 +173,27 @@ export const AdminPanel: React.FC = () => {
     try {
       const response = await apiService.cleanupStoppedContainers();
       if (response.success) {
-        setSuccessMessage(`Successfully removed ${response.removed_count} stopped container(s)`);
+        setSuccessMessage(t('admin.containersRemoved', { count: response.removed_count }));
         await loadContainers();
       } else {
-        setError(response.error || 'Failed to cleanup containers');
+        setError(response.error || t('admin.failedToCleanup'));
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to cleanup stopped containers');
+      setError(err.message || t('admin.failedToCleanup'));
     } finally {
       setActionLoading(false);
     }
   };
 
   const formatDate = (dateString?: string): string => {
-    if (!dateString) return 'N/A';
+    if (!dateString) return t('common.NA');
     return new Date(dateString).toLocaleString();
   };
 
   if (authLoading) {
     return (
       <div className="container">
-        <Loading message="Checking session..." />
+        <Loading message={t('common.checkingSession')} />
       </div>
     );
   }
@@ -203,20 +205,20 @@ export const AdminPanel: React.FC = () => {
   return (
     <div className="container">
       <header className="header">
-        <h1>⚙️ Admin Panel</h1>
+        <h1>⚙️ {t('admin.title')}</h1>
         <div className="user-info">
-          <span className="username">{user?.username} (Admin)</span>
+          <span className="username">{user?.username} ({t('admin.admin')})</span>
           <Link to="/admin/theme" className="btn btn-primary">
-            🎨 Theme Settings
+            {t('admin.themeSettings')}
           </Link>
           <Link to="/admin/desktop-types" className="btn btn-primary">
-            🖥️ Desktop Types
+            {t('admin.desktopTypes')}
           </Link>
           <Link to="/" className="btn btn-secondary">
-            ← Back to Desktops
+            {t('admin.backToDesktops')}
           </Link>
           <button className="btn btn-secondary" onClick={logout}>
-            Logout
+            {t('common.logout')}
           </button>
         </div>
       </header>
@@ -230,16 +232,16 @@ export const AdminPanel: React.FC = () => {
 
       <div className="admin-container">
         <div className="admin-header">
-          <h2>Container Management</h2>
+          <h2>{t('admin.containerManagement')}</h2>
           <div className="admin-actions">
             <button className="btn btn-primary" onClick={loadContainers} disabled={actionLoading}>
-              🔄 Refresh
+              🔄 {t('common.refresh')}
             </button>
             <button className="btn btn-danger" onClick={handleStopAll} disabled={actionLoading}>
-              ⏹️ Stop All
+              {t('admin.stopAll')}
             </button>
             <button className="btn btn-danger" onClick={handleCleanupStopped} disabled={actionLoading}>
-              🗑️ Remove Stopped
+              {t('admin.removeStopped')}
             </button>
           </div>
         </div>
@@ -247,36 +249,36 @@ export const AdminPanel: React.FC = () => {
         <div className="stats-grid">
           <div className="stat-card">
             <div className="stat-value">{stats.total}</div>
-            <div className="stat-label">Total Containers</div>
+            <div className="stat-label">{t('admin.totalContainers')}</div>
           </div>
           <div className="stat-card">
             <div className="stat-value">{stats.running}</div>
-            <div className="stat-label">Running</div>
+            <div className="stat-label">{t('admin.running')}</div>
           </div>
           <div className="stat-card">
             <div className="stat-value">{stats.users}</div>
-            <div className="stat-label">Active Users</div>
+            <div className="stat-label">{t('admin.activeUsers')}</div>
           </div>
         </div>
 
         {loading ? (
-          <Loading message="Loading containers..." />
+          <Loading message={t('admin.loadingContainers')} />
         ) : containers.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-icon">📦</div>
-            <p>No containers found</p>
+            <p>{t('admin.noContainers')}</p>
           </div>
         ) : (
           <table className="container-table">
             <thead>
               <tr>
-                <th>User</th>
-                <th>Container Name</th>
-                <th>Status</th>
-                <th>Port</th>
-                <th>Created</th>
-                <th>Last Accessed</th>
-                <th>Actions</th>
+                <th>{t('admin.tableUser')}</th>
+                <th>{t('admin.tableContainerName')}</th>
+                <th>{t('admin.tableStatus')}</th>
+                <th>{t('admin.tablePort')}</th>
+                <th>{t('admin.tableCreated')}</th>
+                <th>{t('admin.tableLastAccessed')}</th>
+                <th>{t('admin.tableActions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -289,7 +291,7 @@ export const AdminPanel: React.FC = () => {
                       {container.status.toUpperCase()}
                     </span>
                   </td>
-                  <td>{container.host_port || 'N/A'}</td>
+                  <td>{container.host_port || t('common.NA')}</td>
                   <td>{formatDate(container.created_at)}</td>
                   <td>{formatDate(container.last_accessed)}</td>
                   <td>
@@ -301,7 +303,7 @@ export const AdminPanel: React.FC = () => {
                               className="btn btn-sm btn-primary"
                               onClick={() => window.open(container.url, '_blank')}
                             >
-                              Open
+                              {t('common.open')}
                             </button>
                           )}
                           <button
@@ -309,7 +311,7 @@ export const AdminPanel: React.FC = () => {
                             onClick={() => handleStopContainer(container.id, container.container_name)}
                             disabled={actionLoading}
                           >
-                            Stop
+                            {t('common.stop')}
                           </button>
                         </>
                       )}
@@ -318,7 +320,7 @@ export const AdminPanel: React.FC = () => {
                         onClick={() => handleRemoveContainer(container.id, container.container_name)}
                         disabled={actionLoading}
                       >
-                        Remove
+                        {t('common.remove')}
                       </button>
                     </div>
                   </td>
@@ -351,7 +353,7 @@ export const AdminPanel: React.FC = () => {
                 onClick={() => setConfirmModal({ ...confirmModal, isOpen: false })}
                 disabled={actionLoading}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button 
                 className={`btn ${confirmModal.isDangerous ? 'btn-danger' : 'btn-primary'}`}
@@ -370,7 +372,7 @@ export const AdminPanel: React.FC = () => {
       {actionLoading && (
         <div className="loading-overlay">
           <div className="loading-content">
-            <Loading message="Processing..." />
+            <Loading message={t('common.processing')} />
           </div>
         </div>
       )}
