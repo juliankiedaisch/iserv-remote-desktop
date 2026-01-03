@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, Navigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Loading, Alert } from '../components';
 import { useAuth } from '../hooks/useAuth';
 import { wsService } from '../services/websocket';
@@ -17,6 +18,7 @@ interface DesktopType {
 
 export const DesktopTypesManager: React.FC = () => {
   const { user, isAdmin, loading: authLoading } = useAuth();
+  const { t } = useTranslation();
   const [desktopTypes, setDesktopTypes] = useState<DesktopType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -99,7 +101,7 @@ export const DesktopTypesManager: React.FC = () => {
           message: '✅ ' + (data.message || 'Pull completed'), 
           timestamp: Date.now() 
         }]);
-        setSuccessMessage(`Successfully pulled ${data.image}`);
+        setSuccessMessage(t('desktopTypes.pullSuccess', { image: data.image }));
       } else if (event === 'error') {
         if (typeId) {
           setPullingImages(prev => {
@@ -118,7 +120,7 @@ export const DesktopTypesManager: React.FC = () => {
           message: '❌ ' + (data.error || 'Pull failed'), 
           timestamp: Date.now() 
         }]);
-        setError(`Failed to pull ${data.image}: ${data.error}`);
+        setError(t('desktopTypes.pullFailed', { image: data.image, error: data.error }));
       }
     });
 
@@ -140,10 +142,10 @@ export const DesktopTypesManager: React.FC = () => {
         setDesktopTypes(data.desktop_types);
         setError(null);
       } else {
-        setError(data.error || 'Failed to load desktop types');
+        setError(data.error || t('desktopTypes.failedToLoad'));
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to load desktop types');
+      setError(err.message || t('desktopTypes.failedToLoad'));
     } finally {
       setLoading(false);
     }
@@ -174,15 +176,15 @@ export const DesktopTypesManager: React.FC = () => {
       const data = await response.json();
 
       if (data.success) {
-        setSuccessMessage('Desktop type created successfully');
+        setSuccessMessage(t('desktopTypes.created'));
         setShowCreateModal(false);
         resetForm();
         await loadDesktopTypes();
       } else {
-        setError(data.error || 'Failed to create desktop type');
+        setError(data.error || t('desktopTypes.failedToCreate'));
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to create desktop type');
+      setError(err.message || t('desktopTypes.failedToCreate'));
     } finally {
       setLoading(false);
     }
@@ -215,23 +217,23 @@ export const DesktopTypesManager: React.FC = () => {
       const data = await response.json();
 
       if (data.success) {
-        setSuccessMessage('Desktop type updated successfully');
+        setSuccessMessage(t('desktopTypes.updated'));
         setShowEditModal(false);
         setSelectedType(null);
         resetForm();
         await loadDesktopTypes();
       } else {
-        setError(data.error || 'Failed to update desktop type');
+        setError(data.error || t('desktopTypes.failedToUpdate'));
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to update desktop type');
+      setError(err.message || t('desktopTypes.failedToUpdate'));
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async (typeId: number, typeName: string) => {
-    if (!window.confirm(`Delete desktop type "${typeName}"? This will remove all assignments.`)) {
+    if (!window.confirm(t('desktopTypes.deleteConfirmation', { name: typeName }))) {
       return;
     }
 
@@ -247,13 +249,13 @@ export const DesktopTypesManager: React.FC = () => {
       const data = await response.json();
 
       if (data.success) {
-        setSuccessMessage('Desktop type deleted successfully');
+        setSuccessMessage(t('desktopTypes.deleted'));
         await loadDesktopTypes();
       } else {
-        setError(data.error || 'Failed to delete desktop type');
+        setError(data.error || t('desktopTypes.failedToDelete'));
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to delete desktop type');
+      setError(err.message || t('desktopTypes.failedToDelete'));
     } finally {
       setLoading(false);
     }
@@ -296,13 +298,13 @@ export const DesktopTypesManager: React.FC = () => {
       // Validate file type
       const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/svg+xml', 'image/webp'];
       if (!allowedTypes.includes(file.type)) {
-        setError('Invalid file type. Please upload PNG, JPG, GIF, SVG, or WebP.');
+        setError(t('desktopTypes.iconInvalidType'));
         return;
       }
       
       // Validate file size (2MB max)
       if (file.size > 2 * 1024 * 1024) {
-        setError('File too large. Maximum size is 2MB.');
+        setError(t('desktopTypes.iconTooLarge'));
         return;
       }
       
@@ -338,11 +340,11 @@ export const DesktopTypesManager: React.FC = () => {
       if (data.success) {
         return data.icon_url;
       } else {
-        setError(data.error || 'Failed to upload icon');
+        setError(data.error || t('desktopTypes.failedToUploadIcon'));
         return null;
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to upload icon');
+      setError(err.message || t('desktopTypes.failedToUploadIcon'));
       return null;
     } finally {
       setUploadingIcon(false);
@@ -365,10 +367,10 @@ export const DesktopTypesManager: React.FC = () => {
       const data = await response.json();
 
       if (!data.success) {
-        setError(data.error || 'Failed to pull image');
+        setError(data.error || t('desktopTypes.failedToPullImage'));
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to pull image');
+      setError(err.message || t('desktopTypes.failedToPullImage'));
       setPullingImages(prev => {
         const next = new Set(prev);
         next.delete(typeId);
@@ -379,7 +381,7 @@ export const DesktopTypesManager: React.FC = () => {
 
   const handlePullMultipleImages = async () => {
     if (selectedTypes.size === 0) {
-      setError('Please select at least one desktop type');
+      setError(t('desktopTypes.selectAtLeastOne'));
       return;
     }
 
@@ -402,10 +404,10 @@ export const DesktopTypesManager: React.FC = () => {
       const data = await response.json();
 
       if (!data.success) {
-        setError('Some images failed to pull. Check the logs for details.');
+        setError(t('desktopTypes.someFailed'));
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to pull images');
+      setError(err.message || t('desktopTypes.failedToPullImage'));
     } finally {
       setSelectedTypes(new Set());
     }
@@ -434,7 +436,7 @@ export const DesktopTypesManager: React.FC = () => {
   if (authLoading) {
     return (
       <div className="container">
-        <Loading message="Checking session..." />
+        <Loading message={t('common.checkingSession')} />
       </div>
     );
   }
@@ -446,11 +448,11 @@ export const DesktopTypesManager: React.FC = () => {
   return (
     <div className="container">
       <header className="header">
-        <h1>🖥️ Desktop Types Manager</h1>
+        <h1>🖥️ {t('desktopTypes.title')}</h1>
         <div className="user-info">
-          <span className="username">{user?.username} (Admin)</span>
+          <span className="username">{user?.username} ({t('admin.admin')})</span>
           <Link to="/admin" className="btn btn-secondary">
-            ← Back to Admin
+            {t('desktopTypes.backToAdmin')}
           </Link>
         </div>
       </header>
@@ -464,34 +466,34 @@ export const DesktopTypesManager: React.FC = () => {
 
       <div className="desktop-types-container">
         <div className="desktop-types-header">
-          <h2>Available Desktop Types</h2>
+          <h2>{t('desktopTypes.availableTypes')}</h2>
           <div className="header-actions">
             {selectedTypes.size > 0 && (
               <>
-                <span className="selection-count">{selectedTypes.size} selected</span>
+                <span className="selection-count">{t('desktopTypes.selectionCount', { count: selectedTypes.size })}</span>
                 <button 
                   className="btn btn-secondary" 
                   onClick={handlePullMultipleImages}
                   disabled={pullingImages.size > 0}
                 >
-                  🔄 Pull Selected ({selectedTypes.size})
+                  {t('desktopTypes.pullSelected', { count: selectedTypes.size })}
                 </button>
               </>
             )}
             <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
-              ➕ Create New Type
+              {t('desktopTypes.createNewType')}
             </button>
           </div>
         </div>
 
         {loading ? (
-          <Loading message="Loading desktop types..." />
+          <Loading message={t('desktopTypes.loading')} />
         ) : desktopTypes.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-icon">📦</div>
-            <p>No desktop types configured</p>
+            <p>{t('desktopTypes.noTypesConfigured')}</p>
             <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
-              Create First Desktop Type
+              {t('desktopTypes.createFirstType')}
             </button>
           </div>
         ) : (
@@ -504,7 +506,7 @@ export const DesktopTypesManager: React.FC = () => {
                     checked={selectedTypes.size === desktopTypes.length && desktopTypes.length > 0}
                     onChange={toggleSelectAll}
                   />
-                  Select All
+                  {t('desktopTypes.selectAll')}
                 </label>
               </div>
             )}
@@ -527,20 +529,20 @@ export const DesktopTypesManager: React.FC = () => {
                   )}
                 </div>
                 <h3>{type.name}</h3>
-                <p className="desktop-type-description">{type.description || 'No description'}</p>
+                <p className="desktop-type-description">{type.description || t('desktopTypes.noDescription')}</p>
                 <div className="desktop-type-meta">
                   <span className="desktop-type-image">{type.docker_image}</span>
                   <span className={`status-badge ${type.enabled ? 'enabled' : 'disabled'}`}>
-                    {type.enabled ? 'Enabled' : 'Disabled'}
+                    {type.enabled ? t('desktopTypes.statusEnabled') : t('desktopTypes.statusDisabled')}
                   </span>
                   <span className="assignment-count">
-                    {type.assignment_count} assignment{type.assignment_count !== 1 ? 's' : ''}
+                    {type.assignment_count} {type.assignment_count !== 1 ? t('desktopTypes.assignments') : t('desktopTypes.assignment')}
                   </span>
                 </div>
                 {pullingImages.has(type.id) && (
                   <div className="pull-progress">
                     <div className="progress-spinner">⏳</div>
-                    <span className="progress-text">{pullProgress[type.id] || 'Pulling...'}</span>
+                    <span className="progress-text">{pullProgress[type.id] || t('desktopTypes.pulling')}</span>
                   </div>
                 )}
                 <div className="desktop-type-actions">
@@ -549,13 +551,13 @@ export const DesktopTypesManager: React.FC = () => {
                     onClick={() => handlePullImage(type.id)}
                     disabled={pullingImages.has(type.id)}
                   >
-                    {pullingImages.has(type.id) ? '⏳ Pulling...' : '🔄 Pull Image'}
+                    {pullingImages.has(type.id) ? t('desktopTypes.pulling') : t('desktopTypes.pullImage')}
                   </button>
                   <button className="btn btn-sm btn-primary" onClick={() => openEditModal(type)}>
-                    Edit
+                    {t('desktopTypes.edit')}
                   </button>
                   <button className="btn btn-sm btn-danger" onClick={() => handleDelete(type.id, type.name)}>
-                    Delete
+                    {t('desktopTypes.delete')}
                   </button>
                 </div>
               </div>
@@ -570,12 +572,12 @@ export const DesktopTypesManager: React.FC = () => {
         <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Create Desktop Type</h2>
+              <h2>{t('desktopTypes.createDesktopType')}</h2>
               <button className="modal-close" onClick={() => setShowCreateModal(false)}>✕</button>
             </div>
             <form onSubmit={handleCreate}>
               <div className="form-group">
-                <label>Name *</label>
+                <label>{t('desktopTypes.nameRequired')}</label>
                 <input
                   type="text"
                   value={formData.name}
@@ -584,17 +586,17 @@ export const DesktopTypesManager: React.FC = () => {
                 />
               </div>
               <div className="form-group">
-                <label>Docker Image *</label>
+                <label>{t('desktopTypes.dockerImageRequired')}</label>
                 <input
                   type="text"
                   value={formData.docker_image}
                   onChange={(e) => setFormData({ ...formData, docker_image: e.target.value })}
-                  placeholder="e.g., kasmweb/ubuntu-jammy-desktop:1.15.0"
+                  placeholder={t('desktopTypes.dockerImagePlaceholder')}
                   required
                 />
               </div>
               <div className="form-group">
-                <label>Description</label>
+                <label>{t('desktopTypes.description')}</label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -602,7 +604,7 @@ export const DesktopTypesManager: React.FC = () => {
                 />
               </div>
               <div className="form-group">
-                <label>Icon</label>
+                <label>{t('desktopTypes.icon')}</label>
                 <div className="icon-upload-container">
                   <input
                     type="file"
@@ -612,10 +614,10 @@ export const DesktopTypesManager: React.FC = () => {
                   />
                   {iconPreview && (
                     <div className="icon-preview">
-                      <img src={iconPreview} alt="Icon preview" />
+                      <img src={iconPreview} alt={t('desktopTypes.iconPreview')} />
                     </div>
                   )}
-                  <small className="form-hint">Upload PNG, JPG, GIF, SVG, or WebP (max 2MB)</small>
+                  <small className="form-hint">{t('desktopTypes.iconUploadHint')}</small>
                 </div>
               </div>
               <div className="form-group">
@@ -625,15 +627,15 @@ export const DesktopTypesManager: React.FC = () => {
                     checked={formData.enabled}
                     onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
                   />
-                  Enabled
+                  {t('desktopTypes.enabled')}
                 </label>
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowCreateModal(false)}>
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={loading || uploadingIcon}>
-                  {uploadingIcon ? 'Uploading...' : loading ? 'Creating...' : 'Create'}
+                  {uploadingIcon ? t('desktopTypes.uploading') : loading ? t('desktopTypes.creating') : t('common.create')}
                 </button>
               </div>
             </form>
@@ -646,12 +648,12 @@ export const DesktopTypesManager: React.FC = () => {
         <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Edit Desktop Type</h2>
+              <h2>{t('desktopTypes.editDesktopType')}</h2>
               <button className="modal-close" onClick={() => setShowEditModal(false)}>✕</button>
             </div>
             <form onSubmit={handleUpdate}>
               <div className="form-group">
-                <label>Name *</label>
+                <label>{t('desktopTypes.nameRequired')}</label>
                 <input
                   type="text"
                   value={formData.name}
@@ -660,7 +662,7 @@ export const DesktopTypesManager: React.FC = () => {
                 />
               </div>
               <div className="form-group">
-                <label>Docker Image *</label>
+                <label>{t('desktopTypes.dockerImageRequired')}</label>
                 <input
                   type="text"
                   value={formData.docker_image}
@@ -669,7 +671,7 @@ export const DesktopTypesManager: React.FC = () => {
                 />
               </div>
               <div className="form-group">
-                <label>Description</label>
+                <label>{t('desktopTypes.description')}</label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -677,7 +679,7 @@ export const DesktopTypesManager: React.FC = () => {
                 />
               </div>
               <div className="form-group">
-                <label>Icon</label>
+                <label>{t('desktopTypes.icon')}</label>
                 <div className="icon-upload-container">
                   <input
                     type="file"
@@ -687,11 +689,11 @@ export const DesktopTypesManager: React.FC = () => {
                   />
                   {iconPreview && (
                     <div className="icon-preview">
-                      <img src={iconPreview} alt="Icon preview" />
+                      <img src={iconPreview} alt={t('desktopTypes.iconPreview')} />
                     </div>
                   )}
                   <small className="form-hint">
-                    {iconFile ? 'New icon selected' : 'Upload new icon or keep existing'} (PNG, JPG, GIF, SVG, or WebP, max 2MB)
+                    {iconFile ? t('desktopTypes.newIconSelected') : t('desktopTypes.iconUploadHintEdit')}
                   </small>
                 </div>
               </div>
@@ -702,15 +704,15 @@ export const DesktopTypesManager: React.FC = () => {
                     checked={formData.enabled}
                     onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
                   />
-                  Enabled
+                  {t('desktopTypes.enabled')}
                 </label>
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowEditModal(false)}>
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={loading || uploadingIcon}>
-                  {uploadingIcon ? 'Uploading...' : loading ? 'Updating...' : 'Update'}
+                  {uploadingIcon ? t('desktopTypes.uploading') : loading ? t('desktopTypes.updating') : t('common.update')}
                 </button>
               </div>
             </form>
@@ -723,13 +725,13 @@ export const DesktopTypesManager: React.FC = () => {
         <div className="modal-overlay" onClick={() => setShowPullModal(false)}>
           <div className="modal-content pull-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>🔄 Pulling Docker Images</h2>
+              <h2>{t('desktopTypes.pullingImages')}</h2>
               <button className="modal-close" onClick={() => setShowPullModal(false)}>✕</button>
             </div>
             <div className="pull-logs-container">
               {pullLogs.length === 0 ? (
                 <div className="pull-log-entry">
-                  <span className="log-message">Initializing pull operation...</span>
+                  <span className="log-message">{t('desktopTypes.initializingPull')}</span>
                 </div>
               ) : (
                 pullLogs.map((log, index) => (
@@ -747,7 +749,7 @@ export const DesktopTypesManager: React.FC = () => {
                 onClick={() => setShowPullModal(false)}
                 disabled={pullingImages.size > 0}
               >
-                {pullingImages.size > 0 ? 'Pulling in progress...' : 'Close'}
+                {pullingImages.size > 0 ? t('desktopTypes.pullingInProgress') : t('desktopTypes.close')}
               </button>
             </div>
           </div>

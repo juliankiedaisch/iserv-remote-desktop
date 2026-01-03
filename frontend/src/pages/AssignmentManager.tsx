@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { apiService } from '../services/api';
 import './AssignmentManager.css';
 
@@ -50,6 +51,7 @@ interface FileItem {
 }
 
 export const AssignmentManager: React.FC = () => {
+  const { t } = useTranslation();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [desktopImages, setDesktopImages] = useState<DesktopImage[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -97,7 +99,7 @@ export const AssignmentManager: React.FC = () => {
       setDesktopImages(imagesRes.data.images || []);
       setGroups(groupsRes.data.groups || []);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to load data');
+      setError(err.response?.data?.error || t('assignments.failedToLoad'));
       console.error('Error loading data:', err);
     } finally {
       setLoading(false);
@@ -150,7 +152,7 @@ export const AssignmentManager: React.FC = () => {
       resetForm();
       loadData();
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to create assignment');
+      alert(err.response?.data?.error || t('assignments.failedToCreate'));
     }
   };
 
@@ -168,7 +170,7 @@ export const AssignmentManager: React.FC = () => {
       resetForm();
       loadData();
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to update assignment');
+      alert(err.response?.data?.error || t('assignments.failedToUpdate'));
     }
   };
 
@@ -186,7 +188,7 @@ export const AssignmentManager: React.FC = () => {
       setAssignmentToDelete(null);
       loadData();
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to delete assignment');
+      alert(err.response?.data?.error || t('assignments.failedToDelete'));
     }
   };
 
@@ -227,19 +229,19 @@ export const AssignmentManager: React.FC = () => {
 
 
   if (loading) {
-    return <div className="assignment-manager"><div className="loading">Loading...</div></div>;
+    return <div className="assignment-manager"><div className="loading">{t('assignments.loading')}</div></div>;
   }
 
   return (
     <div className="assignment-manager">
       <div className="header">
-        <h1>📚 Assignment Manager</h1>
+        <h1>📚 {t('assignments.title')}</h1>
         <div className="header-actions">
           <button className="btn btn-primary" onClick={openCreateModal}>
-            + Create Assignment
+            {t('assignments.createAssignment')}
           </button>
           <Link to="/" className="btn btn-secondary">
-            ← Back to Desktops
+            {t('assignments.backToDesktops')}
           </Link>
         </div>
       </div>
@@ -249,17 +251,17 @@ export const AssignmentManager: React.FC = () => {
       <div className="assignments-list">
         {assignments.length === 0 ? (
           <div className="empty-state">
-            <p>No assignments yet. Create one to get started!</p>
+            <p>{t('assignments.noAssignments')}</p>
           </div>
         ) : (
           <table className="assignments-table">
             <thead>
               <tr>
-                <th>Desktop Image</th>
-                <th>Assigned To</th>
-                <th>Folder</th>
-                <th>Created</th>
-                <th>Actions</th>
+                <th>{t('assignments.desktopImage')}</th>
+                <th>{t('assignments.assignedTo')}</th>
+                <th>{t('assignments.folder')}</th>
+                <th>{t('assignments.created')}</th>
+                <th>{t('assignments.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -279,7 +281,7 @@ export const AssignmentManager: React.FC = () => {
                     ) : assignment.assigned_user ? (
                       <span className="badge badge-user">👤 {assignment.assigned_user.username}</span>
                     ) : (
-                      <span className="badge">Unknown</span>
+                      <span className="badge">{t('assignments.unknown')}</span>
                     )}
                   </td>
                   <td>
@@ -290,7 +292,7 @@ export const AssignmentManager: React.FC = () => {
                         <small className="path">{assignment.assignment_folder_path}</small>
                       </div>
                     ) : (
-                      <span className="text-muted">No folder</span>
+                      <span className="text-muted">{t('assignments.noFolder')}</span>
                     )}
                   </td>
                   <td>{new Date(assignment.created_at).toLocaleDateString()}</td>
@@ -299,13 +301,13 @@ export const AssignmentManager: React.FC = () => {
                       className="btn btn-sm btn-secondary"
                       onClick={() => openEditModal(assignment)}
                     >
-                      Edit
+                      {t('common.edit')}
                     </button>
                     <button
                       className="btn btn-sm btn-danger"
                       onClick={() => handleDeleteAssignment(assignment)}
                     >
-                      Delete
+                      {t('common.delete')}
                     </button>
                   </td>
                 </tr>
@@ -319,16 +321,16 @@ export const AssignmentManager: React.FC = () => {
       {showCreateModal && (
         <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>Create New Assignment</h2>
+            <h2>{t('assignments.createNew')}</h2>
             <form onSubmit={handleCreateAssignment}>
               <div className="form-group">
-                <label>Desktop Image *</label>
+                <label>{t('assignments.desktopImageRequired')}</label>
                 <select
                   value={formData.desktop_image_id}
                   onChange={(e) => setFormData({ ...formData, desktop_image_id: e.target.value })}
                   required
                 >
-                  <option value="">Select an image...</option>
+                  <option value="">{t('assignments.selectImage')}</option>
                   {desktopImages.map((img) => (
                     <option key={img.id} value={img.id}>
                       {img.name}
@@ -338,7 +340,7 @@ export const AssignmentManager: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label>Assign to Groups (optional)</label>
+                <label>{t('assignments.assignToGroups')}</label>
                 <select
                   multiple
                   value={formData.group_ids.map(String)}
@@ -355,11 +357,11 @@ export const AssignmentManager: React.FC = () => {
                     </option>
                   ))}
                 </select>
-                <small className="help-text">Hold Ctrl/Cmd to select multiple groups</small>
+                <small className="help-text">{t('assignments.multiSelectGroupsHint')}</small>
               </div>
 
               <div className="form-group">
-                <label>Assign to Individual Users (optional)</label>
+                <label>{t('assignments.assignToUsers')}</label>
                 <select
                   multiple
                   value={formData.user_ids}
@@ -377,11 +379,11 @@ export const AssignmentManager: React.FC = () => {
                     </option>
                   ))}
                 </select>
-                <small className="help-text">Hold Ctrl/Cmd to select multiple users</small>
+                <small className="help-text">{t('assignments.multiSelectUsersHint')}</small>
               </div>
 
               <div className="form-group">
-                <label>Assignment Folder (optional)</label>
+                <label>{t('assignments.assignmentFolder')}</label>
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                   <button
                     type="button"
@@ -391,7 +393,7 @@ export const AssignmentManager: React.FC = () => {
                       loadBrowserFiles('');
                     }}
                   >
-                    📁 Browse Folders
+                    {t('assignments.browseFolders')}
                   </button>
                   {selectedFolder && (
                     <div style={{ flex: 1 }}>
@@ -404,25 +406,25 @@ export const AssignmentManager: React.FC = () => {
                         onClick={() => setSelectedFolder(null)}
                         style={{ marginLeft: '10px' }}
                       >
-                        Clear
+                        {t('assignments.clear')}
                       </button>
                     </div>
                   )}
                   {!selectedFolder && (
-                    <span className="text-muted">No folder selected</span>
+                    <span className="text-muted">{t('assignments.noFolderSelected')}</span>
                   )}
                 </div>
                 <small className="help-text">
-                  Selected folder will be mounted at: /home/kasm-user/Public/[folder-name]
+                  {t('assignments.folderMountHint')}
                 </small>
               </div>
 
               <div className="modal-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowCreateModal(false)}>
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button type="submit" className="btn btn-primary">
-                  Create Assignment
+                  {t('assignments.createAssignment')}
                 </button>
               </div>
             </form>
@@ -434,10 +436,10 @@ export const AssignmentManager: React.FC = () => {
       {showEditModal && selectedAssignment && (
         <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>Edit Assignment</h2>
+            <h2>{t('assignments.editAssignment')}</h2>
             <form onSubmit={handleUpdateAssignment}>
               <div className="form-group">
-                <label>Desktop Image</label>
+                <label>{t('assignments.desktopImage')}</label>
                 <div className="readonly-field">
                   {selectedAssignment.desktop_image?.icon && selectedAssignment.desktop_image.icon.startsWith('/api/') ? (
                     <img src={selectedAssignment.desktop_image.icon} alt={selectedAssignment.desktop_image.name} className="icon-image" style={{ width: '20px', height: '20px', marginRight: '8px', verticalAlign: 'middle' }} />
@@ -449,14 +451,14 @@ export const AssignmentManager: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label>Assigned To</label>
+                <label>{t('assignments.assignedToLabel')}</label>
                 <div className="readonly-field">
                   {selectedAssignment.group?.name || selectedAssignment.assigned_user?.username}
                 </div>
               </div>
 
               <div className="form-group">
-                <label>Assignment Folder (optional)</label>
+                <label>{t('assignments.assignmentFolder')}</label>
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                   <button
                     type="button"
@@ -466,7 +468,7 @@ export const AssignmentManager: React.FC = () => {
                       loadBrowserFiles('');
                     }}
                   >
-                    📁 Browse Folders
+                    {t('assignments.browseFolders')}
                   </button>
                   {selectedFolder && (
                     <div style={{ flex: 1 }}>
@@ -479,25 +481,25 @@ export const AssignmentManager: React.FC = () => {
                         onClick={() => setSelectedFolder(null)}
                         style={{ marginLeft: '10px' }}
                       >
-                        Clear
+                        {t('assignments.clear')}
                       </button>
                     </div>
                   )}
                   {!selectedFolder && (
-                    <span className="text-muted">No folder selected</span>
+                    <span className="text-muted">{t('assignments.noFolderSelected')}</span>
                   )}
                 </div>
                 <small className="help-text">
-                  Selected folder will be mounted at: /home/kasm-user/Public/[folder-name]
+                  {t('assignments.folderMountHint')}
                 </small>
               </div>
 
               <div className="modal-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowEditModal(false)}>
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button type="submit" className="btn btn-primary">
-                  Update Assignment
+                  {t('common.update')}
                 </button>
               </div>
             </form>
@@ -509,7 +511,7 @@ export const AssignmentManager: React.FC = () => {
       {showFolderBrowser && (
         <div className="modal-overlay" onClick={() => setShowFolderBrowser(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>📁 Select Folder from Your Private Space</h2>
+            <h2>{t('assignments.selectFolderTitle')}</h2>
             
             <div className="folder-browser">
               <div className="breadcrumb" style={{ marginBottom: '15px' }}>
@@ -520,7 +522,7 @@ export const AssignmentManager: React.FC = () => {
                   }} 
                   className="breadcrumb-item"
                 >
-                  🏠 Home
+                  🏠 {t('assignments.home')}
                 </button>
                 {currentBrowserPath.split('/').filter(p => p).map((part, index, arr) => {
                   const path = arr.slice(0, index + 1).join('/');
@@ -542,10 +544,10 @@ export const AssignmentManager: React.FC = () => {
               </div>
 
               {loadingBrowser ? (
-                <div style={{ padding: '20px', textAlign: 'center' }}>Loading...</div>
+                <div style={{ padding: '20px', textAlign: 'center' }}>{t('assignments.loadingFolders')}</div>
               ) : browserFiles.length === 0 ? (
                 <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
-                  No folders in this directory
+                  {t('assignments.noFoldersInDirectory')}
                 </div>
               ) : (
                 <div className="folder-list" style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #ddd', borderRadius: '4px' }}>
@@ -582,7 +584,7 @@ export const AssignmentManager: React.FC = () => {
                           setShowFolderBrowser(false);
                         }}
                       >
-                        Select
+                        {t('assignments.select')}
                       </button>
                     </div>
                   ))}
@@ -596,7 +598,7 @@ export const AssignmentManager: React.FC = () => {
                 className="btn btn-secondary"
                 onClick={() => setShowFolderBrowser(false)}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               {currentBrowserPath && (
                 <button
@@ -607,7 +609,7 @@ export const AssignmentManager: React.FC = () => {
                     setShowFolderBrowser(false);
                   }}
                 >
-                  Select Current Folder
+                  {t('assignments.selectCurrentFolder')}
                 </button>
               )}
             </div>
@@ -620,27 +622,27 @@ export const AssignmentManager: React.FC = () => {
         <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Delete Assignment</h2>
+              <h2>{t('assignments.deleteAssignment')}</h2>
               <button className="modal-close" onClick={() => setShowDeleteModal(false)}>
                 ✕
               </button>
             </div>
             <div className="modal-body">
-              <p>Are you sure you want to delete this assignment?</p>
+              <p>{t('assignments.deleteConfirmMessage')}</p>
               <div style={{ marginTop: '15px', padding: '15px', background: '#f5f5f5', borderRadius: '4px' }}>
-                <strong>Desktop:</strong> {assignmentToDelete.desktop_image?.name}
+                <strong>{t('assignments.desktop')}:</strong> {assignmentToDelete.desktop_image?.name}
                 <br />
-                <strong>Assigned to:</strong>{' '}
+                <strong>{t('assignments.assignedToLabel')}:</strong>{' '}
                 {assignmentToDelete.group?.name || assignmentToDelete.assigned_user?.username}
                 {assignmentToDelete.assignment_folder_name && (
                   <>
                     <br />
-                    <strong>Folder:</strong> {assignmentToDelete.assignment_folder_name}
+                    <strong>{t('assignments.folder')}:</strong> {assignmentToDelete.assignment_folder_name}
                   </>
                 )}
               </div>
               <p style={{ marginTop: '15px', color: '#d32f2f' }}>
-                <strong>Warning:</strong> This action cannot be undone.
+                <strong>{t('assignments.warning')}:</strong> {t('assignments.deleteWarning')}
               </p>
             </div>
             <div className="modal-actions">
@@ -649,14 +651,14 @@ export const AssignmentManager: React.FC = () => {
                 className="btn btn-secondary"
                 onClick={() => setShowDeleteModal(false)}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
                 className="btn btn-danger"
                 onClick={confirmDeleteAssignment}
               >
-                Delete Assignment
+                {t('assignments.deleteAssignment')}
               </button>
             </div>
           </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Header, Loading, Alert } from '../components';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../hooks/useTheme';
@@ -29,6 +30,7 @@ interface FileListResponse {
 export const FileManager: React.FC = () => {
   const { user, isAdmin, isTeacher, logout, loading: authLoading } = useAuth();
   const { themeData } = useTheme();
+  const { t } = useTranslation();
   const [space, setSpace] = useState<'private' | 'public'>('private');
   const [currentPath, setCurrentPath] = useState<string>('');
   const [files, setFiles] = useState<FileItem[]>([]);
@@ -60,10 +62,10 @@ export const FileManager: React.FC = () => {
       if (response.data.success) {
         setFiles(response.data.items);
       } else {
-        setError(response.data.error || 'Failed to load files');
+        setError(response.data.error || t('fileManager.failedToLoadFiles'));
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to load files');
+      setError(err.message || t('fileManager.failedToLoadFiles'));
     } finally {
       setLoading(false);
     }
@@ -122,10 +124,10 @@ export const FileManager: React.FC = () => {
         uploadedCount += batch.length;
       }
       
-      setSuccess(`${uploadedCount} file(s) uploaded successfully`);
+      setSuccess(t('fileManager.uploadSuccess', { count: uploadedCount }));
       loadFiles();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to upload files');
+      setError(err.response?.data?.error || t('fileManager.uploadFailed'));
     } finally {
       setUploading(false);
     }
@@ -171,7 +173,7 @@ export const FileManager: React.FC = () => {
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (err: any) {
-      setError('Failed to download file');
+      setError(t('fileManager.downloadFailed'));
     }
   };
 
@@ -185,12 +187,12 @@ export const FileManager: React.FC = () => {
 
     try {
       await apiService.delete(`/api/files/delete?space=${space}&path=${encodeURIComponent(fileToDelete.path)}`);
-      setSuccess('Deleted successfully');
+      setSuccess(t('fileManager.deleteSuccess'));
       setShowDeleteModal(false);
       setFileToDelete(null);
       loadFiles();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to delete');
+      setError(err.response?.data?.error || t('fileManager.deleteFailed'));
       setShowDeleteModal(false);
       setFileToDelete(null);
     }
@@ -237,19 +239,23 @@ export const FileManager: React.FC = () => {
         destination_path: targetFolder.path,
       });
       
-      let message = `Moved "${draggedItem.name}" to "${targetFolder.name}"`;
+      let message = t('fileManager.moveSuccess', { source: draggedItem.name, target: targetFolder.name });
       
       // Check if assignments were updated
       if (response.data.updated_assignments && response.data.updated_assignments.length > 0) {
         const count = response.data.updated_assignments.length;
-        message += ` (${count} assignment${count > 1 ? 's' : ''} updated)`;
+        message = t('fileManager.moveSuccessWithAssignments', { 
+          source: draggedItem.name, 
+          target: targetFolder.name,
+          count 
+        });
       }
       
       setSuccess(message);
       setDraggedItem(null);
       loadFiles();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to move file');
+      setError(err.response?.data?.error || t('fileManager.moveFailed'));
       setDraggedItem(null);
     }
   };
@@ -265,12 +271,12 @@ export const FileManager: React.FC = () => {
         path: currentPath,
         folder_name: newFolderName,
       });
-      setSuccess('Folder created successfully');
+      setSuccess(t('fileManager.folderCreated'));
       setShowNewFolderModal(false);
       setNewFolderName('');
       loadFiles();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to create folder');
+      setError(err.response?.data?.error || t('fileManager.folderCreateFailed'));
     }
   };
 
@@ -371,7 +377,7 @@ export const FileManager: React.FC = () => {
   if (authLoading) {
     return (
       <div className="container">
-        <Loading message="Checking session..." />
+        <Loading message={t('common.checkingSession')} />
       </div>
     );
   }
@@ -390,19 +396,19 @@ export const FileManager: React.FC = () => {
 
       <div className="file-manager">
         <div className="file-manager-header">
-          <h2>📁 File Manager</h2>
+          <h2>📁 {t('fileManager.title')}</h2>
           <div className="space-tabs">
             <button
               className={`space-tab ${space === 'private' ? 'active' : ''}`}
               onClick={() => handleSpaceChange('private')}
             >
-              🔒 Private Files
+              🔒 {t('fileManager.private')}
             </button>
             <button
               className={`space-tab ${space === 'public' ? 'active' : ''}`}
               onClick={() => handleSpaceChange('public')}
             >
-              🌐 Public Files
+              🌐 {t('fileManager.public')}
             </button>
           </div>
         </div>
@@ -418,7 +424,7 @@ export const FileManager: React.FC = () => {
         <div className="file-manager-toolbar">
           <div className="breadcrumb">
             <button onClick={() => setCurrentPath('')} className="breadcrumb-item">
-              {space === 'private' ? '🏠 Home' : '🌐 Public'}
+              {space === 'private' ? `🏠 ${t('fileManager.home')}` : `🌐 ${t('fileManager.publicSpace')}`}
             </button>
             {currentPath.split('/').filter(p => p).map((part, index, arr) => {
               const path = arr.slice(0, index + 1).join('/');
@@ -439,27 +445,27 @@ export const FileManager: React.FC = () => {
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
             >
-              📤 Upload Files
+              📤 {t('fileManager.uploadFiles')}
             </button>
             <button
               className="btn btn-secondary"
               onClick={() => setShowNewFolderModal(true)}
             >
-              📁 New Folder
+              📁 {t('fileManager.newFolder')}
             </button>
             {currentPath && (
               <button className="btn btn-secondary" onClick={handleNavigateUp}>
-                ⬆️ Up
+                ⬆️ {t('fileManager.up')}
               </button>
             )}
             <button className="btn btn-secondary" onClick={loadFiles}>
-              🔄 Refresh
+              🔄 {t('common.refresh')}
             </button>
             <button 
               className="btn btn-secondary" 
               onClick={() => setShowHiddenFiles(!showHiddenFiles)}
             >
-              {showHiddenFiles ? '👁️ Hide Hidden' : '👁️‍🗨️ Show Hidden'}
+              {showHiddenFiles ? `👁️ ${t('fileManager.hideHiddenFiles')}` : `👁️‍🗨️ ${t('fileManager.showHiddenFiles')}`}
             </button>
           </div>
 
@@ -479,20 +485,20 @@ export const FileManager: React.FC = () => {
           onDrop={handleDrop}
         >
           {loading ? (
-            <Loading message="Loading files..." />
+            <Loading message={t('fileManager.loadingFiles')} />
           ) : visibleFiles.length === 0 ? (
             <div className="empty-state">
-              <p>No files here yet</p>
-              <p className="empty-hint">Drag and drop files here or click "Upload Files"</p>
+              <p>{t('fileManager.noFiles')}</p>
+              <p className="empty-hint">{t('fileManager.emptyHint')}</p>
             </div>
           ) : (
             <table className="file-table">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Size</th>
-                  <th>Modified</th>
-                  <th>Actions</th>
+                  <th>{t('fileManager.fileName')}</th>
+                  <th>{t('fileManager.fileSize')}</th>
+                  <th>{t('fileManager.fileModified')}</th>
+                  <th>{t('fileManager.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -520,7 +526,7 @@ export const FileManager: React.FC = () => {
                         {file.is_shared && (
                           <span 
                             className="shared-badge" 
-                            title={`Shared as: ${file.assignment_info?.folder_name || 'Assignment'}`}
+                            title={t('fileManager.sharedBadge', { folderName: file.assignment_info?.folder_name || t('fileManager.sharedIndicator') })}
                           >
                             🔗
                           </span>
@@ -548,14 +554,14 @@ export const FileManager: React.FC = () => {
                                 className="menu-item"
                                 onClick={() => handleMenuAction('download', file)}
                               >
-                                <span>⬇️</span> Download
+                                <span>⬇️</span> {t('common.download')}
                               </button>
                             )}
                             <button
                               className="menu-item menu-item-danger"
                               onClick={() => handleMenuAction('delete', file)}
                             >
-                              <span>🗑️</span> Delete
+                              <span>🗑️</span> {t('common.delete')}
                             </button>
                           </div>
                         )}
@@ -571,7 +577,7 @@ export const FileManager: React.FC = () => {
             <div className="drag-overlay">
               <div className="drag-message">
                 <p>📤</p>
-                <p>Drop files here to upload</p>
+                <p>{t('fileManager.dropToUpload')}</p>
               </div>
             </div>
           )}
@@ -583,7 +589,7 @@ export const FileManager: React.FC = () => {
         <div className="modal-overlay" onClick={() => setShowNewFolderModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Create New Folder</h2>
+              <h2>{t('fileManager.createNewFolder')}</h2>
               <button
                 className="modal-close"
                 onClick={() => setShowNewFolderModal(false)}
@@ -595,7 +601,7 @@ export const FileManager: React.FC = () => {
               <input
                 type="text"
                 className="form-control"
-                placeholder="Folder name"
+                placeholder={t('fileManager.folderName')}
                 value={newFolderName}
                 onChange={(e) => setNewFolderName(e.target.value)}
                 onKeyDown={(e) => {
@@ -612,14 +618,14 @@ export const FileManager: React.FC = () => {
                 className="btn btn-secondary"
                 onClick={() => setShowNewFolderModal(false)}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
                 className="btn btn-primary"
                 onClick={handleCreateFolder}
               >
-                Create
+                {t('common.create')}
               </button>
             </div>
           </div>
@@ -631,7 +637,7 @@ export const FileManager: React.FC = () => {
         <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Confirm Delete</h2>
+              <h2>{t('fileManager.deleteConfirmTitle')}</h2>
               <button
                 className="modal-close"
                 onClick={() => setShowDeleteModal(false)}
@@ -640,9 +646,9 @@ export const FileManager: React.FC = () => {
               </button>
             </div>
             <div className="modal-body">
-              <p>Are you sure you want to delete <strong>"{fileToDelete.name}"</strong>?</p>
+              <p>{t('fileManager.deleteConfirmMessage')} <strong>"{fileToDelete.name}"</strong>?</p>
               {fileToDelete.is_directory && (
-                <p className="warning-text">This will delete the folder and all its contents.</p>
+                <p className="warning-text">{t('fileManager.deleteWarning')}</p>
               )}
             </div>
             <div className="modal-actions">
@@ -651,14 +657,14 @@ export const FileManager: React.FC = () => {
                 className="btn btn-secondary"
                 onClick={() => setShowDeleteModal(false)}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
                 className="btn btn-danger"
                 onClick={confirmDelete}
               >
-                Delete
+                {t('common.delete')}
               </button>
             </div>
           </div>
@@ -696,28 +702,28 @@ export const FileManager: React.FC = () => {
               
               {/* File Information */}
               <div className="file-info">
-                <h3>File Information</h3>
+                <h3>{t('fileManager.fileDetails')}</h3>
                 <div className="info-grid">
                   <div className="info-item">
-                    <span className="info-label">Name:</span>
+                    <span className="info-label">{t('fileManager.fileName')}:</span>
                     <span className="info-value">{selectedFile.name}</span>
                   </div>
                   <div className="info-item">
-                    <span className="info-label">Size:</span>
+                    <span className="info-label">{t('fileManager.fileSize')}:</span>
                     <span className="info-value">{formatSize(selectedFile.size)}</span>
                   </div>
                   <div className="info-item">
-                    <span className="info-label">Modified:</span>
+                    <span className="info-label">{t('fileManager.fileModified')}:</span>
                     <span className="info-value">{formatDate(selectedFile.modified)}</span>
                   </div>
                   <div className="info-item">
-                    <span className="info-label">Type:</span>
+                    <span className="info-label">{t('fileManager.fileType')}:</span>
                     <span className="info-value">
-                      {getFileExtension(selectedFile.name).toUpperCase() || 'Unknown'}
+                      {getFileExtension(selectedFile.name).toUpperCase() || t('fileManager.unknown')}
                     </span>
                   </div>
                   <div className="info-item">
-                    <span className="info-label">Path:</span>
+                    <span className="info-label">{t('fileManager.filePath')}:</span>
                     <span className="info-value path-value">{selectedFile.path}</span>
                   </div>
                 </div>
@@ -729,7 +735,7 @@ export const FileManager: React.FC = () => {
                 className="btn btn-secondary"
                 onClick={closeFileDetailsModal}
               >
-                Close
+                {t('common.close')}
               </button>
               <button
                 type="button"
@@ -739,7 +745,7 @@ export const FileManager: React.FC = () => {
                   closeFileDetailsModal();
                 }}
               >
-                ⬇️ Download
+                ⬇️ {t('common.download')}
               </button>
               <button
                 type="button"
@@ -749,7 +755,7 @@ export const FileManager: React.FC = () => {
                   handleDelete(selectedFile);
                 }}
               >
-                🗑️ Delete
+                🗑️ {t('common.delete')}
               </button>
             </div>
           </div>

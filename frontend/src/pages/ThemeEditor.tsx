@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, Navigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { apiService } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { Alert, Loading } from '../components';
@@ -11,6 +12,7 @@ interface ThemeSettings {
 
 export const ThemeEditor: React.FC = () => {
   const { user, isAdmin, logout, loading: authLoading } = useAuth();
+  const { t } = useTranslation();
   const [theme, setTheme] = useState<ThemeSettings>({});
   const [favicon, setFavicon] = useState<string | null>(null);
   const [appName, setAppName] = useState<string>('MDG Remote Desktop');
@@ -21,22 +23,22 @@ export const ThemeEditor: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const colorFields = [
-    { key: 'color-primary', label: 'Primary Color', description: 'Main brand color' },
-    { key: 'color-primary-dark', label: 'Primary Dark', description: 'Darker shade of primary' },
-    { key: 'color-primary-gradient-start', label: 'Gradient Start', description: 'Start of primary gradient' },
-    { key: 'color-primary-gradient-end', label: 'Gradient End', description: 'End of primary gradient' },
-    { key: 'color-secondary', label: 'Secondary Color', description: 'Secondary actions' },
-    { key: 'color-secondary-dark', label: 'Secondary Dark', description: 'Darker secondary' },
-    { key: 'color-success', label: 'Success Color', description: 'Success states' },
-    { key: 'color-danger', label: 'Danger Color', description: 'Error/danger states' },
-    { key: 'color-danger-hover', label: 'Danger Hover', description: 'Danger button hover' },
-    { key: 'color-warning', label: 'Warning Color', description: 'Warning states' },
-    { key: 'color-info', label: 'Info Color', description: 'Info states' },
-    { key: 'color-gray', label: 'Gray', description: 'Neutral gray' },
-    { key: 'color-gray-dark', label: 'Gray Dark', description: 'Darker gray' },
-    { key: 'color-admin-badge', label: 'Admin Badge', description: 'Admin badge color' },
-    { key: 'color-admin-button', label: 'Admin Button', description: 'Admin button color' },
-    { key: 'color-admin-button-hover', label: 'Admin Button Hover', description: 'Admin button hover' },
+    { key: 'color-primary', label: t('theme.colorPrimary'), description: t('theme.colorPrimaryDesc') },
+    { key: 'color-primary-dark', label: t('theme.colorPrimaryDark'), description: t('theme.colorPrimaryDarkDesc') },
+    { key: 'color-primary-gradient-start', label: t('theme.colorGradientStart'), description: t('theme.colorGradientStartDesc') },
+    { key: 'color-primary-gradient-end', label: t('theme.colorGradientEnd'), description: t('theme.colorGradientEndDesc') },
+    { key: 'color-secondary', label: t('theme.colorSecondary'), description: t('theme.colorSecondaryDesc') },
+    { key: 'color-secondary-dark', label: t('theme.colorSecondaryDark'), description: t('theme.colorSecondaryDarkDesc') },
+    { key: 'color-success', label: t('theme.colorSuccess'), description: t('theme.colorSuccessDesc') },
+    { key: 'color-danger', label: t('theme.colorDanger'), description: t('theme.colorDangerDesc') },
+    { key: 'color-danger-hover', label: t('theme.colorDangerHover'), description: t('theme.colorDangerHoverDesc') },
+    { key: 'color-warning', label: t('theme.colorWarning'), description: t('theme.colorWarningDesc') },
+    { key: 'color-info', label: t('theme.colorInfo'), description: t('theme.colorInfoDesc') },
+    { key: 'color-gray', label: t('theme.colorGray'), description: t('theme.colorGrayDesc') },
+    { key: 'color-gray-dark', label: t('theme.colorGrayDark'), description: t('theme.colorGrayDarkDesc') },
+    { key: 'color-admin-badge', label: t('theme.colorAdminBadge'), description: t('theme.colorAdminBadgeDesc') },
+    { key: 'color-admin-button', label: t('theme.colorAdminButton'), description: t('theme.colorAdminButtonDesc') },
+    { key: 'color-admin-button-hover', label: t('theme.colorAdminButtonHover'), description: t('theme.colorAdminButtonHoverDesc') },
   ];
 
   useEffect(() => {
@@ -54,10 +56,10 @@ export const ThemeEditor: React.FC = () => {
         setAppName(response.theme.app_name || 'MDG Remote Desktop');
         setAppIcon(response.theme.app_icon);
       } else {
-        setError('Failed to load theme');
+        setError(t('theme.failedToLoadTheme'));
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to load theme');
+      setError(err.message || t('theme.failedToLoadTheme'));
     } finally {
       setLoading(false);
     }
@@ -75,23 +77,23 @@ export const ThemeEditor: React.FC = () => {
       setError(null);
       const response = await apiService.updateTheme(theme, favicon || undefined, appName, appIcon || undefined);
       if (response.success) {
-        setSuccessMessage('Theme saved successfully!');
+        setSuccessMessage(t('theme.themeSaved'));
         // Apply all colors
         Object.keys(theme).forEach(key => {
           document.documentElement.style.setProperty(`--${key}`, theme[key]);
         });
       } else {
-        setError(response.error || 'Failed to save theme');
+        setError(response.error || t('theme.failedToSaveTheme'));
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to save theme');
+      setError(err.message || t('theme.failedToSaveTheme'));
     } finally {
       setSaving(false);
     }
   };
 
   const handleReset = async () => {
-    if (!window.confirm('Reset theme to default? This will discard all your changes.')) {
+    if (!window.confirm(t('theme.resetConfirmation'))) {
       return;
     }
 
@@ -105,7 +107,7 @@ export const ThemeEditor: React.FC = () => {
         setFavicon(response.theme.favicon);
         setAppName(response.theme.app_name || 'MDG Remote Desktop');
         setAppIcon(response.theme.app_icon);
-        setSuccessMessage('Theme reset to defaults!');
+        setSuccessMessage(t('theme.themeReset'));
         // Apply default colors
         Object.keys(settings).forEach(key => {
           document.documentElement.style.setProperty(`--${key}`, settings[key]);
@@ -116,10 +118,10 @@ export const ThemeEditor: React.FC = () => {
           updateFaviconInDOM('/favicon.ico');
         }
       } else {
-        setError(response.error || 'Failed to reset theme');
+        setError(response.error || t('theme.failedToResetTheme'));
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to reset theme');
+      setError(err.message || t('theme.failedToResetTheme'));
     } finally {
       setSaving(false);
     }
@@ -139,12 +141,12 @@ export const ThemeEditor: React.FC = () => {
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
-        setSuccessMessage('Theme exported successfully!');
+        setSuccessMessage(t('theme.themeExported'));
       } else {
-        setError(response.error || 'Failed to export theme');
+        setError(response.error || t('theme.failedToExportTheme'));
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to export theme');
+      setError(err.message || t('theme.failedToExportTheme'));
     }
   };
 
@@ -168,16 +170,16 @@ export const ThemeEditor: React.FC = () => {
           }
           setAppName(response.theme.app_name || 'MDG Remote Desktop');
           setAppIcon(response.theme.app_icon);
-          setSuccessMessage('Theme imported successfully!');
+          setSuccessMessage(t('theme.themeImported'));
           // Apply imported colors
           Object.keys(settings).forEach(key => {
             document.documentElement.style.setProperty(`--${key}`, settings[key]);
           });
         } else {
-          setError(response.error || 'Failed to import theme');
+          setError(response.error || t('theme.failedToSaveTheme'));
         }
       } catch (err: any) {
-        setError('Invalid theme file format');
+        setError(t('theme.invalidThemeFile'));
       } finally {
         // Reset the input so the same file can be imported again
         event.target.value = '';
@@ -195,14 +197,14 @@ export const ThemeEditor: React.FC = () => {
     const fileExtension = file.name.split('.').pop()?.toLowerCase();
     
     if (!file.type.startsWith('image/') || !validExtensions.includes(fileExtension || '')) {
-      setError('Please upload a valid image file (PNG, JPG, ICO, GIF, or SVG)');
+      setError(t('theme.faviconInvalidType'));
       event.target.value = '';
       return;
     }
 
     // Check file size (max 1MB)
     if (file.size > 1048576) {
-      setError('Favicon file size must be less than 1MB');
+      setError(t('theme.faviconTooLarge'));
       event.target.value = '';
       return;
     }
@@ -213,9 +215,9 @@ export const ThemeEditor: React.FC = () => {
         const base64 = e.target?.result as string;
         setFavicon(base64);
         updateFaviconInDOM(base64);
-        setSuccessMessage('Favicon updated! Remember to save your changes.');
+        setSuccessMessage(t('theme.faviconUpdated'));
       } catch (err: any) {
-        setError('Failed to upload favicon');
+        setError(t('theme.failedToSaveTheme'));
       } finally {
         event.target.value = '';
       }
@@ -232,14 +234,14 @@ export const ThemeEditor: React.FC = () => {
     const fileExtension = file.name.split('.').pop()?.toLowerCase();
     
     if (!file.type.startsWith('image/') || !validExtensions.includes(fileExtension || '')) {
-      setError('Please upload a valid image file (PNG, JPG, GIF, or SVG)');
+      setError(t('theme.appIconInvalidType'));
       event.target.value = '';
       return;
     }
 
     // Check file size (max 2MB)
     if (file.size > 2097152) {
-      setError('App icon file size must be less than 2MB');
+      setError(t('theme.appIconTooLarge'));
       event.target.value = '';
       return;
     }
@@ -249,9 +251,9 @@ export const ThemeEditor: React.FC = () => {
       try {
         const base64 = e.target?.result as string;
         setAppIcon(base64);
-        setSuccessMessage('App icon updated! Remember to save your changes.');
+        setSuccessMessage(t('theme.appIconUpdated'));
       } catch (err: any) {
-        setError('Failed to upload app icon');
+        setError(t('theme.failedToSaveTheme'));
       } finally {
         event.target.value = '';
       }
@@ -272,7 +274,7 @@ export const ThemeEditor: React.FC = () => {
   if (authLoading || loading) {
     return (
       <div className="container">
-        <Loading message="Loading theme settings..." />
+        <Loading message={t('theme.loading')} />
       </div>
     );
   }
@@ -284,25 +286,25 @@ export const ThemeEditor: React.FC = () => {
   return (
     <div className="container">
       <header className="header">
-        <h1>🎨 Theme Settings</h1>
+        <h1>🎨 {t('theme.title')}</h1>
         <div className="user-info">
-          <span className="username">{user?.username} (Admin)</span>
+          <span className="username">{user?.username} ({t('admin.admin')})</span>
           <Link to="/admin" className="btn btn-secondary">
-            ← Back to Admin
+            {t('theme.backToAdmin')}
           </Link>
           <Link to="/" className="btn btn-secondary">
-            🏠 Desktops
+            {t('theme.desktops')}
           </Link>
           <button className="btn btn-secondary" onClick={logout}>
-            Logout
+            {t('common.logout')}
           </button>
         </div>
       </header>
 
       <div className="theme-editor">
       <div className="theme-editor-header">
-        <h2>🎨 Theme Customization</h2>
-        <p>Customize the look and feel of your application</p>
+        <h2>🎨 {t('theme.customization')}</h2>
+        <p>{t('theme.customizationDesc')}</p>
       </div>
 
       {error && <Alert type="error" message={error} onDismiss={() => setError(null)} />}
@@ -312,13 +314,13 @@ export const ThemeEditor: React.FC = () => {
 
       <div className="theme-editor-actions">
         <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-          💾 Save Theme
+          {t('theme.saveTheme')}
         </button>
         <button className="btn btn-secondary" onClick={handleExport}>
-          📥 Export Theme
+          {t('theme.exportTheme')}
         </button>
         <label className="btn btn-secondary file-upload-btn">
-          📤 Import Theme
+          {t('theme.importTheme')}
           <input
             type="file"
             accept=".json"
@@ -327,22 +329,22 @@ export const ThemeEditor: React.FC = () => {
           />
         </label>
         <button className="btn btn-danger" onClick={handleReset} disabled={saving}>
-          🔄 Reset to Default
+          {t('theme.resetToDefault')}
         </button>
       </div>
 
       <div className="theme-section">
-        <h3>Favicon</h3>
+        <h3>{t('theme.favicon')}</h3>
         <div className="favicon-upload">
           <div className="favicon-preview">
             {favicon ? (
-              <img src={favicon} alt="Favicon preview" />
+              <img src={favicon} alt={t('theme.faviconPreview')} />
             ) : (
-              <div className="favicon-placeholder">No custom favicon</div>
+              <div className="favicon-placeholder">{t('theme.noCustomFavicon')}</div>
             )}
           </div>
           <label className="btn btn-primary file-upload-btn">
-            Upload Favicon
+            {t('theme.faviconUpload')}
             <input
               type="file"
               accept="image/*"
@@ -354,35 +356,35 @@ export const ThemeEditor: React.FC = () => {
       </div>
 
       <div className="theme-section">
-        <h3>Application Branding</h3>
+        <h3>{t('theme.appBranding')}</h3>
         <div className="branding-section">
           <div className="form-group">
-            <label htmlFor="app-name">Application Name</label>
+            <label htmlFor="app-name">{t('theme.appName')}</label>
             <input
               id="app-name"
               type="text"
               value={appName}
               onChange={(e) => setAppName(e.target.value)}
               className="form-input"
-              placeholder="MDG Remote Desktop"
+              placeholder={t('theme.appNamePlaceholder')}
               maxLength={255}
             />
-            <p className="form-help">This name will appear in the login page and header</p>
+            <p className="form-help">{t('theme.appNameHelp')}</p>
           </div>
           
           <div className="form-group">
-            <label>Application Icon</label>
+            <label>{t('theme.appIcon')}</label>
             <div className="icon-upload">
               <div className="icon-preview">
                 {appIcon ? (
-                  <img src={appIcon} alt="App icon preview" />
+                  <img src={appIcon} alt={t('theme.appIconPreview')} />
                 ) : (
-                  <div className="icon-placeholder">🖥️</div>
+                  <div className="icon-placeholder">{t('theme.appIconPlaceholder')}</div>
                 )}
               </div>
               <div>
                 <label className="btn btn-primary file-upload-btn">
-                  Upload App Icon
+                  {t('theme.appIconUpload')}
                   <input
                     type="file"
                     accept="image/*"
@@ -396,10 +398,10 @@ export const ThemeEditor: React.FC = () => {
                     onClick={() => setAppIcon(null)}
                     style={{ marginLeft: '10px' }}
                   >
-                    Remove Icon
+                    {t('theme.removeIcon')}
                   </button>
                 )}
-                <p className="form-help">Recommended: PNG or SVG, max 2MB</p>
+                <p className="form-help">{t('theme.appIconHelp')}</p>
               </div>
             </div>
           </div>
@@ -407,7 +409,7 @@ export const ThemeEditor: React.FC = () => {
       </div>
 
       <div className="theme-section">
-        <h3>Color Palette</h3>
+        <h3>{t('theme.colorPalette')}</h3>
         <div className="color-grid">
           {colorFields.map(field => (
             <div key={field.key} className="color-field">
@@ -438,7 +440,7 @@ export const ThemeEditor: React.FC = () => {
       {saving && (
         <div className="loading-overlay">
           <div className="loading-content">
-            <Loading message="Saving theme..." />
+            <Loading message={t('theme.saving')} />
           </div>
         </div>
       )}
