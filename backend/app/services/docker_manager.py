@@ -580,12 +580,12 @@ class DockerManager:
             return None
         
         # Get host from environment
-        host = os.environ.get('DOCKER_HOST_URL', 'localhost')
+        prefix = os.environ.get('CONTAINER_PREFIX', 'desktop')
         
         # Use subdomain routing: desktop-container-name.hub.mdg-hamburg.de
         # Format matches wildcard SSL cert *.hub.mdg-hamburg.de
         # Apache's RewriteMap queries Flask API to get container IP:port
-        return f"https://desktop-{container_record.proxy_path}.hub.mdg-hamburg.de/"
+        return f"https://{prefix}-{container_record.proxy_path}.hub.mdg-hamburg.de/"
     
     def pull_image(self, image_name, emit_callback=None):
         """
