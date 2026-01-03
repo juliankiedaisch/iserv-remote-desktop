@@ -32,7 +32,9 @@ def get_container_target(proxy_path):
     ).first()
     
     if not container or not container.host_port:
-        current_app.logger.warning(f"Error Apache API: No Target, {proxy_path}")
+        # Log all running containers for debugging
+        all_running = Container.query.filter_by(status='running').all()
+        current_app.logger.warning(f"Error Apache API: No Target for proxy_path='{proxy_path}'. Running containers: {[(c.container_name, c.proxy_path, c.host_port) for c in all_running]}")
         return jsonify({"target": None})
     
     # Return Docker host IP with mapped port
