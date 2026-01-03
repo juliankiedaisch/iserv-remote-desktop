@@ -2,7 +2,6 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { User } from '../types';
-import { LanguageSwitcher } from './LanguageSwitcher';
 import './Header.css';
 
 interface HeaderProps {
@@ -55,7 +54,6 @@ export const Header: React.FC<HeaderProps> = ({
             ⚙️
           </Link>
         )}
-        <LanguageSwitcher />
         <button className="btn btn-secondary" onClick={onLogout}>
           {t('common.logout')}
         </button>

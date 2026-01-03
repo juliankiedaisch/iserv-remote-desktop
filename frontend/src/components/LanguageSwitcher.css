@@ -1,23 +1,107 @@
-.language-switcher {
-  padding: 8px 16px;
+.language-switcher-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+}
+
+.language-switcher-circle {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
   border: none;
-  border-radius: 6px;
-  background-color: rgba(255, 255, 255, 0.1);
-  color: inherit;
+  background: linear-gradient(135deg, #73aacf 0%, #2978bd 100%);
+  color: white;
   cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1);
   transition: all 0.3s ease;
+  font-weight: 600;
+}
+
+.language-switcher-circle:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2), 0 3px 6px rgba(0, 0, 0, 0.15);
+}
+
+.language-switcher-circle:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15), 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.language-flag {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.language-code {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.language-menu {
+  position: absolute;
+  bottom: 70px;
+  right: 0;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  min-width: 160px;
+  animation: slideUp 0.2s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.language-menu-item {
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  background: white;
+  color: #333;
+  cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background-color 0.2s ease;
+  text-align: left;
 }
 
-.language-switcher:hover {
-  background-color: rgba(255, 255, 255, 0.2);
-  transform: translateY(-1px);
+.language-menu-item:hover {
+  background-color: #f5f5f5;
 }
 
-.language-switcher:active {
-  transform: translateY(0);
+.language-menu-item.active {
+  background-color: #e8eaf6;
+  color: #667eea;
+}
+
+.language-menu-item .language-flag {
+  font-size: 20px;
+}
+
+.language-menu-item .language-name {
+  flex: 1;
+}
+
+.language-menu-item .checkmark {
+  color: #667eea;
+  font-weight: bold;
+  font-size: 16px;
 }

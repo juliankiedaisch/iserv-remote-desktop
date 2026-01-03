@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Dashboard, AdminPanel, Login, ThemeEditor, DesktopTypesManager, AssignmentManager, FileManager } from './pages';
 import { useAuth } from './hooks/useAuth';
 import { useTheme } from './hooks/useTheme';
-import { Loading } from './components';
+import { Loading, LanguageSwitcher } from './components';
 import './App.css';
 
 // Protected Route component
@@ -86,6 +86,7 @@ function App() {
           />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        <LanguageSwitcher />
       </div>
     </Router>
   );
