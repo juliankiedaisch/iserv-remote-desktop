@@ -3,6 +3,10 @@
 Apache RewriteMap script to look up container targets from Flask API.
 Receives subdomain, returns container IP:port or NULL.
 
+NOTE: With the new nginx proxy architecture, this script is now OPTIONAL.
+The nginx proxy in docker-compose handles subdomain routing through the backend.
+However, this script can still be used if you prefer Apache to do direct routing.
+
 Usage in Apache config:
 RewriteMap containermap "prg:/path/to/get_container_target.py"
 RewriteRule pattern ${containermap:%{HTTP_HOST}}
@@ -13,7 +17,8 @@ import requests
 from urllib.parse import quote
 
 # Flask API configuration
-FLASK_API_URL = "http://172.22.0.27:5021/api/apache/container-target"
+# Update these to match your deployment
+FLASK_API_URL = "http://172.22.0.27:8080/api/apache/container-target"
 APACHE_API_KEY = "your-secure-random-key-here"  # Must match Flask APACHE_API_KEY
 
 def get_container_target(subdomain):

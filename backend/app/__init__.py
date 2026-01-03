@@ -85,6 +85,7 @@ def create_app(debug=False):
     from app.routes.teacher_routes import teacher_bp
     from app.routes.theme_routes import theme_routes
     from app.routes.file_routes import file_bp
+    from app.routes.container_proxy_routes import container_proxy_bp
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(container_bp, url_prefix='/api')
     app.register_blueprint(admin_bp, url_prefix='/api')
@@ -94,6 +95,7 @@ def create_app(debug=False):
     app.register_blueprint(teacher_bp)
     app.register_blueprint(theme_routes)
     app.register_blueprint(file_bp, url_prefix='/api')
+    app.register_blueprint(container_proxy_bp)
     
     # Initialize and start background scheduler
     from app.services.scheduler import scheduler, check_idle_containers
