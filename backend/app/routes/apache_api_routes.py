@@ -3,6 +3,7 @@ API endpoint for Apache RewriteMap to query container targets.
 """
 from flask import Blueprint, request, jsonify, current_app
 from app.models.containers import Container
+from sqlalchemy import func
 import subprocess
 import os
 
@@ -25,10 +26,10 @@ def get_container_target(proxy_path):
         current_app.logger.warning(f"Error Apache API: No Correct API KEY")
         return jsonify({"error": "Unauthorized"}), 401
     
-    # Look up running container by proxy_path
-    container = Container.query.filter_by(
-        proxy_path=proxy_path,
-        status='running'
+    # Look up running container by proxy_path (case-insensitive)
+    container = Container.query.filter(
+        func.lower(Container.proxy_path) == func.lower(proxy_path),
+        Container.status == 'running'
     ).first()
     
     if not container or not container.host_port:
