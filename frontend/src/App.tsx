@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Dashboard, AdminPanel, Login, ThemeEditor, DesktopTypesManager, AssignmentManager, FileManager } from './pages';
 import { useAuth } from './hooks/useAuth';
 import { useTheme } from './hooks/useTheme';
@@ -9,11 +10,12 @@ import './App.css';
 // Protected Route component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { authenticated, loading } = useAuth();
+  const { t } = useTranslation();
 
   if (loading) {
     return (
       <div className="App">
-        <Loading message="Loading..." />
+        <Loading message={t('common.loading')} />
       </div>
     );
   }

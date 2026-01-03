@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
-import { Loading } from '../components';
+import { useTranslation } from 'react-i18next';
+import { Loading, LanguageSwitcher } from '../components';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../hooks/useTheme';
 import './Login.css';
@@ -8,11 +9,12 @@ import './Login.css';
 export const Login: React.FC = () => {
   const { authenticated, loading, login, error } = useAuth();
   const { themeData } = useTheme();
+  const { t } = useTranslation();
 
   if (loading) {
     return (
       <div className="login-container">
-        <Loading message="Checking session..." />
+        <Loading message={t('common.checkingSession')} />
       </div>
     );
   }
@@ -23,6 +25,9 @@ export const Login: React.FC = () => {
 
   return (
     <div className="login-container">
+      <div className="login-language-switcher">
+        <LanguageSwitcher />
+      </div>
       <div className="login-card">
         <div className="login-header">
           {themeData.app_icon ? (
@@ -31,7 +36,7 @@ export const Login: React.FC = () => {
             <span className="login-icon-emoji">🖥️</span>
           )}
           <h1>{themeData.app_name}</h1>
-          <p>Login mit IServ, um auf Ihre Remote-Desktops zuzugreifen</p>
+          <p>{t('auth.loginDescription')}</p>
         </div>
 
         {error && (
@@ -41,7 +46,7 @@ export const Login: React.FC = () => {
         )}
 
         <button className="btn btn-primary login-button" onClick={login}>
-          Login mit IServ
+          {t('auth.loginWithIServ')}
         </button>
 
       </div>

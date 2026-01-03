@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Container, DesktopType } from '../types';
 import './DesktopCard.css';
 
@@ -12,15 +13,15 @@ interface DesktopCardProps {
   isStopping: boolean;
 }
 
-function formatRelativeTime(dateString: string): string {
+function formatRelativeTime(dateString: string, t: any): string {
   const date = new Date(dateString);
   const now = new Date();
   const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
   
-  if (seconds < 60) return 'just now';
-  if (seconds < 3600) return Math.floor(seconds / 60) + ' minutes ago';
-  if (seconds < 86400) return Math.floor(seconds / 3600) + ' hours ago';
-  return Math.floor(seconds / 86400) + ' days ago';
+  if (seconds < 60) return t('desktopCard.justNow');
+  if (seconds < 3600) return t('desktopCard.minutesAgo', { count: Math.floor(seconds / 60) });
+  if (seconds < 86400) return t('desktopCard.hoursAgo', { count: Math.floor(seconds / 3600) });
+  return t('desktopCard.daysAgo', { count: Math.floor(seconds / 86400) });
 }
 
 export const DesktopCard: React.FC<DesktopCardProps> = ({
@@ -32,6 +33,7 @@ export const DesktopCard: React.FC<DesktopCardProps> = ({
   isStarting,
   isStopping,
 }) => {
+  const { t } = useTranslation();
   const isRunning = container?.status === 'running';
   const isLoading = isStarting || isStopping;
 
@@ -69,12 +71,20 @@ export const DesktopCard: React.FC<DesktopCardProps> = ({
       
       <div className="desktop-status">
         <span className={`status-indicator ${isRunning ? 'running' : 'stopped'}`}></span>
-        <span>{isStarting ? 'Starting...' : isStopping ? 'Stopping...' : isRunning ? 'Running' : 'Stopped'}</span>
+        <span>
+          {isStarting 
+            ? t('common.starting')
+            : isStopping 
+            ? t('common.stopping')
+            : isRunning 
+            ? t('desktopCard.running')
+            : t('desktopCard.stopped')}
+        </span>
       </div>
       
       {container?.last_accessed && (
         <div className="desktop-meta">
-          Last accessed: {formatRelativeTime(container.last_accessed)}
+          {t('desktopCard.lastAccessed')}: {formatRelativeTime(container.last_accessed, t)}
         </div>
       )}
       
@@ -86,14 +96,14 @@ export const DesktopCard: React.FC<DesktopCardProps> = ({
               onClick={handleOpen}
               disabled={isLoading}
             >
-              Open
+              {t('common.open')}
             </button>
             <button 
               className="btn btn-danger" 
               onClick={handleStop}
               disabled={isLoading}
             >
-              {isStopping ? 'Stopping...' : 'Stop'}
+              {isStopping ? t('common.stopping') : t('common.stop')}
             </button>
           </>
         ) : (
@@ -102,7 +112,7 @@ export const DesktopCard: React.FC<DesktopCardProps> = ({
             onClick={handleStart}
             disabled={isLoading}
           >
-            {isStarting ? 'Starting...' : 'Start'}
+            {isStarting ? t('common.starting') : t('common.start')}
           </button>
         )}
       </div>
