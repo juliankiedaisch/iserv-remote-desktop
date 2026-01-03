@@ -52,17 +52,21 @@ def authorize():
         # Check state parameter manually first
         received_state = request.args.get('state')
         cookie_state = request.cookies.get('oauth_state')
+        session_state = session.get('oauth_state')
         
         current_app.logger.info(f"OAuth Callback - Received state: {received_state}")
         current_app.logger.info(f"OAuth Callback - Cookie state: {cookie_state}")
+        current_app.logger.info(f"OAuth Callback - Session state: {session_state}")
 
         if not cookie_state or received_state != cookie_state:
             raise Exception("State parameter mismatch. Possible CSRF attack.")
         
-        # Set session state to match received state
+        # CRITICAL: Set session state BEFORE calling authorize_access_token
+        # Authlib checks session['oauth_state'] internally
         session['oauth_state'] = received_state
         session.modified = True
-        # Proceed with token exchange
+        
+        # Proceed with token exchange - this will validate state against session
         token = oauth.oauth_provider.authorize_access_token()
         
         user_info = token.get("userinfo") 

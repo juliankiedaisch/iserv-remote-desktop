@@ -16,6 +16,7 @@ class Config:
     
     # Frontend URL for redirects after auth
     FRONTEND_URL = os.environ.get('FRONTEND_URL')
+    SERVER_NAME = os.environ.get('SERVER_NAME')
 
     #Rolemanagement
     ROLE_TEACHER = os.environ.get('ROLE_TEACHER')

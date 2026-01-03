@@ -26,24 +26,23 @@ def create_app(debug=False):
     # Add or update in your app's configuration
     app.config['SECRET_KEY'] = '9Hn8Nw2MvqKUL7o4JbSFOyzpgI_suZ81av0P5J1bbzgak'  # Use a strong, random key
     app.config['SESSION_TYPE'] = 'filesystem'
-    app.config['SESSION_COOKIE_DOMAIN'] = f'.{urlparse(app.config["FRONTEND_URL"]).hostname}'
-    app.config['SESSION_COOKIE_SECURE'] = False
+    app.config['SESSION_COOKIE_DOMAIN'] = app.config['SERVER_NAME']
+    # Don't set SESSION_COOKIE_DOMAIN - let it default to the request host
+    # This avoids cross-domain cookie issues with OAuth callbacks
+    app.config['SESSION_COOKIE_SECURE'] = False  # Set to True if using HTTPS in production
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
     app.config['SESSION_COOKIE_PATH'] = '/'
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
     
     # Important: Set the correct server name if using subdomain session cookies
-    app.config['SERVER_NAME'] = urlparse(app.config["FRONTEND_URL"]).hostname  # Adjust to your domain
     #app.config['PREFERRED_URL_SCHEME'] = 'https'
     app.config['APPLICATION_ROOT'] = '/'
     
     # Fix for proxied requests
     app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1, x_port=1, x_prefix=1)
 
-
-    
     # Enable CORS for both Flask routes and WebSocket
-    CORS(app, supports_credentials=True, origins=[app.config["FRONTEND_URL"]])
-    
+    CORS(app, supports_credentials=True, origins=[app.config["SERVER_NAME"]])    
     
     # Initialize extensions with app
     db.init_app(app)
@@ -80,7 +79,6 @@ def create_app(debug=False):
     from app.routes.auth_routes import auth_bp
     from app.routes.container_routes import container_bp
     from app.routes.admin_routes import admin_bp
-    from app.routes.proxy_routes import proxy_bp
     from app.routes.debug_routes import debug_bp
     from app.routes.apache_api_routes import apache_api_bp
     from app.routes.desktop_admin_routes import desktop_admin_bp
@@ -90,7 +88,6 @@ def create_app(debug=False):
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(container_bp, url_prefix='/api')
     app.register_blueprint(admin_bp, url_prefix='/api')
-    app.register_blueprint(proxy_bp, url_prefix='/api')
     app.register_blueprint(debug_bp, url_prefix='/api')
     app.register_blueprint(apache_api_bp)
     app.register_blueprint(desktop_admin_bp)
@@ -99,7 +96,7 @@ def create_app(debug=False):
     app.register_blueprint(file_bp, url_prefix='/api')
     
     # Initialize and start background scheduler
-    from app.services.scheduler import scheduler, check_idle_containers, cleanup_old_containers
+    from app.services.scheduler import scheduler, check_idle_containers
     scheduler.init_app(app)
     
     # Add scheduled tasks
