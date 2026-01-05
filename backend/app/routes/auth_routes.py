@@ -13,6 +13,9 @@ auth_bp = Blueprint('auth', __name__)
 @auth_bp.route('/login')
 def login():
     """Redirect to OAuth provider login with explicit state handling"""
+    # Clear any existing Flask session data
+    session.clear()
+    
     # Generate state
     state = secrets.token_urlsafe(32)
     
@@ -33,7 +36,11 @@ def login():
         state=state
     )
     
-    # Set state cookie with same value
+    # Clear both oauth_state cookie AND Flask session cookie to force fresh session
+    response.delete_cookie('oauth_state', path='/')
+    response.delete_cookie('session', path='/')  # Clear Flask session cookie
+    
+    # Set new oauth_state cookie
     response.set_cookie(
         'oauth_state', 
         state,
@@ -53,21 +60,20 @@ def authorize():
         # Check state parameter manually first
         received_state = request.args.get('state')
         cookie_state = request.cookies.get('oauth_state')
-        session_state = session.get('oauth_state')
         
         current_app.logger.info(f"OAuth Callback - Received state: {received_state}")
         current_app.logger.info(f"OAuth Callback - Cookie state: {cookie_state}")
-        current_app.logger.info(f"OAuth Callback - Session state: {session_state}")
 
-        if not cookie_state or received_state != cookie_state:
+        # Validate using cookie-based state (reliable across devices)
+        if not cookie_state or not received_state or received_state != cookie_state:
             raise Exception("State parameter mismatch. Possible CSRF attack.")
         
-        # CRITICAL: Set session state BEFORE calling authorize_access_token
-        # Authlib checks session['oauth_state'] internally
+        # Set session state for Authlib's internal validation
+        # Must be set before calling authorize_access_token()
         session['oauth_state'] = received_state
         session.modified = True
         
-        # Proceed with token exchange - this will validate state against session
+        # Proceed with token exchange
         token = oauth.oauth_provider.authorize_access_token()
         
         user_info = token.get("userinfo") 

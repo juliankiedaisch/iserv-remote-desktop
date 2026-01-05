@@ -26,10 +26,9 @@ def create_app(debug=False):
     # Add or update in your app's configuration
     app.config['SECRET_KEY'] = '9Hn8Nw2MvqKUL7o4JbSFOyzpgI_suZ81av0P5J1bbzgak'  # Use a strong, random key
     app.config['SESSION_TYPE'] = 'filesystem'
-    app.config['SESSION_COOKIE_DOMAIN'] = app.config['SERVER_NAME']
     # Don't set SESSION_COOKIE_DOMAIN - let it default to the request host
     # This avoids cross-domain cookie issues with OAuth callbacks
-    app.config['SESSION_COOKIE_SECURE'] = False  # Set to True if using HTTPS in production
+    app.config['SESSION_COOKIE_SECURE'] = True  # Required for HTTPS
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
     app.config['SESSION_COOKIE_PATH'] = '/'
     app.config['SESSION_COOKIE_HTTPONLY'] = True
