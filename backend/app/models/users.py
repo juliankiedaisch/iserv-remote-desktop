@@ -71,7 +71,7 @@ class User(db.Model):
             if user.role_override is None:
                 user.role = role
             else:
-                # Keep the override but store OAuth role in a comment-like manner
+                # Use the override instead of the OAuth role
                 user.role = user.role_override
         
         return user

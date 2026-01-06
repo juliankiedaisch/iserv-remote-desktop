@@ -262,14 +262,16 @@ export const UserManagement: React.FC = () => {
                     <div className="action-buttons">
                       <select
                         className="role-select"
-                        value={u.role_override || u.oauth_role || u.role}
+                        value="current"
                         onChange={(e) => {
                           const value = e.target.value;
-                          handleRoleChange(u, value === 'remove' ? null : value);
+                          if (value !== 'current') {
+                            handleRoleChange(u, value === 'remove' ? null : value);
+                          }
                         }}
                         disabled={actionLoading}
                       >
-                        <option value={u.role_override || u.oauth_role || u.role}>
+                        <option value="current">
                           Current: {u.role.toUpperCase()}
                         </option>
                         <option value="admin">Set to Admin</option>
