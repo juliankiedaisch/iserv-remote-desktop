@@ -24,7 +24,8 @@ def create_app(debug=False):
     else:
         app.config.from_object('app.config.ProductionConfig')
     # Add or update in your app's configuration
-    app.config['SECRET_KEY'] = '9Hn8Nw2MvqKUL7o4JbSFOyzpgI_suZ81av0P5J1bbzgak'  # Use a strong, random key
+    # IMPORTANT: SECRET_KEY should be set in environment variable for security
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', '9Hn8Nw2MvqKUL7o4JbSFOyzpgI_suZ81av0P5J1bbzgak')
     app.config['SESSION_TYPE'] = 'filesystem'
     # Don't set SESSION_COOKIE_DOMAIN - let it default to the request host
     # This avoids cross-domain cookie issues with OAuth callbacks

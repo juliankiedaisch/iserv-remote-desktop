@@ -13,13 +13,18 @@ auth_bp = Blueprint('auth', __name__)
 @auth_bp.route('/login')
 def login():
     """Redirect to OAuth provider login with explicit state handling"""
-    # Clear any existing Flask session data
+    # Log all incoming cookies for debugging
+    current_app.logger.info(f"OAuth Login - Incoming cookies: {dict(request.cookies)}")
+    
+    # Force a completely new session by clearing and regenerating
     session.clear()
+    # Force Flask to generate a new session ID
+    session.modified = True
     
     # Generate state
     state = secrets.token_urlsafe(32)
     
-    # Store state in session
+    # Store state in NEW session
     session['oauth_state'] = state
     session.modified = True
     
@@ -36,9 +41,27 @@ def login():
         state=state
     )
     
-    # Clear both oauth_state cookie AND Flask session cookie to force fresh session
-    response.delete_cookie('oauth_state', path='/')
-    response.delete_cookie('session', path='/')  # Clear Flask session cookie
+    # Aggressively clear ALL possible session and oauth_state cookies
+    # Try multiple combinations of path/domain to ensure cleanup
+    domain = current_app.config.get('SERVER_NAME', request.host.split(':')[0])
+    
+    # Clear oauth_state cookie with various combinations
+    response.delete_cookie('oauth_state', path='/', domain=None)
+    response.delete_cookie('oauth_state', path='/', domain=domain)
+    response.delete_cookie('oauth_state', path='/api', domain=None)
+    response.delete_cookie('oauth_state', path='/api', domain=domain)
+    
+    # Aggressively clear Flask session cookies with all combinations
+    response.delete_cookie('session', path='/', domain=None)
+    response.delete_cookie('session', path='/', domain=domain)
+    response.delete_cookie('session', path='/api', domain=None)
+    response.delete_cookie('session', path='/api', domain=domain)
+    
+    # Also try clearing with secure flags
+    response.set_cookie('session', '', path='/', expires=0, secure=True, httponly=True, samesite='Lax')
+    response.set_cookie('session', '', path='/', expires=0, domain=domain, secure=True, httponly=True, samesite='Lax')
+    
+    current_app.logger.info(f"OAuth Login - Cleared all old cookies, setting new oauth_state")
     
     # Set new oauth_state cookie
     response.set_cookie(
@@ -57,24 +80,52 @@ def login():
 def authorize():
     """Handle OAuth callback with explicit state validation"""
     try:
+        # Log all incoming cookies and session state for debugging
+        current_app.logger.info(f"OAuth Callback - All cookies: {dict(request.cookies)}")
+        current_app.logger.info(f"OAuth Callback - Session before: {dict(session)}")
+        
         # Check state parameter manually first
         received_state = request.args.get('state')
         cookie_state = request.cookies.get('oauth_state')
+        session_state = session.get('oauth_state')
         
         current_app.logger.info(f"OAuth Callback - Received state: {received_state}")
         current_app.logger.info(f"OAuth Callback - Cookie state: {cookie_state}")
+        current_app.logger.info(f"OAuth Callback - Session state (before set): {session_state}")
 
         # Validate using cookie-based state (reliable across devices)
         if not cookie_state or not received_state or received_state != cookie_state:
             raise Exception("State parameter mismatch. Possible CSRF attack.")
         
-        # Set session state for Authlib's internal validation
-        # Must be set before calling authorize_access_token()
+        # Clear any old session state and set the validated state
+        session.clear()
         session['oauth_state'] = received_state
         session.modified = True
         
-        # Proceed with token exchange
-        token = oauth.oauth_provider.authorize_access_token()
+        current_app.logger.info(f"OAuth Callback - Session state (after set): {session.get('oauth_state')}")
+        
+        # Bypass Authlib's state validation by manually fetching the token
+        # We've already validated the state securely using cookies
+        from authlib.integrations.requests_client import OAuth2Session as AuthlibOAuth2Session
+        
+        # Create OAuth2 session for token exchange
+        client = AuthlibOAuth2Session(
+            client_id=oauth.oauth_provider.client_id,
+            client_secret=oauth.oauth_provider.client_secret,
+            redirect_uri=os.environ.get('OAUTH_REDIRECT_URI'),
+            state=received_state
+        )
+        
+        # Exchange authorization code for access token
+        token = client.fetch_token(
+            url=current_app.config['OAUTH_TOKEN_URL'],
+            authorization_response=request.url,
+        )
+        
+        # Fetch user info using the access token
+        resp = client.get(current_app.config['OAUTH_USERINFO_URL'])
+        user_info = resp.json()
+        token['userinfo'] = user_info
         
         user_info = token.get("userinfo") 
         
