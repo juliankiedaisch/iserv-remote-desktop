@@ -1,0 +1,81 @@
+USER MANAGEMENT UI - VISUAL DESCRIPTION
+========================================
+
+The User Management page features:
+
+HEADER SECTION:
+- Purple gradient background (same as main app)
+- App title on the left: "🖥️ MDG Remote Desktop"
+- Admin username and logout button on the right
+
+MAIN CONTENT AREA:
+- White background with rounded corners
+- Clean, modern design with good spacing
+
+PAGE HEADER:
+- Large title: "👥 User Management"
+- "Back to Admin Panel" button (gray)
+- "🔄 Refresh" button (blue)
+
+FILTERS SECTION (2 columns):
+- Search box with 🔍 icon
+  - Placeholder: "Search by username, email, or ID..."
+  - Full width input field
+- Role filter dropdown
+  - Options: All Roles, Admin, Teacher, Student
+
+STATS SUMMARY (gray background, rounded):
+- "Total Users: 15"
+- "Filtered: 15"
+
+USER TABLE:
+- Professional table with 8 columns:
+  1. Username (bold text)
+  2. Email
+  3. Current Role (colored badge)
+  4. OAuth Role (colored badge)
+  5. Override Status (badge)
+  6. Groups (small gray badges, shows first 3 + count)
+  7. Assignments (number)
+  8. Actions (dropdown selector)
+
+ROLE BADGE COLORS:
+- Admin: Red (#dc3545)
+- Teacher: Yellow (#ffc107)
+- Student: Green (#28a745)
+
+OVERRIDE STATUS BADGES:
+- Overridden: Orange (#ff9800) with ⚠️ icon
+- OAuth: Gray (#6c757d)
+
+TABLE FEATURES:
+- Purple header row matching app theme
+- Hover effect on rows (light gray background)
+- Clean borders between rows
+- Professional typography
+
+EXAMPLE ROWS SHOWN:
+1. john.admin - Admin with OAuth role (no override)
+2. sarah.teacher - Admin with override (originally Teacher)
+3. mike.jones - Teacher with OAuth role (no override)
+4. alice.student - Student with OAuth role (no override)
+5. bob.smith - Student with OAuth role (no override)
+
+ROLE CHANGE DROPDOWN:
+- Shows "Current: [ROLE]" as default
+- Options: Set to Admin, Set to Teacher, Set to Student
+- Extra option for overridden users: "Remove Override"
+
+RESPONSIVE DESIGN:
+- Adapts to different screen sizes
+- Mobile-friendly breakpoints
+- Maintains readability on all devices
+
+COLOR SCHEME:
+- Primary: Purple gradient (#667eea to #764ba2)
+- Secondary: Gray (#6c757d)
+- Success: Green (#28a745)
+- Warning: Yellow/Orange (#ffc107, #ff9800)
+- Danger: Red (#dc3545)
+- Background: White
+- Text: Dark gray (#333)

@@ -4,6 +4,7 @@ from app.models.oauth_session import OAuthSession
 from datetime import datetime, timezone, timedelta
 from app import db
 import requests, os
+from app.i18n import get_message, get_language_from_request
 
 def require_auth(f):
     @wraps(f)
@@ -155,62 +156,103 @@ def check_auth(f):
     return decorated_function
 
 def require_admin(f):
+    """Decorator to require admin role"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # Check if we're being called after require_auth (user dict is first arg)
-        if args and isinstance(args[0], dict) and 'role' in args[0]:
-            user = args[0]
-            if user['role'] != 'admin':
-                return jsonify({'error': 'Admin privileges required'}), 403
-            # Pass through the arguments as-is
-            return f(*args, **kwargs)
+        lang = get_language_from_request()
         
-        # Otherwise, do the full auth check ourselves
-        session_id = None
-        
-        # Check query parameter
+        # Get session ID from various sources
         session_id = request.args.get('session_id')
         
-        # Check X-Session-ID header
         if not session_id:
             session_id = request.headers.get('X-Session-ID')
         
-        # Check Authorization header with Bearer token
         if not session_id:
             auth_header = request.headers.get('Authorization')
             if auth_header and auth_header.startswith('Bearer '):
                 session_id = auth_header.split(' ')[1]
         
         if not session_id:
-            return jsonify({'error': 'Authentication required'}), 401
-            
-        oauth_session = OAuthSession.get_by_session_id(session_id)
-        if not oauth_session:
-            return jsonify({'error': 'Invalid session'}), 401
+            return jsonify({'error': get_message('session_required', lang)}), 400
         
-        # Ensure expires_at is timezone-aware
+        # Validate session
+        oauth_session = OAuthSession.query.filter_by(id=session_id).first()
+        if not oauth_session:
+            return jsonify({'error': get_message('invalid_session', lang)}), 401
+        
+        # Check if session is expired
+        current_time = datetime.now(timezone.utc)
         expires_at = oauth_session.expires_at
         if expires_at.tzinfo is None:
             expires_at = expires_at.replace(tzinfo=timezone.utc)
-            
-        # Check if session is expired
-        if expires_at < datetime.now(timezone.utc):
-            return jsonify({'error': 'Session expired'}), 401
-            
-        # Check if user is admin
-        if oauth_session.user.role != 'admin':
-            return jsonify({'error': 'Admin privileges required'}), 403
-            
-        # Pass user info to the route
-        user = {
-            'session_id': oauth_session.id,
-            'user_id': oauth_session.user.id,
-            'username': oauth_session.user.username,
-            'email': oauth_session.user.email,
-            'role': oauth_session.user.role
-        }
         
-        return f(user, *args, **kwargs)
+        if expires_at < current_time:
+            return jsonify({'error': get_message('invalid_session', lang)}), 401
+        
+        # Check if user is admin
+        user = oauth_session.user
+        if not user.is_admin:
+            return jsonify({'error': get_message('admin_required', lang)}), 403
+        
+        # Update last accessed
+        oauth_session.last_accessed = current_time
+        db.session.commit()
+        
+        # Pass session and language to the route
+        return f(oauth_session, lang, *args, **kwargs)
+    
+    return decorated_function
+
+def require_oauth_admin(f):
+    """Decorator to require OAuth admin role (not overridden) for sensitive operations like user management"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        lang = get_language_from_request()
+        
+        # Get session ID from various sources
+        session_id = request.args.get('session_id')
+        
+        if not session_id:
+            session_id = request.headers.get('X-Session-ID')
+        
+        if not session_id:
+            auth_header = request.headers.get('Authorization')
+            if auth_header and auth_header.startswith('Bearer '):
+                session_id = auth_header.split(' ')[1]
+        
+        if not session_id:
+            return jsonify({'error': get_message('session_required', lang)}), 400
+        
+        # Validate session
+        oauth_session = OAuthSession.query.filter_by(id=session_id).first()
+        if not oauth_session:
+            return jsonify({'error': get_message('invalid_session', lang)}), 401
+        
+        # Check if session is expired
+        current_time = datetime.now(timezone.utc)
+        expires_at = oauth_session.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        
+        if expires_at < current_time:
+            return jsonify({'error': get_message('invalid_session', lang)}), 401
+        
+        # Check if user has OAuth admin role (not overridden)
+        user = oauth_session.user
+        oauth_role = user.get_oauth_role()
+        
+        if oauth_role != 'admin':
+            current_app.logger.warning('OAuth admin privileges required for user management, role is %s', oauth_role)
+            return jsonify({'error': 'OAuth admin privileges required for user management'}), 403
+        
+        current_app.logger.info('OAuth admin access granted for user %s', user.username)
+        # Update last accessed
+        oauth_session.last_accessed = current_time
+        db.session.commit()
+        
+        # Pass session and language to the route
+        return f(oauth_session, lang, *args, **kwargs)
+    
     return decorated_function
 
 def require_teacher(f):

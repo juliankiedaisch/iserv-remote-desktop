@@ -252,7 +252,7 @@ def create_assignment(user, type_id):
         user_id=data.get('user_id'),
         assignment_folder_path=data.get('assignment_folder_path'),
         assignment_folder_name=data.get('assignment_folder_name'),
-        created_by=user['id']  # Set the admin as creator
+        created_by=user['user_id']  # Set the admin as creator
     )
     
     db.session.add(assignment)

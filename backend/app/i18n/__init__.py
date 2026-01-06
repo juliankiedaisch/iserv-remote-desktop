@@ -98,6 +98,10 @@ messages = {
         'invalid_favicon_format': 'Invalid favicon format. Must be a base64 encoded image.',
         'favicon_size_exceeded': 'Favicon size exceeds 1MB limit',
         
+        # User management messages
+        'user_not_found': 'User not found',
+        'user_role_updated': 'User role updated successfully',
+        
         # General errors
         'error_occurred': 'An error occurred',
         'invalid_request': 'Invalid request',
@@ -200,6 +204,10 @@ messages = {
         'favicon_data_required': 'Favicon-Daten sind erforderlich',
         'invalid_favicon_format': 'Ungültiges Favicon-Format. Muss ein base64-codiertes Bild sein.',
         'favicon_size_exceeded': 'Favicon-Größe überschreitet 1MB-Limit',
+        
+        # User management messages
+        'user_not_found': 'Benutzer nicht gefunden',
+        'user_role_updated': 'Benutzerrolle erfolgreich aktualisiert',
         
         # General errors
         'error_occurred': 'Ein Fehler ist aufgetreten',

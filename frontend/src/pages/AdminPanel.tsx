@@ -18,7 +18,7 @@ interface ConfirmModalState {
 }
 
 export const AdminPanel: React.FC = () => {
-  const { user, isAdmin, isTeacher, logout, loading: authLoading } = useAuth();
+  const { user, isAdmin, isTeacher, isOAuthAdmin, logout, loading: authLoading } = useAuth();
   const { themeData } = useTheme();
   const { t } = useTranslation();
   const [containers, setContainers] = useState<Container[]>([]);
@@ -227,6 +227,11 @@ export const AdminPanel: React.FC = () => {
         <div className="admin-header">
           <h2>⚙️ {t('admin.title')}</h2>
           <div className="admin-actions">
+            {isOAuthAdmin && (
+              <Link to="/admin/users" className="btn btn-primary">
+                👥 User Management
+              </Link>
+            )}
             <Link to="/admin/theme" className="btn btn-primary">
               {t('admin.themeSettings')}
             </Link>

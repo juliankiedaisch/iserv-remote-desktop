@@ -1,62 +1,12 @@
 from flask import Blueprint, request, jsonify, current_app
 from app import db
-from app.models.oauth_session import OAuthSession
 from app.models.containers import Container
 from app.models.users import User
+from app.middlewares.auth import require_admin, require_oauth_admin
 from app.services.docker_manager import DockerManager
-from app.i18n import get_message, get_language_from_request
-from datetime import datetime, timezone
-from functools import wraps
+from app.i18n import get_message
 
 admin_bp = Blueprint('admin', __name__)
-
-def require_admin(f):
-    """Decorator to require admin role"""
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        lang = get_language_from_request()
-        
-        # Get session ID from various sources
-        session_id = request.args.get('session_id')
-        
-        if not session_id:
-            session_id = request.headers.get('X-Session-ID')
-        
-        if not session_id:
-            auth_header = request.headers.get('Authorization')
-            if auth_header and auth_header.startswith('Bearer '):
-                session_id = auth_header.split(' ')[1]
-        
-        if not session_id:
-            return jsonify({'error': get_message('session_required', lang)}), 400
-        
-        # Validate session
-        oauth_session = OAuthSession.query.filter_by(id=session_id).first()
-        if not oauth_session:
-            return jsonify({'error': get_message('invalid_session', lang)}), 401
-        
-        # Check if session is expired
-        current_time = datetime.now(timezone.utc)
-        expires_at = oauth_session.expires_at
-        if expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=timezone.utc)
-        
-        if expires_at < current_time:
-            return jsonify({'error': get_message('invalid_session', lang)}), 401
-        
-        # Check if user is admin
-        user = oauth_session.user
-        if not user.is_admin:
-            return jsonify({'error': get_message('admin_required', lang)}), 403
-        
-        # Update last accessed
-        oauth_session.last_accessed = current_time
-        db.session.commit()
-        
-        # Pass session and language to the route
-        return f(oauth_session, lang, *args, **kwargs)
-    
-    return decorated_function
 
 
 @admin_bp.route('/admin/containers', methods=['GET'])
@@ -237,6 +187,104 @@ def cleanup_stopped_containers(oauth_session, lang):
         
     except Exception as e:
         current_app.logger.error(f"Failed to cleanup stopped containers: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': get_message('error_occurred', lang)
+        }), 500
+
+
+@admin_bp.route('/admin/users', methods=['GET'])
+@require_oauth_admin
+def list_all_users(oauth_session, lang):
+    """List all users with their groups and assignments (OAuth admin only)"""
+    try:
+        from app.models.desktop_assignments import DesktopAssignment
+        
+        # Get all users
+        users = User.query.order_by(User.username).all()
+        
+        user_list = []
+        for user in users:
+            # Get user's assignments
+            user_group_ids = [g.id for g in user.groups]
+            assignments = DesktopAssignment.get_user_assignments(user.id, user_group_ids)
+            
+            user_info = user.to_dict()
+            user_info['assignments'] = [assignment.to_dict(include_relations=True) for assignment in assignments]
+            user_info['assignment_count'] = len(assignments)
+            
+            user_list.append(user_info)
+        
+        return jsonify({
+            'success': True,
+            'users': user_list
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Failed to list all users: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': get_message('error_occurred', lang)
+        }), 500
+
+
+@admin_bp.route('/admin/user/<user_id>/role', methods=['PUT'])
+@require_oauth_admin
+def update_user_role(oauth_session, lang, user_id):
+    """Update a user's role override (OAuth admin only)"""
+    try:
+        user = User.query.get(user_id)
+        
+        if not user:
+            return jsonify({
+                'success': False,
+                'error': get_message('user_not_found', lang)
+            }), 404
+        
+        # Prevent overriding OAuth admin roles
+        if user.get_oauth_role() == 'admin':
+            return jsonify({
+                'success': False,
+                'error': 'Cannot override OAuth admin role. Users with admin privileges from IServ cannot have their role changed.'
+            }), 403
+        
+        # Get the new role from request
+        data = request.get_json()
+        new_role = data.get('role')
+        
+        # Validate role
+        valid_roles = ['admin', 'teacher', 'student', None]
+        if new_role not in valid_roles:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid role. Must be one of: admin, teacher, student, or null to remove override.'
+            }), 400
+        
+        # Update role override
+        if new_role is None:
+            # Remove override, revert to OAuth role
+            user.role_override = None
+            user.role = user.get_oauth_role()
+        else:
+            # Set override
+            user.role_override = new_role
+            user.role = new_role
+        
+        db.session.commit()
+        
+        current_app.logger.info(
+            f"Admin {oauth_session.user.username} updated role for user {user.username} to {new_role}"
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': get_message('user_role_updated', lang),
+            'user': user.to_dict()
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Failed to update user role: {str(e)}")
+        db.session.rollback()
         return jsonify({
             'success': False,
             'error': get_message('error_occurred', lang)

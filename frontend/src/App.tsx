@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Dashboard, AdminPanel, Login, ThemeEditor, DesktopTypesManager, AssignmentManager, FileManager } from './pages';
+import { Dashboard, AdminPanel, Login, ThemeEditor, DesktopTypesManager, AssignmentManager, FileManager, UserManagement } from './pages';
 import { useAuth } from './hooks/useAuth';
 import { useTheme } from './hooks/useTheme';
 import { Loading, LanguageSwitcher } from './components';
@@ -57,6 +57,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <DesktopTypesManager />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/users"
+            element={
+              <ProtectedRoute>
+                <UserManagement />
               </ProtectedRoute>
             }
           />

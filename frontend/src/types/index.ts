@@ -3,14 +3,21 @@ export interface User {
   id: string;
   username: string;
   email: string;
-  role: 'user' | 'admin' | 'teacher';
+  role: 'user' | 'admin' | 'teacher' | 'student';
+  role_override?: 'admin' | 'teacher' | 'student' | null;
+  oauth_role?: 'admin' | 'teacher' | 'student';
   groups: Group[];
   avatar_url?: string;
+  created_at?: string;
+  assignment_count?: number;
+  assignments?: any[];
 }
 
 export interface Group {
   id: string;
   name: string;
+  external_id?: string;
+  description?: string;
 }
 
 export interface Session {

@@ -211,6 +211,22 @@ class ApiService {
     );
     return response.data;
   }
+
+  // User management endpoints
+  async getAllUsers(): Promise<{ success: boolean; users: any[]; error?: string }> {
+    const response = await this.client.get<{ success: boolean; users: any[] }>(
+      '/api/admin/users'
+    );
+    return response.data;
+  }
+
+  async updateUserRole(userId: string, role: string | null): Promise<{ success: boolean; user: any; message?: string; error?: string }> {
+    const response = await this.client.put<{ success: boolean; user: any; message?: string }>(
+      `/api/admin/user/${userId}/role`,
+      { role }
+    );
+    return response.data;
+  }
 }
 
 // Export singleton instance

@@ -5,3 +5,4 @@ export { ThemeEditor } from './ThemeEditor';
 export { DesktopTypesManager } from './DesktopTypesManager';
 export { AssignmentManager } from './AssignmentManager';
 export { FileManager } from './FileManager';
+export { UserManagement } from './UserManagement';

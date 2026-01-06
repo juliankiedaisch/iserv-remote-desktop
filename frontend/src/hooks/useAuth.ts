@@ -106,6 +106,7 @@ export function useAuth() {
     validateSession,
     isAdmin: authState.user?.role === 'admin',
     isTeacher: authState.user?.role === 'teacher' || authState.user?.role === 'admin',
+    isOAuthAdmin: authState.user?.oauth_role === 'admin',
   };
 }
 
