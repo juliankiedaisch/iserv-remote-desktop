@@ -34,7 +34,7 @@ def require_admin(f):
 
 
 # Configuration for icon uploads
-UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static', 'icons')
+UPLOAD_FOLDER = os.environ.get('ICON_DIR', '/data/icons')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'}
 MAX_FILE_SIZE = 2 * 1024 * 1024  # 2MB
 
