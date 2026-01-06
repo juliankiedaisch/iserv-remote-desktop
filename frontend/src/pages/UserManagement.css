@@ -1,22 +1,27 @@
-.user-management-container {
+.user-management {
+  background: var(--color-bg-white, white);
+  border-radius: 10px;
+  padding: 30px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin: 0 auto;
   max-width: 1400px;
-  margin: 2rem auto;
-  padding: 0 1rem;
 }
 
 .user-management-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid var(--color-gray-border-light, #e5e7eb);
   flex-wrap: wrap;
   gap: 1rem;
 }
 
 .user-management-header h2 {
   margin: 0;
-  font-size: 2rem;
-  color: var(--text-color, #333);
+  font-size: 28px;
+  color: var(--color-text-primary, #333);
 }
 
 .user-management-actions {
@@ -25,10 +30,14 @@
   flex-wrap: wrap;
 }
 
+.user-management-toolbar {
+  margin-bottom: 1.5rem;
+}
+
 .filters-section {
   display: flex;
   gap: 1rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
   flex-wrap: wrap;
 }
 
@@ -63,15 +72,15 @@
 .stats-summary {
   display: flex;
   gap: 2rem;
-  margin-bottom: 1.5rem;
-  padding: 1rem;
-  background-color: var(--card-bg, #f8f9fa);
-  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  background-color: var(--color-gray-light, #f8f9fa);
+  border-radius: 6px;
+  border-left: 4px solid var(--color-primary, #007bff);
 }
 
 .stat-item {
-  font-size: 1rem;
-  color: var(--text-color, #333);
+  font-size: 0.95rem;
+  color: var(--color-text-primary, #333);
 }
 
 .user-table {
@@ -81,6 +90,7 @@
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-top: 1rem;
 }
 
 .user-table thead {

@@ -135,14 +135,7 @@ export const UserManagement: React.FC = () => {
         appIcon={themeData.app_icon}
       />
 
-      {error && (
-        <Alert type="error" message={error} onDismiss={() => setError(null)} />
-      )}
-      {successMessage && (
-        <Alert type="success" message={successMessage} onDismiss={() => setSuccessMessage(null)} />
-      )}
-
-      <div className="user-management-container">
+      <div className="user-management">
         <div className="user-management-header">
           <h2>👥 {t('userManagement.title')}</h2>
           <div className="user-management-actions">
@@ -155,40 +148,49 @@ export const UserManagement: React.FC = () => {
           </div>
         </div>
 
-        <div className="filters-section">
-          <div className="filter-group">
-            <label htmlFor="search">🔍 {t('common.search')}:</label>
-            <input
-              id="search"
-              type="text"
-              placeholder={t('userManagement.searchPlaceholder')}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="search-input"
-            />
-          </div>
-          <div className="filter-group">
-            <label htmlFor="roleFilter">{t('userManagement.filterByRole')}:</label>
-            <select
-              id="roleFilter"
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-              className="role-filter"
-            >
-              <option value="all">{t('userManagement.allRoles')}</option>
-              <option value="admin">Admin</option>
-              <option value="teacher">Teacher</option>
-              <option value="student">Student</option>
-            </select>
-          </div>
-        </div>
+        {error && (
+          <Alert type="error" message={error} onDismiss={() => setError(null)} />
+        )}
+        {successMessage && (
+          <Alert type="success" message={successMessage} onDismiss={() => setSuccessMessage(null)} />
+        )}
 
-        <div className="stats-summary">
-          <div className="stat-item">
-            <strong>{t('userManagement.totalUsers')}:</strong> {users.length}
+        <div className="user-management-toolbar">
+          <div className="filters-section">
+            <div className="filter-group">
+              <label htmlFor="search">🔍 {t('common.search')}:</label>
+              <input
+                id="search"
+                type="text"
+                placeholder={t('userManagement.searchPlaceholder')}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="search-input"
+              />
+            </div>
+            <div className="filter-group">
+              <label htmlFor="roleFilter">{t('userManagement.filterByRole')}:</label>
+              <select
+                id="roleFilter"
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className="role-filter"
+              >
+                <option value="all">{t('userManagement.allRoles')}</option>
+                <option value="admin">Admin</option>
+                <option value="teacher">Teacher</option>
+                <option value="student">Student</option>
+              </select>
+            </div>
           </div>
-          <div className="stat-item">
-            <strong>{t('userManagement.filtered')}:</strong> {filteredUsers.length}
+
+          <div className="stats-summary">
+            <div className="stat-item">
+              <strong>{t('userManagement.totalUsers')}:</strong> {users.length}
+            </div>
+            <div className="stat-item">
+              <strong>{t('userManagement.filtered')}:</strong> {filteredUsers.length}
+            </div>
           </div>
         </div>
 
@@ -204,7 +206,6 @@ export const UserManagement: React.FC = () => {
             <thead>
               <tr>
                 <th>{t('userManagement.username')}</th>
-                <th>{t('userManagement.email')}</th>
                 <th>{t('userManagement.currentRole')}</th>
                 <th>{t('userManagement.oauthRole')}</th>
                 <th>{t('userManagement.overrideStatus')}</th>
@@ -217,7 +218,6 @@ export const UserManagement: React.FC = () => {
               {filteredUsers.map((u) => (
                 <tr key={u.id}>
                   <td><strong>{u.username}</strong></td>
-                  <td>{u.email || 'N/A'}</td>
                   <td>
                     <span className={getRoleBadgeClass(u.role)}>
                       {u.role.toUpperCase()}
