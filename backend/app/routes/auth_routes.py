@@ -241,6 +241,7 @@ def get_session():
             'username': user.username,
             'email': user.email,
             'role': user.role,
+            'oauth_role': user.get_oauth_role(),
             'groups': [group.to_dict() for group in user.groups],
             'avatar_url': user.user_data.get('picture') if user.user_data else None
         },

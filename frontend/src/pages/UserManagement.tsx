@@ -15,7 +15,7 @@ interface RoleChangeModalState {
 }
 
 export const UserManagement: React.FC = () => {
-  const { user, isAdmin, isTeacher, logout, loading: authLoading } = useAuth();
+  const { user, isAdmin, isTeacher, isOAuthAdmin, logout, loading: authLoading } = useAuth();
   const { themeData } = useTheme();
   const { t } = useTranslation();
   const [users, setUsers] = useState<User[]>([]);
@@ -119,7 +119,7 @@ export const UserManagement: React.FC = () => {
     );
   }
 
-  if (!isAdmin) {
+  if (!isOAuthAdmin) {
     return <Navigate to="/" replace />;
   }
 

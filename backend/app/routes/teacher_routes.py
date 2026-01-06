@@ -94,7 +94,7 @@ def list_assignments(user):
             assignments = DesktopAssignment.query.all()
         else:
             # Teachers see only their own
-            assignments = DesktopAssignment.get_by_teacher(user['id'])
+            assignments = DesktopAssignment.get_by_teacher(user['user_id'])
         
         return jsonify({
             'success': True,
@@ -253,7 +253,7 @@ def get_assignment(user, assignment_id):
             return jsonify({'success': False, 'error': get_message('assignment_not_found', lang)}), 404
         
         # Teachers can only see their own assignments
-        if user.get('role') == 'teacher' and assignment.created_by != user['id']:
+        if user.get('role') == 'teacher' and assignment.created_by != user['user_id']:
             return jsonify({'success': False, 'error': get_message('unauthorized', lang)}), 403
         
         return jsonify({
@@ -277,7 +277,7 @@ def update_assignment(user, assignment_id):
             return jsonify({'success': False, 'error': get_message('assignment_not_found', lang)}), 404
         
         # Teachers can only edit their own assignments
-        if user.get('role') == 'teacher' and assignment.created_by != user['id']:
+        if user.get('role') == 'teacher' and assignment.created_by != user['user_id']:
             return jsonify({'success': False, 'error': get_message('unauthorized', lang)}), 403
         
         data = request.json
@@ -320,7 +320,7 @@ def delete_assignment(user, assignment_id):
             return jsonify({'success': False, 'error': get_message('assignment_not_found', lang)}), 404
         
         # Teachers can only delete their own assignments
-        if user.get('role') == 'teacher' and assignment.created_by != user['id']:
+        if user.get('role') == 'teacher' and assignment.created_by != user['user_id']:
             return jsonify({'success': False, 'error': get_message('unauthorized', lang)}), 403
         
         db.session.delete(assignment)
