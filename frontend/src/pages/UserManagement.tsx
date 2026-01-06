@@ -38,14 +38,14 @@ export const UserManagement: React.FC = () => {
         setUsers(response.users);
         setError(null);
       } else {
-        setError(response.error || 'Failed to load users');
+        setError(response.error || t('userManagement.failedToLoadUsers'));
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to load users');
+      setError(err.message || t('userManagement.failedToLoadUsers'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -76,15 +76,15 @@ export const UserManagement: React.FC = () => {
       if (response.success) {
         setSuccessMessage(
           roleChangeModal.newRole 
-            ? `Successfully updated role for ${roleChangeModal.user.username}` 
-            : `Successfully removed role override for ${roleChangeModal.user.username}`
+            ? t('userManagement.roleUpdated', { username: roleChangeModal.user.username })
+            : t('userManagement.overrideRemoved', { username: roleChangeModal.user.username })
         );
         await loadUsers();
       } else {
-        setError(response.error || 'Failed to update user role');
+        setError(response.error || t('userManagement.failedToUpdateRole'));
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to update user role');
+      setError(err.message || t('userManagement.failedToUpdateRole'));
     } finally {
       setActionLoading(false);
     }
@@ -144,38 +144,38 @@ export const UserManagement: React.FC = () => {
 
       <div className="user-management-container">
         <div className="user-management-header">
-          <h2>👥 User Management</h2>
+          <h2>👥 {t('userManagement.title')}</h2>
           <div className="user-management-actions">
             <Link to="/admin" className="btn btn-secondary">
-              ← Back to Admin Panel
+              {t('userManagement.backToAdmin')}
             </Link>
             <button className="btn btn-primary" onClick={loadUsers} disabled={actionLoading}>
-              🔄 Refresh
+              🔄 {t('common.refresh')}
             </button>
           </div>
         </div>
 
         <div className="filters-section">
           <div className="filter-group">
-            <label htmlFor="search">🔍 Search:</label>
+            <label htmlFor="search">🔍 {t('common.search')}:</label>
             <input
               id="search"
               type="text"
-              placeholder="Search by username, email, or ID..."
+              placeholder={t('userManagement.searchPlaceholder')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="search-input"
             />
           </div>
           <div className="filter-group">
-            <label htmlFor="roleFilter">Filter by Role:</label>
+            <label htmlFor="roleFilter">{t('userManagement.filterByRole')}:</label>
             <select
               id="roleFilter"
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
               className="role-filter"
             >
-              <option value="all">All Roles</option>
+              <option value="all">{t('userManagement.allRoles')}</option>
               <option value="admin">Admin</option>
               <option value="teacher">Teacher</option>
               <option value="student">Student</option>
@@ -185,32 +185,32 @@ export const UserManagement: React.FC = () => {
 
         <div className="stats-summary">
           <div className="stat-item">
-            <strong>Total Users:</strong> {users.length}
+            <strong>{t('userManagement.totalUsers')}:</strong> {users.length}
           </div>
           <div className="stat-item">
-            <strong>Filtered:</strong> {filteredUsers.length}
+            <strong>{t('userManagement.filtered')}:</strong> {filteredUsers.length}
           </div>
         </div>
 
         {loading ? (
-          <Loading message="Loading users..." />
+          <Loading message={t('userManagement.loadingUsers')} />
         ) : filteredUsers.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-icon">👤</div>
-            <p>No users found</p>
+            <p>{t('userManagement.noUsers')}</p>
           </div>
         ) : (
           <table className="user-table">
             <thead>
               <tr>
-                <th>Username</th>
-                <th>Email</th>
-                <th>Current Role</th>
-                <th>OAuth Role</th>
-                <th>Override Status</th>
-                <th>Groups</th>
-                <th>Assignments</th>
-                <th>Actions</th>
+                <th>{t('userManagement.username')}</th>
+                <th>{t('userManagement.email')}</th>
+                <th>{t('userManagement.currentRole')}</th>
+                <th>{t('userManagement.oauthRole')}</th>
+                <th>{t('userManagement.overrideStatus')}</th>
+                <th>{t('userManagement.groups')}</th>
+                <th>{t('userManagement.assignments')}</th>
+                <th>{t('userManagement.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -233,11 +233,11 @@ export const UserManagement: React.FC = () => {
                   <td>
                     {u.role_override ? (
                       <span className="override-badge">
-                        ⚠️ Overridden
+                        ⚠️ {t('userManagement.overridden')}
                       </span>
                     ) : (
                       <span className="no-override-badge">
-                        OAuth
+                        {t('userManagement.oauthBased')}
                       </span>
                     )}
                   </td>
@@ -250,37 +250,43 @@ export const UserManagement: React.FC = () => {
                           </span>
                         ))
                       ) : (
-                        <span className="no-groups">No groups</span>
+                        <span className="no-groups">{t('userManagement.noGroups')}</span>
                       )}
                       {u.groups && u.groups.length > 3 && (
-                        <span className="group-badge">+{u.groups.length - 3} more</span>
+                        <span className="group-badge">{t('userManagement.moreGroups', { count: u.groups.length - 3 })}</span>
                       )}
                     </div>
                   </td>
                   <td>{u.assignment_count || 0}</td>
                   <td>
                     <div className="action-buttons">
-                      <select
-                        className="role-select"
-                        value="current"
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          if (value !== 'current') {
-                            handleRoleChange(u, value === 'remove' ? null : value);
-                          }
-                        }}
-                        disabled={actionLoading}
-                      >
-                        <option value="current">
-                          Current: {u.role.toUpperCase()}
-                        </option>
-                        <option value="admin">Set to Admin</option>
-                        <option value="teacher">Set to Teacher</option>
-                        <option value="student">Set to Student</option>
-                        {u.role_override && (
-                          <option value="remove">Remove Override</option>
-                        )}
-                      </select>
+                      {u.oauth_role === 'admin' ? (
+                        <div className="protected-role" title={t('userManagement.protectedTooltip')}>
+                          🔒 {t('userManagement.protected')}
+                        </div>
+                      ) : (
+                        <select
+                          className="role-select"
+                          value="current"
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            if (value !== 'current') {
+                              handleRoleChange(u, value === 'remove' ? null : value);
+                            }
+                          }}
+                          disabled={actionLoading}
+                        >
+                          <option value="current">
+                            {t('userManagement.currentRolePrefix')}{u.role.toUpperCase()}
+                          </option>
+                          <option value="admin">{t('userManagement.setToAdmin')}</option>
+                          <option value="teacher">{t('userManagement.setToTeacher')}</option>
+                          <option value="student">{t('userManagement.setToStudent')}</option>
+                          {u.role_override && (
+                            <option value="remove">{t('userManagement.removeOverride')}</option>
+                          )}
+                        </select>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -295,7 +301,7 @@ export const UserManagement: React.FC = () => {
         <div className="modal-overlay" onClick={() => setRoleChangeModal({ ...roleChangeModal, isOpen: false })}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Confirm Role Change</h3>
+              <h3>{t('userManagement.confirmRoleChange')}</h3>
               <button 
                 className="modal-close" 
                 onClick={() => setRoleChangeModal({ ...roleChangeModal, isOpen: false })}
@@ -307,16 +313,18 @@ export const UserManagement: React.FC = () => {
               {roleChangeModal.user && (
                 <>
                   <p>
-                    Are you sure you want to {roleChangeModal.newRole ? 'change' : 'remove the role override for'} user{' '}
+                    {t('userManagement.roleChangeMessage', { 
+                      action: roleChangeModal.newRole ? t('userManagement.roleChangeAction') : t('userManagement.removeOverrideAction')
+                    })}{' '}
                     <strong>{roleChangeModal.user.username}</strong>?
                   </p>
                   {roleChangeModal.newRole ? (
                     <p>
-                      New role: <strong>{roleChangeModal.newRole.toUpperCase()}</strong>
+                      {t('userManagement.newRole')}: <strong>{roleChangeModal.newRole.toUpperCase()}</strong>
                     </p>
                   ) : (
                     <p>
-                      This will revert the role to the OAuth-based role:{' '}
+                      {t('userManagement.revertToOAuth')}:{' '}
                       <strong>{roleChangeModal.user.oauth_role?.toUpperCase()}</strong>
                     </p>
                   )}
@@ -329,14 +337,14 @@ export const UserManagement: React.FC = () => {
                 onClick={() => setRoleChangeModal({ ...roleChangeModal, isOpen: false })}
                 disabled={actionLoading}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button 
                 className="btn btn-primary"
                 onClick={confirmRoleChange}
                 disabled={actionLoading}
               >
-                Confirm
+                {t('common.confirm')}
               </button>
             </div>
           </div>
@@ -346,7 +354,7 @@ export const UserManagement: React.FC = () => {
       {actionLoading && (
         <div className="loading-overlay">
           <div className="loading-content">
-            <Loading message="Processing..." />
+            <Loading message={t('userManagement.processing')} />
           </div>
         </div>
       )}

@@ -241,6 +241,13 @@ def update_user_role(oauth_session, lang, user_id):
                 'error': get_message('user_not_found', lang)
             }), 404
         
+        # Prevent overriding OAuth admin roles
+        if user.get_oauth_role() == 'admin':
+            return jsonify({
+                'success': False,
+                'error': 'Cannot override OAuth admin role. Users with admin privileges from IServ cannot have their role changed.'
+            }), 403
+        
         # Get the new role from request
         data = request.get_json()
         new_role = data.get('role')
