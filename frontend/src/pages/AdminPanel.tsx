@@ -227,6 +227,9 @@ export const AdminPanel: React.FC = () => {
         <div className="admin-header">
           <h2>⚙️ {t('admin.title')}</h2>
           <div className="admin-actions">
+            <Link to="/admin/users" className="btn btn-primary">
+              👥 User Management
+            </Link>
             <Link to="/admin/theme" className="btn btn-primary">
               {t('admin.themeSettings')}
             </Link>
