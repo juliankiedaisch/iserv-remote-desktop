@@ -19,6 +19,7 @@ class User(db.Model):
     username = db.Column(db.String(128), nullable=False)
     email = db.Column(db.String(128), nullable=True)
     role = db.Column(db.String(50), nullable=True)
+    role_override = db.Column(db.String(50), nullable=True)  # Admin can override OAuth role
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     last_login = db.Column(db.DateTime, nullable=True)
     user_data = db.Column(db.JSON, nullable=True)
@@ -51,7 +52,7 @@ class User(db.Model):
             if user_data:
                 user.user_data = user_data
         
-        # Extract role from user_data
+        # Extract role from user_data (OAuth groups)
         if user_data and 'groups' in user_data:
             role = 'user'
             if type(user_data.get('groups')) == dict:
@@ -64,7 +65,14 @@ class User(db.Model):
                 role = 'teacher'
             else:
                 role = 'student'
-            user.role = role
+            
+            # Only update role if there's no override
+            # If role_override is set, it takes precedence
+            if user.role_override is None:
+                user.role = role
+            else:
+                # Keep the override but store OAuth role in a comment-like manner
+                user.role = user.role_override
         
         return user
     
@@ -100,6 +108,22 @@ class User(db.Model):
         
         return []
     
+    def get_oauth_role(self):
+        """Get role based on OAuth groups (ignoring override)"""
+        if not self.user_data or 'groups' not in self.user_data:
+            return 'student'
+        
+        groups = []
+        if type(self.user_data.get('groups')) == dict:
+            groups = [elem["act"] for elem in self.user_data.get('groups', {}).values()]
+        
+        if current_app.config['ROLE_ADMIN'] in groups:
+            return 'admin'
+        elif current_app.config['ROLE_TEACHER'] in groups:
+            return 'teacher'
+        else:
+            return 'student'
+    
     # ============================================================
     # SERIALIZATION
     # ============================================================
@@ -118,6 +142,8 @@ class User(db.Model):
             'username': self.username,
             'email': self.email,
             'role': self.role,
+            'role_override': self.role_override,
+            'oauth_role': self.get_oauth_role(),
             'created_at': self.created_at.isoformat(),
             'groups': [group.to_dict() for group in self.groups]
         }

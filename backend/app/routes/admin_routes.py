@@ -241,3 +241,94 @@ def cleanup_stopped_containers(oauth_session, lang):
             'success': False,
             'error': get_message('error_occurred', lang)
         }), 500
+
+
+@admin_bp.route('/admin/users', methods=['GET'])
+@require_admin
+def list_all_users(oauth_session, lang):
+    """List all users with their groups and assignments (admin only)"""
+    try:
+        from app.models.desktop_assignments import DesktopAssignment
+        
+        # Get all users
+        users = User.query.order_by(User.username).all()
+        
+        user_list = []
+        for user in users:
+            # Get user's assignments
+            user_group_ids = [g.id for g in user.groups]
+            assignments = DesktopAssignment.get_user_assignments(user.id, user_group_ids)
+            
+            user_info = user.to_dict()
+            user_info['assignments'] = [assignment.to_dict(include_relations=True) for assignment in assignments]
+            user_info['assignment_count'] = len(assignments)
+            
+            user_list.append(user_info)
+        
+        return jsonify({
+            'success': True,
+            'users': user_list
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Failed to list all users: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': get_message('error_occurred', lang)
+        }), 500
+
+
+@admin_bp.route('/admin/user/<user_id>/role', methods=['PUT'])
+@require_admin
+def update_user_role(oauth_session, lang, user_id):
+    """Update a user's role override (admin only)"""
+    try:
+        user = User.query.get(user_id)
+        
+        if not user:
+            return jsonify({
+                'success': False,
+                'error': get_message('user_not_found', lang)
+            }), 404
+        
+        # Get the new role from request
+        data = request.get_json()
+        new_role = data.get('role')
+        
+        # Validate role
+        valid_roles = ['admin', 'teacher', 'student', None]
+        if new_role not in valid_roles:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid role. Must be one of: admin, teacher, student, or null to remove override.'
+            }), 400
+        
+        # Update role override
+        if new_role is None:
+            # Remove override, revert to OAuth role
+            user.role_override = None
+            user.role = user.get_oauth_role()
+        else:
+            # Set override
+            user.role_override = new_role
+            user.role = new_role
+        
+        db.session.commit()
+        
+        current_app.logger.info(
+            f"Admin {oauth_session.user.username} updated role for user {user.username} to {new_role}"
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': get_message('user_role_updated', lang),
+            'user': user.to_dict()
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Failed to update user role: {str(e)}")
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': get_message('error_occurred', lang)
+        }), 500
