@@ -19,9 +19,19 @@ export const Viewer: React.FC = () => {
   const audioPlayerRef = useRef<any>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Get VNC URL
+  // Set page title
+  useEffect(() => {
+    if (proxyPath) {
+      document.title = `Desktop - ${proxyPath}`;
+    }
+    return () => {
+      document.title = 'Remote Desktop';
+    };
+  }, [proxyPath]);
+
+  // Get VNC URL with parameters for fullscreen scaling
   const containerPrefix = process.env.REACT_APP_CONTAINER_PREFIX || 'test-desktop';
-  const vncUrl = `https://${containerPrefix}-${proxyPath}.hub.mdg-hamburg.de/`;
+  const vncUrl = `https://${containerPrefix}-${proxyPath}.hub.mdg-hamburg.de/?resize=remote&autoconnect=true&reconnect=true&reconnect_delay=2000`;
 
   // Audio connection
   useEffect(() => {
@@ -95,13 +105,6 @@ export const Viewer: React.FC = () => {
       <div className={`viewer-sidebar ${!menuCollapsed ? 'expanded' : ''}`}>
         {!menuCollapsed && (
           <>
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="viewer-button viewer-button-back"
-            >
-              ← {t('common.back') || 'Back'}
-            </button>
-            
             <button
               onClick={() => setAudioEnabled(!audioEnabled)}
               className={`viewer-button viewer-button-audio ${audioEnabled ? 'enabled' : ''}`}

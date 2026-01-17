@@ -33,10 +33,14 @@ export const Dashboard: React.FC = () => {
     setStartingProgress(t('dashboard.creatingContainer'));
     
     try {
-      const url = await startContainer(desktopType);
-      if (url) {
+      const result = await startContainer(desktopType);
+      if (result) {
         setStartingProgress(t('dashboard.openingDesktop'));
-        window.open(url, '_blank');
+        // Extract proxy path from the URL or use the result directly
+        const proxyPath = typeof result === 'string' && result.includes('//') 
+          ? result.split('//')[1].split('.')[0].replace(/^(test-desktop|desktop)-/, '')
+          : desktopType;
+        window.open(`/viewer/${proxyPath}`, '_blank');
         setStartingProgress(null);
       } else {
         setStartError(t('dashboard.failedToStart'));
@@ -68,9 +72,9 @@ export const Dashboard: React.FC = () => {
   }, []);
 
   const handleOpen = useCallback((proxyPath: string) => {
-    // Open viewer page instead of direct container URL
-    navigate(`/viewer/${proxyPath}`);
-  }, [navigate]);
+    // Open viewer page in new tab
+    window.open(`/viewer/${proxyPath}`, '_blank');
+  }, []);
 
   if (authLoading) {
     return (
