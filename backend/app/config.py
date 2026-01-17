@@ -42,6 +42,8 @@ class Config:
 
     DOCKER_HOST_IP = os.environ.get('DOCKER_HOST_IP')
 
+    CONTAINER_PREFIX = os.environ.get('CONTAINER_PREFIX', 'test-desktop-')
+
 class DevelopmentConfig(Config):
     DEBUG = True
     # Supports both SQLite and PostgreSQL
