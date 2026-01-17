@@ -131,3 +131,29 @@ def cleanup_old_containers():
         docker_manager.cleanup_stopped_containers()
     except Exception as e:
         current_app.logger.error(f"[Scheduler] Failed to cleanup containers: {str(e)}")
+
+
+def sync_database_with_docker():
+    """Background task to synchronize database with Docker state"""
+    from app.services.docker_manager import DockerManager
+    from flask import current_app
+    
+    try:
+        docker_manager = DockerManager()
+        stats = docker_manager.sync_database_with_docker()
+        
+        if 'error' not in stats:
+            # Only log if there were changes
+            if (stats.get('removed_orphaned', 0) + stats.get('updated_status', 0) + 
+                stats.get('cleaned_stuck', 0) + stats.get('normalized_paths', 0) > 0):
+                current_app.logger.info(
+                    f"[Scheduler] Database sync: {stats.get('removed_orphaned', 0)} orphaned removed, "
+                    f"{stats.get('updated_status', 0)} status updated, "
+                    f"{stats.get('cleaned_stuck', 0)} stuck cleaned, "
+                    f"{stats.get('normalized_paths', 0)} paths normalized"
+                )
+        else:
+            current_app.logger.error(f"[Scheduler] Database sync failed: {stats['error']}")
+    except Exception as e:
+        current_app.logger.error(f"[Scheduler] Failed to sync database: {str(e)}")
+

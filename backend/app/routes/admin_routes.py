@@ -193,6 +193,40 @@ def cleanup_stopped_containers(oauth_session, lang):
         }), 500
 
 
+@admin_bp.route('/admin/containers/sync-database', methods=['POST'])
+@require_admin
+def sync_database(oauth_session, lang):
+    """Synchronize database with Docker state and clean up inconsistencies (admin only)"""
+    try:
+        docker_manager = DockerManager()
+        stats = docker_manager.sync_database_with_docker()
+        
+        if 'error' in stats:
+            return jsonify({
+                'success': False,
+                'error': stats['error']
+            }), 500
+        
+        current_app.logger.info(
+            f"Admin {oauth_session.user.username} triggered database sync: "
+            f"{stats['removed_orphaned']} orphaned, {stats['updated_status']} updated, "
+            f"{stats['cleaned_stuck']} stuck, {stats['normalized_paths']} normalized"
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': 'Database synchronized with Docker',
+            'stats': stats
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Failed to sync database: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': get_message('error_occurred', lang)
+        }), 500
+
+
 @admin_bp.route('/admin/users', methods=['GET'])
 @require_oauth_admin
 def list_all_users(oauth_session, lang):

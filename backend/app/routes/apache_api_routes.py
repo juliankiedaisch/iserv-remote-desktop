@@ -34,6 +34,8 @@ def get_container_target(proxy_path):
     # Get port type (vnc or audio)
     port_type = request.args.get('port_type', 'vnc')
     
+    current_app.logger.info(f"Apache API: Looking for proxy_path='{proxy_path}' (lowercase: '{proxy_path.lower()}'), port_type='{port_type}'")
+    
     # Look up running container by proxy_path (case-insensitive)
     container = Container.query.filter(
         func.lower(Container.proxy_path) == func.lower(proxy_path),
@@ -41,9 +43,12 @@ def get_container_target(proxy_path):
     ).first()
     
     if not container or not container.host_port:
-        # Log all running containers for debugging
+        # Log all running containers for debugging with detailed info
         all_running = Container.query.filter_by(status='running').all()
-        current_app.logger.warning(f"Error Apache API: No Target for proxy_path='{proxy_path}' port_type='{port_type}'. Running containers: {[(c.container_name, c.proxy_path, c.host_port) for c in all_running]}")
+        current_app.logger.warning(
+            f"Error Apache API: No Target for proxy_path='{proxy_path}' (lowercase: '{proxy_path.lower()}') port_type='{port_type}'. "
+            f"Running containers: {[(c.container_name, c.proxy_path, c.proxy_path.lower() if c.proxy_path else None, c.host_port) for c in all_running]}"
+        )
         return jsonify({"target": None})
     
     # Return Docker host IP with mapped port

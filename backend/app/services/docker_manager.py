@@ -697,6 +697,159 @@ class DockerManager:
             # Port is already in use or timeout
             return False
     
+    def sync_database_with_docker(self):
+        """
+        Synchronize database with actual Docker state and clean up inconsistencies.
+        This should be run regularly (e.g., every 5 minutes) to:
+        - Remove DB records for containers that don't exist in Docker
+        - Update status of containers that changed state
+        - Clean up containers stuck in 'creating' state for too long
+        - Normalize proxy_path to lowercase format
+        
+        Returns:
+            dict with cleanup statistics
+        """
+        try:
+            stats = {
+                'checked': 0,
+                'removed_orphaned': 0,
+                'updated_status': 0,
+                'cleaned_stuck': 0,
+                'normalized_paths': 0,
+                'errors': 0
+            }
+            
+            # Get all containers from database (excluding already stopped ones older than 1 hour)
+            from datetime import timedelta
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=1)
+            
+            containers = Container.query.filter(
+                or_(
+                    Container.status != 'stopped',
+                    Container.stopped_at > cutoff_time
+                )
+            ).all()
+            
+            stats['checked'] = len(containers)
+            current_app.logger.info(f"Starting database sync check for {len(containers)} containers")
+            
+            # Get all Docker containers managed by us
+            docker_containers = {}
+            try:
+                all_docker = self.client.containers.list(
+                    all=True,
+                    filters={'label': 'managed_by=iserv-remote-desktop'}
+                )
+                docker_containers = {c.id: c for c in all_docker}
+            except Exception as e:
+                current_app.logger.error(f"Failed to list Docker containers: {str(e)}")
+            
+            for container in containers:
+                try:
+                    # Check 1: Normalize proxy_path to lowercase
+                    if container.proxy_path:
+                        normalized = container.proxy_path.lower()
+                        if container.proxy_path != normalized:
+                            current_app.logger.info(
+                                f"Normalizing proxy_path: '{container.proxy_path}' -> '{normalized}'"
+                            )
+                            container.proxy_path = normalized
+                            stats['normalized_paths'] += 1
+                    
+                    # Check 2: Clean up containers stuck in 'creating' for more than 5 minutes
+                    if container.status == 'creating':
+                        time_in_creating = datetime.now(timezone.utc) - container.created_at
+                        if time_in_creating > timedelta(minutes=5):
+                            current_app.logger.warning(
+                                f"Container {container.container_name} stuck in 'creating' for "
+                                f"{time_in_creating.total_seconds():.0f}s, cleaning up"
+                            )
+                            
+                            # Try to remove Docker container if it exists
+                            if container.container_id:
+                                try:
+                                    docker_container = self.client.containers.get(container.container_id)
+                                    docker_container.remove(force=True)
+                                    current_app.logger.info(f"Removed stuck Docker container {container.container_id}")
+                                except NotFound:
+                                    pass
+                                except Exception as e:
+                                    current_app.logger.warning(f"Failed to remove stuck container: {str(e)}")
+                            
+                            # Remove from database
+                            db.session.delete(container)
+                            stats['cleaned_stuck'] += 1
+                            continue
+                    
+                    # Check 3: Verify container exists in Docker and sync status
+                    if container.container_id:
+                        docker_container = docker_containers.get(container.container_id)
+                        
+                        if not docker_container:
+                            # Container exists in DB but not in Docker
+                            current_app.logger.warning(
+                                f"Container {container.container_name} (ID: {container.container_id}) "
+                                f"not found in Docker, removing from database"
+                            )
+                            db.session.delete(container)
+                            stats['removed_orphaned'] += 1
+                            continue
+                        
+                        # Container exists, check if status needs updating
+                        docker_status = docker_container.status
+                        
+                        if docker_status == 'running' and container.status != 'running':
+                            container.status = 'running'
+                            if not container.started_at:
+                                container.started_at = datetime.now(timezone.utc)
+                            stats['updated_status'] += 1
+                            current_app.logger.info(
+                                f"Updated container {container.container_name} status to 'running'"
+                            )
+                        elif docker_status in ['exited', 'dead'] and container.status != 'stopped':
+                            container.status = 'stopped'
+                            if not container.stopped_at:
+                                container.stopped_at = datetime.now(timezone.utc)
+                            stats['updated_status'] += 1
+                            current_app.logger.info(
+                                f"Updated container {container.container_name} status to 'stopped'"
+                            )
+                    
+                    elif container.status in ['running', 'creating']:
+                        # No container_id but marked as running/creating - orphaned record
+                        current_app.logger.warning(
+                            f"Container {container.container_name} has no container_id but status is "
+                            f"'{container.status}', removing from database"
+                        )
+                        db.session.delete(container)
+                        stats['removed_orphaned'] += 1
+                        
+                except Exception as e:
+                    current_app.logger.error(
+                        f"Error processing container {container.container_name}: {str(e)}"
+                    )
+                    stats['errors'] += 1
+                    continue
+            
+            # Commit all changes
+            db.session.commit()
+            
+            current_app.logger.info(
+                f"Database sync completed: {stats['checked']} checked, "
+                f"{stats['removed_orphaned']} orphaned removed, "
+                f"{stats['updated_status']} status updated, "
+                f"{stats['cleaned_stuck']} stuck cleaned, "
+                f"{stats['normalized_paths']} paths normalized, "
+                f"{stats['errors']} errors"
+            )
+            
+            return stats
+            
+        except Exception as e:
+            current_app.logger.error(f"Database sync failed: {str(e)}")
+            db.session.rollback()
+            return {'error': str(e)}
+    
     def get_container_url(self, container_record):
         """
         Get the URL to access the container via subdomain routing
