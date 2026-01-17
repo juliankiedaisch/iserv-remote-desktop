@@ -200,7 +200,17 @@ class DockerManager:
             except Exception as e:
                 current_app.logger.warning(f"Error checking for orphaned Docker container: {str(e)}")
             
-            # Create database record first
+            # Allocate ports FIRST within a single transaction to prevent race conditions
+            # This ensures ports are reserved in the database before creating the Docker container
+            host_port = self._find_available_port()
+            
+            # Find port for audio (4901) - must be different from VNC port
+            # We need to collect all used ports including the VNC port we just allocated
+            audio_host_port = self._find_available_port(start_port=7000, end_port=10000, exclude_ports=[host_port])
+            
+            current_app.logger.info(f"Allocated ports - VNC: {host_port}, Audio: {audio_host_port}")
+            
+            # Create database record with allocated ports to reserve them
             container_record = Container(
                 user_id=user_id,
                 session_id=session_id,
@@ -210,13 +220,13 @@ class DockerManager:
                 desktop_image_id=desktop_image_id,
                 status='creating',
                 container_port=container_port,
-                proxy_path=proxy_path
+                proxy_path=proxy_path,
+                host_port=host_port  # Reserve port immediately
             )
             db.session.add(container_record)
             db.session.commit()
             
-            # Find available host port
-            host_port = self._find_available_port()
+            # Ports are now reserved in the database, safe to create Docker container
             
             # Environment variables for Kasm
             environment = {
@@ -290,9 +300,6 @@ class DockerManager:
             # Create and start container
             current_app.logger.info(f"Creating container {container_name} from image {kasm_image}")
             
-            # Find port for audio (4901) - use same range starting at 7000
-            audio_host_port = self._find_available_port(start_port=7000, end_port=10000)
-            
             container = self.client.containers.run(
                 kasm_image,
                 name=container_name,
@@ -313,9 +320,8 @@ class DockerManager:
                 }
             )
             
-            # Update container record
+            # Update container record with container ID and status
             container_record.container_id = container.id
-            container_record.host_port = host_port
             container_record.status = 'running'
             container_record.started_at = datetime.now(timezone.utc)
             db.session.commit()
@@ -540,13 +546,14 @@ class DockerManager:
             db.session.rollback()
             return 0
     
-    def _find_available_port(self, start_port=7000, end_port=8000):
+    def _find_available_port(self, start_port=7000, end_port=8000, exclude_ports=None):
         """
         Find an available port in the specified range with database lock
         
         Args:
             start_port: Starting port number
             end_port: Ending port number
+            exclude_ports: List of ports to exclude from allocation (e.g., already allocated in this transaction)
             
         Returns:
             Available port number
@@ -563,6 +570,20 @@ class DockerManager:
         
         for container in containers:
             used_ports.add(container.host_port)
+            # Also check audio ports from Docker labels if container exists
+            if container.container_id:
+                try:
+                    docker_container = self.client.containers.get(container.container_id)
+                    audio_port_str = docker_container.labels.get('audio_port')
+                    if audio_port_str:
+                        used_ports.add(int(audio_port_str))
+                except Exception as e:
+                    # Container might not exist anymore, skip
+                    pass
+        
+        # Add explicitly excluded ports
+        if exclude_ports:
+            used_ports.update(exclude_ports)
         
         # Find available port
         for port in range(start_port, end_port):
