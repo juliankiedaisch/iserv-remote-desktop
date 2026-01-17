@@ -3,6 +3,7 @@ from docker.errors import DockerException, NotFound, APIError
 from flask import current_app
 import os
 import random
+import socket
 from datetime import datetime, timezone
 from sqlalchemy import or_
 from app import db
@@ -45,7 +46,7 @@ class DockerManager:
             current_app.logger.error(f"Failed to connect to Docker: {str(e)}")
             raise
     
-    def create_container(self, user_id, session_id, username, desktop_type=None, desktop_image_id=None):
+    def create_container(self, user_id, session_id, username, desktop_type=None, desktop_image_id=None, max_retries=3):
         """
         Create and start a Kasm workspace container for a user
         
@@ -55,9 +56,39 @@ class DockerManager:
             username: User's username
             desktop_type: Type of desktop to create (name from desktop_types table)
             desktop_image_id: ID of the desktop image (for access control)
+            max_retries: Maximum number of retries on port conflicts (default: 3)
             
         Returns:
             Container model instance
+        """
+        # Retry logic for race conditions (port conflicts, etc.)
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                return self._create_container_internal(user_id, session_id, username, desktop_type, desktop_image_id)
+            except APIError as e:
+                error_msg = str(e)
+                if 'port is already allocated' in error_msg or 'address already in use' in error_msg:
+                    last_error = e
+                    current_app.logger.warning(
+                        f"Port conflict on attempt {attempt + 1}/{max_retries}: {error_msg}"
+                    )
+                    if attempt < max_retries - 1:
+                        # Small delay before retry to reduce contention
+                        import time
+                        time.sleep(0.5 * (attempt + 1))  # Exponential backoff
+                        continue
+                raise  # Re-raise if not a port conflict
+            except Exception as e:
+                # For other exceptions, don't retry
+                raise
+        
+        # If we exhausted all retries, raise the last error
+        raise last_error if last_error else Exception("Failed to create container after retries")
+    
+    def _create_container_internal(self, user_id, session_id, username, desktop_type=None, desktop_image_id=None):
+        """
+        Internal method to create container (called by create_container with retry logic)
         """
         container_record = None
         try:
@@ -215,8 +246,25 @@ class DockerManager:
             db.session.add(container_record)
             db.session.commit()
             
-            # Find available host port
-            host_port = self._find_available_port()
+            # Find available host ports for both VNC and audio with transaction locking
+            # Use a new transaction with row-level locking to prevent race conditions
+            try:
+                # Allocate VNC port first
+                host_port = self._find_available_port_locked()
+                # Update container record immediately to reserve the port
+                container_record.host_port = host_port
+                db.session.commit()
+                
+                # Allocate audio port, excluding the VNC port we just allocated
+                audio_host_port = self._find_available_port_locked(exclude_ports=[host_port])
+                
+                current_app.logger.info(f"Allocated ports - VNC: {host_port}, Audio: {audio_host_port}")
+            except Exception as e:
+                current_app.logger.error(f"Failed to allocate ports: {str(e)}")
+                # Clean up container record if port allocation fails
+                db.session.delete(container_record)
+                db.session.commit()
+                raise
             
             # Environment variables for Kasm
             environment = {
@@ -289,9 +337,6 @@ class DockerManager:
             
             # Create and start container
             current_app.logger.info(f"Creating container {container_name} from image {kasm_image}")
-            
-            # Find port for audio (4901) - use same range starting at 7000
-            audio_host_port = self._find_available_port(start_port=7000, end_port=10000)
             
             container = self.client.containers.run(
                 kasm_image,
@@ -540,37 +585,105 @@ class DockerManager:
             db.session.rollback()
             return 0
     
-    def _find_available_port(self, start_port=7000, end_port=8000):
+    def _find_available_port_locked(self, start_port=7000, end_port=10000, exclude_ports=None):
         """
-        Find an available port in the specified range with database lock
+        Find an available port with database row-level locking to prevent race conditions
         
         Args:
             start_port: Starting port number
             end_port: Ending port number
+            exclude_ports: List of ports to exclude (e.g., already allocated in this session)
             
         Returns:
             Available port number
         """
-        # Use database lock to prevent race conditions in port allocation
+        if exclude_ports is None:
+            exclude_ports = []
+        
+        # Use row-level locking (SELECT FOR UPDATE) to prevent race conditions
+        # This ensures only one thread can allocate a port at a time
         from sqlalchemy import text
         
-        # Get all currently used ports with a lock
-        used_ports = set()
+        # Get all currently used ports from database with row-level lock
+        used_ports = set(exclude_ports)  # Start with excluded ports
         containers = Container.query.filter(
-            Container.status == 'running',
+            Container.status.in_(['running', 'creating']),
             Container.host_port.isnot(None)
         ).with_for_update().all()
         
         for container in containers:
             used_ports.add(container.host_port)
         
-        # Find available port
+        # Find available port by checking both database and actual port availability
         for port in range(start_port, end_port):
-            if port not in used_ports:
-                # Create a temporary lock record to reserve this port
+            # Skip if already in database or excluded
+            if port in used_ports:
+                continue
+            
+            # Check if port is actually free on the host system
+            if self._is_port_available(port):
                 return port
         
         raise Exception(f"No available ports in range {start_port}-{end_port}")
+    
+    def _find_available_port(self, start_port=7000, end_port=10000, exclude_ports=None):
+        """
+        Find an available port in the specified range by checking both database and host system
+        (Non-locking version for backward compatibility)
+        
+        Args:
+            start_port: Starting port number
+            end_port: Ending port number
+            exclude_ports: List of ports to exclude (e.g., already allocated in this session)
+            
+        Returns:
+            Available port number
+        """
+        if exclude_ports is None:
+            exclude_ports = []
+        
+        # Get all currently used ports from database
+        used_ports = set(exclude_ports)  # Start with excluded ports
+        containers = Container.query.filter(
+            Container.status.in_(['running', 'creating']),
+            Container.host_port.isnot(None)
+        ).all()
+        
+        for container in containers:
+            used_ports.add(container.host_port)
+        
+        # Find available port by checking both database and actual port availability
+        for port in range(start_port, end_port):
+            # Skip if already in database or excluded
+            if port in used_ports:
+                continue
+            
+            # Check if port is actually free on the host system
+            if self._is_port_available(port):
+                return port
+        
+        raise Exception(f"No available ports in range {start_port}-{end_port}")
+    
+    def _is_port_available(self, port):
+        """
+        Check if a port is available on the host system
+        
+        Args:
+            port: Port number to check
+            
+        Returns:
+            True if port is available, False otherwise
+        """
+        try:
+            # Try to bind to the port with timeout
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s.settimeout(1.0)  # 1 second timeout
+                s.bind(('0.0.0.0', port))
+                return True
+        except (OSError, socket.timeout):
+            # Port is already in use or timeout
+            return False
     
     def get_container_url(self, container_record):
         """

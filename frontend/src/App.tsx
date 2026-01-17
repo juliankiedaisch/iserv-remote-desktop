@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Dashboard, AdminPanel, Login, ThemeEditor, DesktopTypesManager, AssignmentManager, FileManager, UserManagement } from './pages';
 import Viewer from './pages/Viewer';
@@ -28,83 +28,92 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   return <>{children}</>;
 };
 
+const AppContent: React.FC = () => {
+  const location = useLocation();
+  const isViewerPage = location.pathname.startsWith('/viewer/');
+
+  return (
+    <div className="App">
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute>
+              <AdminPanel />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/desktop-types"
+          element={
+            <ProtectedRoute>
+              <DesktopTypesManager />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <ProtectedRoute>
+              <UserManagement />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/teacher/assignments"
+          element={
+            <ProtectedRoute>
+              <AssignmentManager />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/theme"
+          element={
+            <ProtectedRoute>
+              <ThemeEditor />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/files"
+          element={
+            <ProtectedRoute>
+              <FileManager />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/viewer/:proxyPath"
+          element={
+            <ProtectedRoute>
+              <Viewer />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      {!isViewerPage && <LanguageSwitcher />}
+    </div>
+  );
+};
+
 function App() {
   // Load theme on app start
   useTheme();
   
   return (
     <Router>
-      <div className="App">
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin"
-            element={
-              <ProtectedRoute>
-                <AdminPanel />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/desktop-types"
-            element={
-              <ProtectedRoute>
-                <DesktopTypesManager />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/users"
-            element={
-              <ProtectedRoute>
-                <UserManagement />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/teacher/assignments"
-            element={
-              <ProtectedRoute>
-                <AssignmentManager />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/theme"
-            element={
-              <ProtectedRoute>
-                <ThemeEditor />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/files"
-            element={
-              <ProtectedRoute>
-                <FileManager />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/viewer/:proxyPath"
-            element={
-              <ProtectedRoute>
-                <Viewer />
-              </ProtectedRoute>
-            }
-          />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-        <LanguageSwitcher />
-      </div>
+      <AppContent />
     </Router>
   );
 }

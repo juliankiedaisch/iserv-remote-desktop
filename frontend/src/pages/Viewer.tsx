@@ -1,29 +1,38 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
+import React, { useEffect, useRef } from 'react';
+import { useParams } from 'react-router-dom';
 // @ts-ignore
 import JSMpeg from '@cycjimmy/jsmpeg-player';
+import './Viewer.css';
 
 /**
- * Viewer page that combines VNC desktop and audio in single tab
+ * Viewer page that embeds VNC desktop with native KasmVNC controls and auto-starts audio
  */
 export const Viewer: React.FC = () => {
   const { proxyPath } = useParams<{ proxyPath: string }>();
-  const navigate = useNavigate();
-  const { t } = useTranslation();
   
-  const [audioEnabled, setAudioEnabled] = useState(false);
-  const [audioError, setAudioError] = useState<string | null>(null);
   const audioPlayerRef = useRef<any>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Get VNC URL
-  const containerPrefix = process.env.REACT_APP_CONTAINER_PREFIX || 'test-desktop';
-  const vncUrl = `https://${containerPrefix}-${proxyPath}.hub.mdg-hamburg.de/`;
-
-  // Audio connection
+  // Set page title
   useEffect(() => {
-    if (!audioEnabled || !proxyPath) return;
+    if (proxyPath) {
+      document.title = `Desktop - ${proxyPath}`;
+    }
+    return () => {
+      document.title = 'Remote Desktop';
+    };
+  }, [proxyPath]);
+
+  // Get VNC URL with parameters for fullscreen scaling
+  // Authentication is automatically handled by Apache (Basic Auth header injection)
+  // IMPORTANT: show_control_bar=true parameter forces KasmVNC to display the control bar even when embedded in iframe
+  // This overrides the default behavior where KasmVNC hides controls when (window.self !== window.top)
+  const containerPrefix = process.env.REACT_APP_CONTAINER_PREFIX || 'test-desktop';
+  const vncUrl = `https://${containerPrefix}-${proxyPath}.hub.mdg-hamburg.de/?resize=remote&autoconnect=true&reconnect=true&reconnect_delay=2000&show_control_bar=true`;
+
+  // Auto-start audio connection
+  useEffect(() => {
+    if (!proxyPath) return;
 
     const audioPrefix = containerPrefix === 'desktop' ? 'audio' : 'test-audio';
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -49,17 +58,14 @@ export const Viewer: React.FC = () => {
         // @ts-ignore
         onPlay: () => {
           console.log('Audio connected');
-          setAudioError(null);
         },
         // @ts-ignore
         onError: (error: Error) => {
           console.error('Audio error:', error);
-          setAudioError('Audio connection failed');
         },
       });
     } catch (error) {
       console.error('Failed to start audio:', error);
-      setAudioError('Failed to initialize audio');
     }
 
     // Cleanup
@@ -77,79 +83,14 @@ export const Viewer: React.FC = () => {
         canvasRef.current = null;
       }
     };
-  }, [audioEnabled, proxyPath, containerPrefix]);
+  }, [proxyPath, containerPrefix]);
 
   return (
-    <div style={{ 
-      position: 'fixed', 
-      top: 0, 
-      left: 0, 
-      right: 0, 
-      bottom: 0, 
-      display: 'flex', 
-      flexDirection: 'column',
-      backgroundColor: '#1a1a1a'
-    }}>
-      {/* Control bar */}
-      <div style={{ 
-        height: '50px', 
-        backgroundColor: '#2d2d2d', 
-        display: 'flex', 
-        alignItems: 'center', 
-        padding: '0 20px',
-        gap: '15px',
-        borderBottom: '1px solid #444'
-      }}>
-        <button
-          onClick={() => navigate('/dashboard')}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#444',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          ← {t('common.back') || 'Back'}
-        </button>
-        
-        <button
-          onClick={() => setAudioEnabled(!audioEnabled)}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: audioEnabled ? '#28a745' : '#6c757d',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '16px'
-          }}
-          title={audioEnabled ? t('audio.disable') : t('audio.enable')}
-        >
-          {audioEnabled ? '🔊' : '🔇'} Audio
-        </button>
-
-        {audioError && (
-          <span style={{ color: '#dc3545', fontSize: '14px' }}>
-            {audioError}
-          </span>
-        )}
-
-        <span style={{ color: '#999', fontSize: '14px', marginLeft: 'auto' }}>
-          {proxyPath}
-        </span>
-      </div>
-
-      {/* VNC iframe */}
+    <div className="viewer-container">
+      {/* VNC iframe with native KasmVNC controls */}
       <iframe
         src={vncUrl}
-        style={{
-          flex: 1,
-          border: 'none',
-          width: '100%',
-          height: 'calc(100vh - 50px)'
-        }}
+        className="viewer-iframe"
         title="Desktop"
       />
     </div>
