@@ -756,7 +756,22 @@ class DockerManager:
                             container.proxy_path = normalized
                             stats['normalized_paths'] += 1
                     
-                    # Check 2: Clean up containers stuck in 'creating' for more than 5 minutes
+                    # Check 2: Populate audio_port from Docker labels if missing
+                    if container.container_id and not container.audio_port:
+                        docker_container = docker_containers.get(container.container_id)
+                        if docker_container:
+                            audio_port_str = docker_container.labels.get('audio_port')
+                            if audio_port_str:
+                                try:
+                                    container.audio_port = int(audio_port_str)
+                                    stats['normalized_paths'] += 1  # Reuse this counter for migrations
+                                    current_app.logger.info(
+                                        f"Populated audio_port from Docker labels for {container.container_name}: {audio_port_str}"
+                                    )
+                                except ValueError:
+                                    pass
+                    
+                    # Check 3: Clean up containers stuck in 'creating' for more than 5 minutes
                     if container.status == 'creating':
                         time_in_creating = datetime.now(timezone.utc) - container.created_at
                         if time_in_creating > timedelta(minutes=5):
@@ -781,7 +796,7 @@ class DockerManager:
                             stats['cleaned_stuck'] += 1
                             continue
                     
-                    # Check 3: Verify container exists in Docker and sync status
+                    # Check 4: Verify container exists in Docker and sync status
                     if container.container_id:
                         docker_container = docker_containers.get(container.container_id)
                         

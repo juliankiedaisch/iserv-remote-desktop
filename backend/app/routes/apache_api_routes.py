@@ -55,10 +55,29 @@ def get_container_target(proxy_path):
     docker_host = os.environ.get('DOCKER_HOST_IP', '172.22.0.36')
     
     if port_type == 'audio':
-        # Get audio port from database
-        if container.audio_port:
-            current_app.logger.info(f"Apache API (audio): {docker_host}:{container.audio_port}")
-            return jsonify({"target": f"{docker_host}:{container.audio_port}"})
+        # Get audio port from database, fallback to Docker labels for old containers
+        audio_port = container.audio_port
+        
+        if not audio_port and container.container_id:
+            # Try to get from Docker labels (for containers created before audio_port column was added)
+            try:
+                from app.services.docker_manager import DockerManager
+                docker_manager = DockerManager()
+                docker_container = docker_manager.client.containers.get(container.container_id)
+                audio_port_str = docker_container.labels.get('audio_port')
+                if audio_port_str:
+                    audio_port = int(audio_port_str)
+                    # Update database for future requests
+                    container.audio_port = audio_port
+                    from app import db
+                    db.session.commit()
+                    current_app.logger.info(f"Populated audio_port from Docker labels for {container.container_name}: {audio_port}")
+            except Exception as e:
+                current_app.logger.error(f"Failed to get audio port from Docker labels: {e}")
+        
+        if audio_port:
+            current_app.logger.info(f"Apache API (audio): {docker_host}:{audio_port}")
+            return jsonify({"target": f"{docker_host}:{audio_port}"})
         else:
             current_app.logger.error(f"No audio port configured for container {container.container_name}")
             return jsonify({"target": None})
