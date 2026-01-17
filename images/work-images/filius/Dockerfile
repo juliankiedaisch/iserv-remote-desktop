@@ -1,6 +1,6 @@
-ARG BASE_TAG="develop"
-ARG BASE_IMAGE="core-ubuntu-jammy"
-FROM kasmweb/$BASE_IMAGE:$BASE_TAG
+ARG BASE_TAG="latest"
+ARG BASE_IMAGE="kasm-core-ubuntu"
+FROM teacherki/$BASE_IMAGE:$BASE_TAG
 USER root
 
 ENV HOME /home/kasm-default-profile
@@ -15,25 +15,16 @@ WORKDIR $HOME
 RUN echo "kasm-user:password" | chpasswd
 RUN usermod -a -G sudo kasm-user
 
+# Install Filius
+#COPY ./src/filius_2.9.4_all.deb $INST_SCRIPTS/filius_2.9.4_all.deb
 RUN apt-get update
-RUN apt-get install language-pack-de
-RUN apt-get install $(check-language-support)
-RUN sudo update-locale LANG=de_DE.UTF-8
+#RUN apt-get update && apt-get -y install default-jre
+#RUN dpkg -i $INST_SCRIPTS/filius_2.9.4_all.deb
+RUN apt-get -y install filius
 
-RUN apt-get -y install python3-tk python3-pip python3-pygame
-
-# Install Google Chrome
-COPY ./src/install_chrome.sh $INST_SCRIPTS/chrome/
-RUN bash $INST_SCRIPTS/chrome/install_chrome.sh  && rm -rf $INST_SCRIPTS/chrome/
-
-
-COPY ./src/install_vs_code.sh $INST_SCRIPTS/vs_code/
-RUN bash $INST_SCRIPTS/vs_code/install_vs_code.sh  && rm -rf $INST_SCRIPTS/vs_code/
-
-COPY ./src/custom_startup.sh $STARTUPDIR/custom_startup.sh
+COPY ./src/filius_custom_startup.sh $STARTUPDIR/custom_startup.sh
 RUN chmod +x $STARTUPDIR/custom_startup.sh
 RUN chmod 755 $STARTUPDIR/custom_startup.sh
-
 
 # Update the desktop environment to be optimized for a single application
 RUN cp $HOME/.config/xfce4/xfconf/single-application-xfce-perchannel-xml/* $HOME/.config/xfce4/xfconf/xfce-perchannel-xml/

@@ -1,6 +1,6 @@
-ARG BASE_TAG="develop"
-ARG BASE_IMAGE="core-debian-trixie"
-FROM kasmweb/$BASE_IMAGE:$BASE_TAG
+ARG BASE_TAG="latest"
+ARG BASE_IMAGE="kasm-core-ubuntu"
+FROM teacherkir/$BASE_IMAGE:$BASE_TAG
 USER root
 
 ENV HOME /home/kasm-default-profile
@@ -13,11 +13,6 @@ WORKDIR $HOME
 # Set Password
 RUN echo "kasm-user:password" | chpasswd
 RUN usermod -a -G sudo kasm-user
-
-RUN apt-get update && \
-#    apt-get install locales-all && \
-    locale-gen de_DE.UTF-8 && \
-    update-locale LANG=de_DE.UTF-8 LANGUAGE=de_DE.UTF-8
 
 RUN apt-get -y install python3-tk python3-pip python3-pygame
 
