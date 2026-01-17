@@ -10,11 +10,12 @@ RewriteRule pattern ${containermap:%{HTTP_HOST}}
 
 import sys
 import requests
+import os
 from urllib.parse import quote
 
 # Flask API configuration
 FLASK_API_URL = "http://172.22.0.27:5021/api/apache/container-target"
-APACHE_API_KEY = "your-secure-random-key-here"  # Must match Flask APACHE_API_KEY
+APACHE_API_KEY = os.environ.get('APACHE_API_KEY', 'lFSSwVI4bzjY5XJuEWAVXB')  # Match production key
 
 def get_container_target(subdomain):
     """
@@ -32,6 +33,7 @@ def get_container_target(subdomain):
     #   audio-{proxy}.hub.mdg-hamburg.de → Audio port
     #   test-desktop-{proxy}.hub.mdg-hamburg.de → VNC port (test env)
     #   test-audio-{proxy}.hub.mdg-hamburg.de → Audio port (test env)
+    # Note: proxy_path uses dashes for DNS compatibility, but database has dots
     
     if not subdomain.endswith('.hub.mdg-hamburg.de'):
         return "NULL"

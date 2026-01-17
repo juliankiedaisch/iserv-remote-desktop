@@ -26,6 +26,7 @@ def get_container_target(proxy_path):
     """
     # Authenticate Apache server
     api_key = request.headers.get('X-API-Key')
+    current_app.logger.info(f"Apache API auth check: received='{api_key}', expected='{APACHE_API_KEY}', match={api_key == APACHE_API_KEY}")
     if api_key != APACHE_API_KEY:
         current_app.logger.warning(f"Error Apache API: No Correct API KEY")
         return jsonify({"error": "Unauthorized"}), 401
@@ -55,6 +56,7 @@ def get_container_target(proxy_path):
             docker_manager = DockerManager()
             docker_container = docker_manager.client.containers.get(container.container_id)
             audio_port = docker_container.labels.get('audio_port')
+            current_app.logger.info(f"Apache API: Retrieved audio port label: {audio_port}")
             if audio_port:
                 current_app.logger.info(f"Apache API (audio): {docker_host}:{audio_port}")
                 return jsonify({"target": f"{docker_host}:{audio_port}"})

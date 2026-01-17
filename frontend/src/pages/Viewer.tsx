@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 // @ts-ignore
 import JSMpeg from '@cycjimmy/jsmpeg-player';
+import './Viewer.css';
 
 /**
  * Viewer page that combines VNC desktop and audio in single tab
@@ -12,8 +13,9 @@ export const Viewer: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   
-  const [audioEnabled, setAudioEnabled] = useState(false);
+  const [audioEnabled, setAudioEnabled] = useState(true);
   const [audioError, setAudioError] = useState<string | null>(null);
+  const [menuCollapsed, setMenuCollapsed] = useState(true);
   const audioPlayerRef = useRef<any>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -80,76 +82,51 @@ export const Viewer: React.FC = () => {
   }, [audioEnabled, proxyPath, containerPrefix]);
 
   return (
-    <div style={{ 
-      position: 'fixed', 
-      top: 0, 
-      left: 0, 
-      right: 0, 
-      bottom: 0, 
-      display: 'flex', 
-      flexDirection: 'column',
-      backgroundColor: '#1a1a1a'
-    }}>
-      {/* Control bar */}
-      <div style={{ 
-        height: '50px', 
-        backgroundColor: '#2d2d2d', 
-        display: 'flex', 
-        alignItems: 'center', 
-        padding: '0 20px',
-        gap: '15px',
-        borderBottom: '1px solid #444'
-      }}>
-        <button
-          onClick={() => navigate('/dashboard')}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#444',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          ← {t('common.back') || 'Back'}
-        </button>
-        
-        <button
-          onClick={() => setAudioEnabled(!audioEnabled)}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: audioEnabled ? '#28a745' : '#6c757d',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '16px'
-          }}
-          title={audioEnabled ? t('audio.disable') : t('audio.enable')}
-        >
-          {audioEnabled ? '🔊' : '🔇'} Audio
-        </button>
+    <div className="viewer-container">
+      {/* Toggle button - always visible, centered vertically */}
+      <button
+        onClick={() => setMenuCollapsed(!menuCollapsed)}
+        className={`viewer-toggle-button ${!menuCollapsed ? 'expanded' : ''}`}
+      >
+        {menuCollapsed ? '►' : '◄'}
+      </button>
 
-        {audioError && (
-          <span style={{ color: '#dc3545', fontSize: '14px' }}>
-            {audioError}
-          </span>
+      {/* Left sidebar menu */}
+      <div className={`viewer-sidebar ${!menuCollapsed ? 'expanded' : ''}`}>
+        {!menuCollapsed && (
+          <>
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="viewer-button viewer-button-back"
+            >
+              ← {t('common.back') || 'Back'}
+            </button>
+            
+            <button
+              onClick={() => setAudioEnabled(!audioEnabled)}
+              className={`viewer-button viewer-button-audio ${audioEnabled ? 'enabled' : ''}`}
+              title={audioEnabled ? t('audio.disable') : t('audio.enable')}
+            >
+              {audioEnabled ? '🔊' : '🔇'} Audio
+            </button>
+
+            {audioError && (
+              <div className="viewer-audio-error">
+                {audioError}
+              </div>
+            )}
+
+            <div className="viewer-proxy-info">
+              {proxyPath}
+            </div>
+          </>
         )}
-
-        <span style={{ color: '#999', fontSize: '14px', marginLeft: 'auto' }}>
-          {proxyPath}
-        </span>
       </div>
 
       {/* VNC iframe */}
       <iframe
         src={vncUrl}
-        style={{
-          flex: 1,
-          border: 'none',
-          width: '100%',
-          height: 'calc(100vh - 50px)'
-        }}
+        className="viewer-iframe"
         title="Desktop"
       />
     </div>
