@@ -29,7 +29,8 @@ RUN apt-get update && apt-get -y install firefox
 #Install Gimp
 RUN apt-get update && apt-get -y install gimp
 #Install LibreOffice
-RUN apt-get update && apt-get -y install libreoffice
+COPY ./src $INST_SCRIPTS/libre_office/
+RUN bash $INST_SCRIPTS/libre_office/install_libre_office.sh  && rm -rf $INST_SCRIPTS/libre_office/
 ######### End Customizations ###########
 
 RUN chown 1000:0 $HOME
