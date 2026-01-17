@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Dashboard, AdminPanel, Login, ThemeEditor, DesktopTypesManager, AssignmentManager, FileManager, UserManagement } from './pages';
+import Viewer from './pages/Viewer';
 import { useAuth } from './hooks/useAuth';
 import { useTheme } from './hooks/useTheme';
 import { Loading, LanguageSwitcher } from './components';
@@ -89,6 +90,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <FileManager />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/viewer/:proxyPath"
+            element={
+              <ProtectedRoute>
+                <Viewer />
               </ProtectedRoute>
             }
           />

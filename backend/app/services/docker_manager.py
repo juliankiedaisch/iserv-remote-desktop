@@ -289,10 +289,16 @@ class DockerManager:
             # Create and start container
             current_app.logger.info(f"Creating container {container_name} from image {kasm_image}")
             
+            # Find port for audio (4901)
+            audio_host_port = self._find_available_port(start_port=8000, end_port=9000)
+            
             container = self.client.containers.run(
                 kasm_image,
                 name=container_name,
-                ports={f'{container_port}/tcp': host_port},
+                ports={
+                    f'{container_port}/tcp': host_port,  # VNC port (6901)
+                    '4901/tcp': audio_host_port  # Audio WebSocket port
+                },
                 environment=environment,
                 detach=True,
                 remove=False,
@@ -301,7 +307,8 @@ class DockerManager:
                 labels={
                     'user_id': user_id,
                     'session_id': session_id,
-                    'managed_by': 'iserv-remote-desktop'
+                    'managed_by': 'iserv-remote-desktop',
+                    'audio_port': str(audio_host_port)
                 }
             )
             
