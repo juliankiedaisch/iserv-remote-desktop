@@ -50,18 +50,13 @@ def get_container_target(proxy_path):
     docker_host = os.environ.get('DOCKER_HOST_IP', '172.22.0.36')
     
     if port_type == 'audio':
-        # Get audio port from container labels
-        try:
-            from app.services.docker_manager import DockerManager
-            docker_manager = DockerManager()
-            docker_container = docker_manager.client.containers.get(container.container_id)
-            audio_port = docker_container.labels.get('audio_port')
-            current_app.logger.info(f"Apache API: Retrieved audio port label: {audio_port}")
-            if audio_port:
-                current_app.logger.info(f"Apache API (audio): {docker_host}:{audio_port}")
-                return jsonify({"target": f"{docker_host}:{audio_port}"})
-        except Exception as e:
-            current_app.logger.error(f"Error getting audio port: {e}")
+        # Get audio port from database
+        if container.audio_port:
+            current_app.logger.info(f"Apache API (audio): {docker_host}:{container.audio_port}")
+            return jsonify({"target": f"{docker_host}:{container.audio_port}"})
+        else:
+            current_app.logger.error(f"No audio port configured for container {container.container_name}")
+            return jsonify({"target": None})
     
     # Default: return VNC port
     current_app.logger.info(f"Apache API (vnc): {docker_host}:{container.host_port}")

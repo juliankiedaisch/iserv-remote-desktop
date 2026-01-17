@@ -221,7 +221,8 @@ class DockerManager:
                 status='creating',
                 container_port=container_port,
                 proxy_path=proxy_path,
-                host_port=host_port  # Reserve port immediately
+                host_port=host_port,  # Reserve VNC port immediately
+                audio_port=audio_host_port  # Reserve audio port immediately
             )
             db.session.add(container_record)
             db.session.commit()
@@ -564,22 +565,19 @@ class DockerManager:
         # Get all currently used ports with a lock
         used_ports = set()
         containers = Container.query.filter(
-            Container.status == 'running',
-            Container.host_port.isnot(None)
+            Container.status.in_(['running', 'creating']),
+            db.or_(
+                Container.host_port.isnot(None),
+                Container.audio_port.isnot(None)
+            )
         ).with_for_update().all()
         
         for container in containers:
-            used_ports.add(container.host_port)
-            # Also check audio ports from Docker labels if container exists
-            if container.container_id:
-                try:
-                    docker_container = self.client.containers.get(container.container_id)
-                    audio_port_str = docker_container.labels.get('audio_port')
-                    if audio_port_str:
-                        used_ports.add(int(audio_port_str))
-                except Exception as e:
-                    # Container might not exist anymore, skip
-                    pass
+            # Add both VNC and audio ports from database
+            if container.host_port:
+                used_ports.add(container.host_port)
+            if container.audio_port:
+                used_ports.add(container.audio_port)
         
         # Add explicitly excluded ports
         if exclude_ports:

@@ -26,7 +26,8 @@ class Container(db.Model):
     status = db.Column(db.String(50), nullable=False, default='creating')  # creating, running, stopped, error
     
     # Connection details
-    host_port = db.Column(db.Integer, nullable=True)  # Port on host machine
+    host_port = db.Column(db.Integer, nullable=True)  # Port on host machine for VNC
+    audio_port = db.Column(db.Integer, nullable=True)  # Port on host machine for audio WebSocket
     container_port = db.Column(db.Integer, nullable=False, default=6901)  # Default Kasm VNC port
     proxy_path = db.Column(db.String(256), nullable=True, unique=True)  # Unique proxy path for reverse proxy access
     
