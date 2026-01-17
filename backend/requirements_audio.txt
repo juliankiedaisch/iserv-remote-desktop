@@ -1,0 +1,2 @@
+# Additional requirements for custom audio streaming
+aiohttp==3.9.1

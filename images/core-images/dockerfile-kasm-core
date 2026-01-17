@@ -77,9 +77,9 @@ COPY ./src/common/install/kasm_vnc/kasmvnc.yaml /etc/kasmvnc/
 COPY ./src/ubuntu/install/kasm_upload_server $INST_SCRIPTS/kasm_upload_server/
 RUN bash $INST_SCRIPTS/kasm_upload_server/install_kasm_upload_server.sh  && rm -rf $INST_SCRIPTS/kasm_upload_server/
 
-### Install Audio
-COPY ./src/ubuntu/install/audio $INST_SCRIPTS/audio/
-RUN bash $INST_SCRIPTS/audio/install_audio.sh  && rm -rf $INST_SCRIPTS/audio/
+### Install Custom Audio Streaming (replaces Kasm native audio)
+COPY ./src/ubuntu/install/custom_audio $INST_SCRIPTS/custom_audio/
+RUN bash $INST_SCRIPTS/custom_audio/install_custom_audio.sh && rm -rf $INST_SCRIPTS/custom_audio/
 
 ### Install Audio Input
 COPY ./src/ubuntu/install/audio_input $INST_SCRIPTS/audio_input/
@@ -129,6 +129,12 @@ COPY ./src/common/scripts/kasm_hook_scripts $STARTUPDIR
 ADD ./src/common/startup_scripts $STARTUPDIR
 RUN bash $STARTUPDIR/set_user_permission.sh $STARTUPDIR $HOME && \
     echo 'source $STARTUPDIR/generate_container_user' >> $HOME/.bashrc
+
+### Install custom audio server and startup script
+RUN mkdir -p /app
+COPY ./src/ubuntu/install/custom_audio_server/audio_websocket_server.py /app/audio_websocket_server.py
+COPY ./src/ubuntu/install/custom_audio_server/start_audio.sh $STARTUPDIR/start_audio.sh
+RUN chmod +x /app/audio_websocket_server.py $STARTUPDIR/start_audio.sh
 
 ### extra configurations needed per distro variant
 COPY ./src/ubuntu/install/extra $INST_SCRIPTS/extra/
@@ -181,7 +187,7 @@ RUN touch $STARTUPDIR/wm.log \
     && chmod 755 $STARTUPDIR/smartcard/kasm_smartcard_bridge \
     && chmod 755 $STARTUPDIR/recorder/kasm_recorder_service \
     && chmod 755 $STARTUPDIR/generate_container_user \
-    && chmod +x $STARTUPDIR/jsmpeg/kasm_audio_out-linux \
+    && chmod +x $STARTUPDIR/start_audio.sh \
     && rm -rf $STARTUPDIR/install \
     && mkdir -p $STARTUPDIR/kasmrx/Downloads \
     && chown 1000:1000 $STARTUPDIR/kasmrx/Downloads \

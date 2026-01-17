@@ -21,24 +21,44 @@ def get_container_target(subdomain):
     Query Flask API for container target based on subdomain.
     
     Args:
-        subdomain: Full hostname like "container-name.desktop.hub.mdg-hamburg.de"
+        subdomain: Full hostname like "desktop-{proxy}.hub.mdg-hamburg.de" or "audio-{proxy}.hub.mdg-hamburg.de"
     
     Returns:
         "IP:PORT" or "NULL" if not found
     """
-    # Extract container proxy_path from subdomain
-    # Format: desktop-{proxy-path}.hub.mdg-hamburg.de
-    if not subdomain.startswith('desktop-') or not subdomain.endswith('.hub.mdg-hamburg.de'):
+    # Extract container proxy_path and type from subdomain
+    # Formats:
+    #   desktop-{proxy}.hub.mdg-hamburg.de → VNC port
+    #   audio-{proxy}.hub.mdg-hamburg.de → Audio port
+    #   test-desktop-{proxy}.hub.mdg-hamburg.de → VNC port (test env)
+    #   test-audio-{proxy}.hub.mdg-hamburg.de → Audio port (test env)
+    
+    if not subdomain.endswith('.hub.mdg-hamburg.de'):
         return "NULL"
     
-    # Remove 'desktop-' prefix and '.hub.mdg-hamburg.de' suffix
-    proxy_path = subdomain.replace('desktop-', '').replace('.hub.mdg-hamburg.de', '')
+    # Determine if it's audio or desktop, and extract proxy_path
+    port_type = 'vnc'  # default
+    if subdomain.startswith('test-audio-'):
+        proxy_path = subdomain.replace('test-audio-', '').replace('.hub.mdg-hamburg.de', '')
+        port_type = 'audio'
+    elif subdomain.startswith('audio-'):
+        proxy_path = subdomain.replace('audio-', '').replace('.hub.mdg-hamburg.de', '')
+        port_type = 'audio'
+    elif subdomain.startswith('test-desktop-'):
+        proxy_path = subdomain.replace('test-desktop-', '').replace('.hub.mdg-hamburg.de', '')
+        port_type = 'vnc'
+    elif subdomain.startswith('desktop-'):
+        proxy_path = subdomain.replace('desktop-', '').replace('.hub.mdg-hamburg.de', '')
+        port_type = 'vnc'
+    else:
+        return "NULL"
     
     try:
-        # Query Flask API
+        # Query Flask API with port type parameter
         response = requests.get(
             f"{FLASK_API_URL}/{quote(proxy_path)}",
             headers={"X-API-Key": APACHE_API_KEY},
+            params={"port_type": port_type},
             timeout=2
         )
         

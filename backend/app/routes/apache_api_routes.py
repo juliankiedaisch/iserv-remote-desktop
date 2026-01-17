@@ -16,6 +16,10 @@ APACHE_API_KEY = os.environ.get('APACHE_API_KEY', 'change-this-in-production')
 def get_container_target(proxy_path):
     """
     Get container IP:port for Apache proxy routing.
+    Supports both VNC and audio port routing.
+    
+    Query params:
+        port_type: 'vnc' or 'audio' (default: 'vnc')
     
     Returns:
         JSON: {"target": "IP:PORT"} or {"target": null}
@@ -26,6 +30,9 @@ def get_container_target(proxy_path):
         current_app.logger.warning(f"Error Apache API: No Correct API KEY")
         return jsonify({"error": "Unauthorized"}), 401
     
+    # Get port type (vnc or audio)
+    port_type = request.args.get('port_type', 'vnc')
+    
     # Look up running container by proxy_path (case-insensitive)
     container = Container.query.filter(
         func.lower(Container.proxy_path) == func.lower(proxy_path),
@@ -35,12 +42,25 @@ def get_container_target(proxy_path):
     if not container or not container.host_port:
         # Log all running containers for debugging
         all_running = Container.query.filter_by(status='running').all()
-        current_app.logger.warning(f"Error Apache API: No Target for proxy_path='{proxy_path}'. Running containers: {[(c.container_name, c.proxy_path, c.host_port) for c in all_running]}")
+        current_app.logger.warning(f"Error Apache API: No Target for proxy_path='{proxy_path}' port_type='{port_type}'. Running containers: {[(c.container_name, c.proxy_path, c.host_port) for c in all_running]}")
         return jsonify({"target": None})
     
     # Return Docker host IP with mapped port
-    # Apache can access the host's mapped ports (7000, 7001, etc.)
     docker_host = os.environ.get('DOCKER_HOST_IP', '172.22.0.36')
-    current_app.logger.info(f"Apache API: {docker_host}:{container.host_port}")
     
+    if port_type == 'audio':
+        # Get audio port from container labels
+        try:
+            from app.services.docker_manager import DockerManager
+            docker_manager = DockerManager()
+            docker_container = docker_manager.client.containers.get(container.container_id)
+            audio_port = docker_container.labels.get('audio_port')
+            if audio_port:
+                current_app.logger.info(f"Apache API (audio): {docker_host}:{audio_port}")
+                return jsonify({"target": f"{docker_host}:{audio_port}"})
+        except Exception as e:
+            current_app.logger.error(f"Error getting audio port: {e}")
+    
+    # Default: return VNC port
+    current_app.logger.info(f"Apache API (vnc): {docker_host}:{container.host_port}")
     return jsonify({"target": f"{docker_host}:{container.host_port}"})
