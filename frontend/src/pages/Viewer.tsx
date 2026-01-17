@@ -27,8 +27,13 @@ export const Viewer: React.FC = () => {
   // Authentication is automatically handled by Apache (Basic Auth header injection)
   // IMPORTANT: show_control_bar=true parameter forces KasmVNC to display the control bar even when embedded in iframe
   // This overrides the default behavior where KasmVNC hides controls when (window.self !== window.top)
+  // quality=9 sets highest quality level (0-9 scale, 9 is best)
+  // compression=0 disables compression for best quality
+  // resize=scale enables client-side scaling for better quality on high-DPI displays
+  // anti_aliasing=1 enables edge smoothing for crisp text and graphics
   const containerPrefix = process.env.REACT_APP_CONTAINER_PREFIX || 'test-desktop';
-  const vncUrl = `https://${containerPrefix}-${proxyPath}.hub.mdg-hamburg.de/?resize=remote&autoconnect=true&reconnect=true&reconnect_delay=2000&show_control_bar=true`;
+  
+  const vncUrl = `https://${containerPrefix}-${proxyPath}.hub.mdg-hamburg.de/?resize=remote&autoconnect=true&reconnect=true&reconnect_delay=2000&show_control_bar=true&quality=9&compression=0&anti_aliasing=1&view_only=false`;
 
   // Auto-start audio connection
   useEffect(() => {

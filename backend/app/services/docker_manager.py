@@ -6,6 +6,7 @@ import random
 import socket
 from datetime import datetime, timezone
 from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
 from app import db
 from app.models.containers import Container
 from app.models.desktop_assignments import DesktopImage, DesktopAssignment
@@ -125,11 +126,12 @@ class DockerManager:
             
             # Check if container already exists for this session and desktop type in any state
             # We check by session_id, user_id, and desktop_type to ensure we only find containers for this user
+            # Use row-level locking to prevent concurrent creation attempts
             existing = Container.query.filter_by(
                 session_id=session_id,
                 user_id=user_id,
                 desktop_type=desktop_type
-            ).first()
+            ).with_for_update(skip_locked=False).first()
             
             if existing:
                 # If it's running, return it
@@ -172,16 +174,18 @@ class DockerManager:
             
             # Also check for any containers with conflicting proxy_path or container_name
             # These could be from previous sessions that weren't properly cleaned up
+            # Use row-level locking to prevent concurrent cleanup attempts
             conflicting_containers = Container.query.filter(
                 or_(
                     Container.proxy_path == proxy_path,
                     Container.container_name == container_name
                 ),
                 Container.user_id == user_id  # Only cleanup user's own containers
-            ).all()
+            ).with_for_update(skip_locked=True).all()
             
             # Track which container IDs we've already cleaned up to avoid duplicates
             cleaned_container_ids = set()
+            containers_to_delete = []
             
             for conflicting in conflicting_containers:
                 # Skip if we already cleaned up this container
@@ -213,9 +217,14 @@ class DockerManager:
                     proceed_with_db_cleanup = True
                 
                 if proceed_with_db_cleanup:
+                    containers_to_delete.append(conflicting)
+            
+            # Batch delete all conflicting containers in a single commit
+            if containers_to_delete:
+                for conflicting in containers_to_delete:
                     db.session.delete(conflicting)
-                    db.session.commit()
-                    current_app.logger.info(f"Removed database record for conflicting container {conflicting.container_name}")
+                db.session.commit()
+                current_app.logger.info(f"Removed {len(containers_to_delete)} conflicting database records")
             
             # Also check if a Docker container with this name exists but isn't in our database
             try:
@@ -231,7 +240,20 @@ class DockerManager:
             except Exception as e:
                 current_app.logger.warning(f"Error checking for orphaned Docker container: {str(e)}")
             
-            # Create database record first
+            # Find available host ports for both VNC and audio BEFORE creating database record
+            # This prevents partial state where a container exists without ports
+            try:
+                # Allocate VNC port first
+                host_port = self._find_available_port_locked()
+                # Allocate audio port, excluding the VNC port we just allocated
+                audio_host_port = self._find_available_port_locked(exclude_ports=[host_port])
+                
+                current_app.logger.info(f"Allocated ports - VNC: {host_port}, Audio: {audio_host_port}")
+            except Exception as e:
+                current_app.logger.error(f"Failed to allocate ports: {str(e)}")
+                raise
+            
+            # Create database record with all information including ports
             container_record = Container(
                 user_id=user_id,
                 session_id=session_id,
@@ -241,30 +263,11 @@ class DockerManager:
                 desktop_image_id=desktop_image_id,
                 status='creating',
                 container_port=container_port,
+                host_port=host_port,
                 proxy_path=proxy_path
             )
             db.session.add(container_record)
             db.session.commit()
-            
-            # Find available host ports for both VNC and audio with transaction locking
-            # Use a new transaction with row-level locking to prevent race conditions
-            try:
-                # Allocate VNC port first
-                host_port = self._find_available_port_locked()
-                # Update container record immediately to reserve the port
-                container_record.host_port = host_port
-                db.session.commit()
-                
-                # Allocate audio port, excluding the VNC port we just allocated
-                audio_host_port = self._find_available_port_locked(exclude_ports=[host_port])
-                
-                current_app.logger.info(f"Allocated ports - VNC: {host_port}, Audio: {audio_host_port}")
-            except Exception as e:
-                current_app.logger.error(f"Failed to allocate ports: {str(e)}")
-                # Clean up container record if port allocation fails
-                db.session.delete(container_record)
-                db.session.commit()
-                raise
             
             # Environment variables for Kasm
             environment = {
@@ -376,29 +379,37 @@ class DockerManager:
             
         except APIError as e:
             current_app.logger.error(f"Docker API error: {str(e)}")
-            if container_record:
+            # Rollback any pending changes
+            db.session.rollback()
+            # Try to update status in a fresh transaction
+            if container_record and container_record.id:
                 try:
-                    # Try to update status before rollback
-                    container_record.status = 'error'
-                    db.session.commit()
+                    # Refresh the object from database to avoid stale state
+                    db.session.expire(container_record)
+                    container_record = Container.query.get(container_record.id)
+                    if container_record:
+                        container_record.status = 'error'
+                        db.session.commit()
                 except Exception as commit_error:
                     current_app.logger.error(f"Failed to update container status after error: {str(commit_error)}")
                     db.session.rollback()
-            else:
-                db.session.rollback()
             raise
         except Exception as e:
             current_app.logger.error(f"Failed to create container: {str(e)}")
-            if container_record:
+            # Rollback any pending changes
+            db.session.rollback()
+            # Try to update status in a fresh transaction
+            if container_record and container_record.id:
                 try:
-                    # Try to update status before rollback
-                    container_record.status = 'error'
-                    db.session.commit()
+                    # Refresh the object from database to avoid stale state
+                    db.session.expire(container_record)
+                    container_record = Container.query.get(container_record.id)
+                    if container_record:
+                        container_record.status = 'error'
+                        db.session.commit()
                 except Exception as commit_error:
                     current_app.logger.error(f"Failed to update container status after error: {str(commit_error)}")
                     db.session.rollback()
-            else:
-                db.session.rollback()
             raise
     
     def stop_container(self, container_record):
@@ -602,6 +613,7 @@ class DockerManager:
         
         # Use row-level locking (SELECT FOR UPDATE) to prevent race conditions
         # This ensures only one thread can allocate a port at a time
+        # Use skip_locked to prevent blocking if another transaction has the lock
         from sqlalchemy import text
         
         # Get all currently used ports from database with row-level lock
@@ -609,7 +621,7 @@ class DockerManager:
         containers = Container.query.filter(
             Container.status.in_(['running', 'creating']),
             Container.host_port.isnot(None)
-        ).with_for_update().all()
+        ).with_for_update(skip_locked=True).all()
         
         for container in containers:
             used_ports.add(container.host_port)
