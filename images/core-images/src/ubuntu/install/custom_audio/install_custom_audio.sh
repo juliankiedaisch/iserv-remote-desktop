@@ -7,6 +7,7 @@ echo "Installing custom audio streaming dependencies..."
 # Install PulseAudio and ffmpeg
 apt-get update
 apt-get install -y \
+    curl \
     pulseaudio \
     pulseaudio-utils \
     ffmpeg \

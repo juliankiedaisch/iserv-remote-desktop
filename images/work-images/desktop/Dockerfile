@@ -1,6 +1,6 @@
 ARG BASE_TAG="latest"
 ARG BASE_IMAGE="kasm-core-ubuntu"
-FROM teacherkir/$BASE_IMAGE:$BASE_TAG
+FROM teacherki/$BASE_IMAGE:$BASE_TAG
 USER root
 
 ENV HOME /home/kasm-default-profile
@@ -14,7 +14,7 @@ WORKDIR $HOME
 RUN echo "kasm-user:password" | chpasswd
 RUN usermod -a -G sudo kasm-user
 
-RUN apt-get -y install python3-tk python3-pip python3-pygame
+RUN apt-get update && apt-get -y install python3-tk python3-pip python3-pygame
 
 # Install Google Chrome
 COPY ./src/install_chrome.sh $INST_SCRIPTS/chrome/
@@ -25,7 +25,7 @@ RUN bash $INST_SCRIPTS/vs_code/install_vs_code.sh  && rm -rf $INST_SCRIPTS/vs_co
 #Install Filius
 RUN apt-get update && apt-get -y install filius
 #Install Firefox
-RUN apt-get update && apt-get -y install firefox-esr
+RUN apt-get update && apt-get -y install firefox
 #Install Gimp
 RUN apt-get update && apt-get -y install gimp
 #Install LibreOffice
