@@ -620,11 +620,18 @@ class DockerManager:
         used_ports = set(exclude_ports)  # Start with excluded ports
         containers = Container.query.filter(
             Container.status.in_(['running', 'creating']),
-            Container.host_port.isnot(None)
+            or_(
+                Container.host_port.isnot(None),
+                Container.audio_port.isnot(None)
+            )
         ).with_for_update(skip_locked=True).all()
         
         for container in containers:
-            used_ports.add(container.host_port)
+            # Add both VNC and audio ports from database
+            if container.host_port:
+                used_ports.add(container.host_port)
+            if container.audio_port:
+                used_ports.add(container.audio_port)
         
         # Find available port by checking both database and actual port availability
         for port in range(start_port, end_port):
