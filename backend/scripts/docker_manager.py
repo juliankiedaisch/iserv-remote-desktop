@@ -89,8 +89,10 @@ class DockerManager:
             
             # Generate unique proxy path for reverse proxy access
             # Replace periods with dashes for DNS subdomain compatibility
-            username_safe = username.replace('.', '-')
-            proxy_path = f"{username_safe}-{desktop_type}"
+            # Also lowercase and replace spaces with dashes for consistency
+            username_safe = username.replace('.', '-').lower()
+            desktop_type_safe = desktop_type.replace(' ', '-').replace('_', '-').lower()
+            proxy_path = f"{username_safe}-{desktop_type_safe}"
             
             # Check if container already exists for this session and desktop type in any state
             # We check by session_id, user_id, and desktop_type to ensure we only find containers for this user
