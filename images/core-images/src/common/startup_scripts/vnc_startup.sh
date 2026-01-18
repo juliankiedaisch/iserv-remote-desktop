@@ -77,6 +77,24 @@ function pull_profile (){
 	return
 }
 
+function init_iserv_profile (){
+	# Initialize user home by copying files FROM mounted directories TO /home/kasm-user
+	# This happens once at container startup before any services start
+	if [[ ${ISERV_PROFILE_SYNC:-1} == 1 ]]; then
+		log 'Initializing IServ profile from mounted directories'
+		
+		# Check if mounted directories exist
+		if [ -d "/home/kasm-user-private" ] && [ -d "/home/kasm-user-configs" ]; then
+			$STARTUPDIR/iserv_profile_init.sh
+			if [[ $DEBUG == true ]]; then
+				echo -e "\n------------------ Initialized IServ Profile  ----------------------------"
+			fi
+		else
+			log "IServ profile directories not mounted, skipping initialization" "WARNING"
+		fi
+	fi
+}
+
 function profile_size_check(){
     if [ -z "$KASM_PROFILE_LDR" ]; then
         return
@@ -550,6 +568,9 @@ wait_for_network_devices
 
 # Syncronize user-space loaded persistent profiles
 pull_profile
+
+# Initialize IServ profile from mounted directories
+init_iserv_profile
 
 # should also source $STARTUPDIR/generate_container_user
 if [ -f $HOME/.bashrc ]; then
