@@ -100,6 +100,10 @@ def list_files(user_dict):
         # List files and directories
         items = []
         for item_name in os.listdir(full_path):
+            # Skip the Public folder in private space at root level
+            if space == 'private' and not path and item_name == 'Public':
+                continue
+            
             item_path = os.path.join(full_path, item_name)
             try:
                 stat = os.stat(item_path)
