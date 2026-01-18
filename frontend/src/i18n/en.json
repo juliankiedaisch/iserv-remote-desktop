@@ -53,7 +53,13 @@
     "justNow": "just now",
     "minutesAgo": "{{count}} minutes ago",
     "hoursAgo": "{{count}} hours ago",
-    "daysAgo": "{{count}} days ago"
+    "daysAgo": "{{count}} days ago",
+    "resetConfig": "🔄 Reset Config",
+    "resetConfigTitle": "Reset Container Configuration",
+    "resetConfigMessage": "Are you sure you want to reset the configuration for this container? Your desktop settings (wallpaper, panel layout, etc.) will be reset to defaults.",
+    "resetConfigWarning": "This will not affect your files, only desktop settings.",
+    "configResetSuccess": "Configuration reset successfully",
+    "configResetFailed": "Failed to reset configuration"
   },
   "header": {
     "dashboard": "Dashboard",
@@ -101,7 +107,19 @@
     "tablePort": "Port",
     "tableCreated": "Created",
     "tableLastAccessed": "Last Accessed",
-    "tableActions": "Actions"
+    "tableActions": "Actions",
+    "resetConfig": "🔄 Reset Config",
+    "resetConfigBulk": "🔄 Reset Selected Configs",
+    "resetConfigTitle": "Reset Container Configuration",
+    "resetConfigMessage": "Are you sure you want to reset the configuration for container \"{{containerName}}\"?",
+    "resetConfigBulkTitle": "Reset Multiple Container Configurations",
+    "resetConfigBulkMessage": "Are you sure you want to reset configurations for {{count}} selected container(s)?",
+    "resetConfigWarning": "This will reset desktop settings (wallpaper, panel layout, etc.) to defaults. Files will not be affected.",
+    "configResetSuccess": "Configuration reset successfully",
+    "configResetBulkSuccess": "Successfully reset {{count}} configuration(s)",
+    "configResetBulkPartial": "Reset {{successCount}} configuration(s), {{errorCount}} failed",
+    "configResetFailed": "Failed to reset configuration",
+    "selectContainers": "Select containers to reset configs"
   },
   "fileManager": {
     "title": "File Manager",

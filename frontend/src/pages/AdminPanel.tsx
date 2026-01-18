@@ -26,6 +26,7 @@ export const AdminPanel: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [selectedContainers, setSelectedContainers] = useState<Set<string>>(new Set());
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState>({
     isOpen: false,
     title: '',
@@ -187,6 +188,98 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
+  const handleResetContainerConfig = async (containerId: string, containerName: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: t('admin.resetConfigTitle'),
+      message: t('admin.resetConfigMessage', { containerName }),
+      confirmText: t('admin.resetConfig'),
+      isDangerous: true,
+      onConfirm: () => resetContainerConfig(containerId)
+    });
+  };
+
+  const resetContainerConfig = async (containerId: string) => {
+    setConfirmModal({ ...confirmModal, isOpen: false });
+
+    setActionLoading(true);
+    try {
+      const response = await apiService.resetContainerConfig(containerId);
+      if (response.success) {
+        setSuccessMessage(t('admin.configResetSuccess'));
+      } else {
+        setError(response.error || t('admin.configResetFailed'));
+      }
+    } catch (err: any) {
+      setError(err.message || t('admin.configResetFailed'));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleResetConfigsBulk = () => {
+    if (selectedContainers.size === 0) {
+      setError(t('admin.selectContainers'));
+      return;
+    }
+
+    setConfirmModal({
+      isOpen: true,
+      title: t('admin.resetConfigBulkTitle'),
+      message: t('admin.resetConfigBulkMessage', { count: selectedContainers.size }),
+      confirmText: t('admin.resetConfigBulk'),
+      isDangerous: true,
+      onConfirm: () => resetConfigsBulk()
+    });
+  };
+
+  const resetConfigsBulk = async () => {
+    setConfirmModal({ ...confirmModal, isOpen: false });
+
+    setActionLoading(true);
+    try {
+      const containerIds = Array.from(selectedContainers);
+      const response = await apiService.resetContainersConfigBulk(containerIds);
+      if (response.success) {
+        if (response.error_count === 0) {
+          setSuccessMessage(t('admin.configResetBulkSuccess', { count: response.success_count }));
+        } else {
+          setSuccessMessage(t('admin.configResetBulkPartial', { 
+            successCount: response.success_count, 
+            errorCount: response.error_count 
+          }));
+        }
+        setSelectedContainers(new Set());
+      } else {
+        setError(response.error || t('admin.configResetFailed'));
+      }
+    } catch (err: any) {
+      setError(err.message || t('admin.configResetFailed'));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSelectContainer = (containerId: string) => {
+    setSelectedContainers(prev => {
+      const next = new Set(prev);
+      if (next.has(containerId)) {
+        next.delete(containerId);
+      } else {
+        next.add(containerId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedContainers.size === containers.length) {
+      setSelectedContainers(new Set());
+    } else {
+      setSelectedContainers(new Set(containers.map(c => c.id)));
+    }
+  };
+
   const formatDate = (dateString?: string): string => {
     if (!dateString) return t('common.NA');
     return new Date(dateString).toLocaleString();
@@ -247,6 +340,11 @@ export const AdminPanel: React.FC = () => {
             <button className="btn btn-danger" onClick={handleCleanupStopped} disabled={actionLoading}>
               {t('admin.removeStopped')}
             </button>
+            {selectedContainers.size > 0 && (
+              <button className="btn btn-secondary" onClick={handleResetConfigsBulk} disabled={actionLoading}>
+                {t('admin.resetConfigBulk')} ({selectedContainers.size})
+              </button>
+            )}
           </div>
         </div>
 
@@ -276,6 +374,13 @@ export const AdminPanel: React.FC = () => {
           <table className="container-table">
             <thead>
               <tr>
+                <th>
+                  <input
+                    type="checkbox"
+                    checked={selectedContainers.size === containers.length && containers.length > 0}
+                    onChange={handleSelectAll}
+                  />
+                </th>
                 <th>{t('admin.tableUser')}</th>
                 <th>{t('admin.tableContainerName')}</th>
                 <th>{t('admin.tableStatus')}</th>
@@ -288,6 +393,13 @@ export const AdminPanel: React.FC = () => {
             <tbody>
               {containers.map((container) => (
                 <tr key={container.id}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={selectedContainers.has(container.id)}
+                      onChange={() => handleSelectContainer(container.id)}
+                    />
+                  </td>
                   <td><strong>{container.username || 'Unknown'}</strong></td>
                   <td>{container.container_name}</td>
                   <td>
@@ -325,6 +437,14 @@ export const AdminPanel: React.FC = () => {
                         disabled={actionLoading}
                       >
                         {t('common.remove')}
+                      </button>
+                      <button
+                        className="btn btn-sm btn-secondary"
+                        onClick={() => handleResetContainerConfig(container.id, container.container_name)}
+                        disabled={actionLoading}
+                        title={t('admin.resetConfig')}
+                      >
+                        🔄
                       </button>
                     </div>
                   </td>
