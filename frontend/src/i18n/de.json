@@ -307,7 +307,16 @@
     "pullingImages": "🔄 Docker-Images werden gepullt",
     "initializingPull": "Pull-Vorgang wird initialisiert...",
     "pullingInProgress": "Pull-Vorgang läuft...",
-    "close": "Schließen"
+    "close": "Schließen",
+    "refreshTemplate": "🔄 Vorlage aktualisieren",
+    "refreshingTemplate": "⏳ Wird aktualisiert...",
+    "refreshTemplateTitle": "Vorlagenkonfiguration aktualisieren",
+    "refreshTemplateMessage": "Dies wird die Standardkonfiguration aus dem Container-Image neu extrahieren und die zentrale Vorlage aktualisieren. Nur versteckte Dateien und Ordner aus einem frischen Container werden kopiert.",
+    "refreshTemplateWarning": "Bestehende Benutzerkonfigurationen werden NICHT betroffen. Nur neue Container oder Benutzer, die ihre Konfiguration zurücksetzen, verwenden die aktualisierte Vorlage.",
+    "refreshTemplateSuccess": "Vorlage erfolgreich aktualisiert für {{image}}",
+    "refreshTemplateFailed": "Vorlage konnte nicht aktualisiert werden: {{error}}",
+    "initializingRefresh": "Aktualisierung wird initialisiert...",
+    "refreshInProgress": "Aktualisierung läuft..."
   },
   "assignments": {
     "title": "Zuweisungs-Manager",
@@ -405,6 +414,7 @@
     "notFound": "Die angeforderte Ressource wurde nicht gefunden.",
     "serverError": "Serverfehler. Bitte versuchen Sie es später erneut.",
     "invalidInput": "Ungültige Eingabe. Bitte überprüfen Sie Ihre Daten.",
-    "timeout": "Anfrage-Zeitüberschreitung. Bitte versuchen Sie es erneut."
+    "timeout": "Anfrage-Zeitüberschreitung. Bitte versuchen Sie es erneut.",
+    "unknownError": "Unbekannter Fehler"
   }
 }

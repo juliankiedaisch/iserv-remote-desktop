@@ -34,6 +34,9 @@ export const DesktopTypesManager: React.FC = () => {
   const [iconFile, setIconFile] = useState<File | null>(null);
   const [iconPreview, setIconPreview] = useState<string | null>(null);
   const [uploadingIcon, setUploadingIcon] = useState(false);
+  const [refreshingTemplates, setRefreshingTemplates] = useState<Set<number>>(new Set());
+  const [showRefreshModal, setShowRefreshModal] = useState(false);
+  const [refreshLogs, setRefreshLogs] = useState<Array<{image: string, message: string, timestamp: number}>>([]);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -122,6 +125,65 @@ export const DesktopTypesManager: React.FC = () => {
           timestamp: Date.now() 
         }]);
         setError(t('desktopTypes.pullFailed', { image: data.image, error: data.error }));
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [desktopTypes]);
+
+  useEffect(() => {    // Listen for template refresh events
+    const unsubscribe = wsService.onTemplateRefresh((event, data) => {
+      const typeId = desktopTypes.find(dt => dt.docker_image === data.image)?.id;
+      
+      if (event === 'started') {
+        if (typeId) {
+          setRefreshingTemplates(prev => new Set(prev).add(typeId));
+        }
+        setRefreshLogs(prev => [...prev, { 
+          image: data.image, 
+          message: data.message || 'Starting template refresh...', 
+          timestamp: Date.now() 
+        }]);
+      } else if (event === 'progress') {
+        setRefreshLogs(prev => {
+          const recent = prev.slice(-100); // Keep last 100 logs
+          return [...recent, { 
+            image: data.image, 
+            message: data.message || data.status, 
+            timestamp: Date.now() 
+          }];
+        });
+      } else if (event === 'completed') {
+        if (typeId) {
+          setRefreshingTemplates(prev => {
+            const next = new Set(prev);
+            next.delete(typeId);
+            return next;
+          });
+        }
+        setRefreshLogs(prev => [...prev, { 
+          image: data.image, 
+          message: '✅ ' + (data.message || 'Template refresh completed'), 
+          timestamp: Date.now() 
+        }]);
+        setSuccessMessage(t('desktopTypes.refreshTemplateSuccess', { image: data.image }));
+      } else if (event === 'error') {
+        if (typeId) {
+          setRefreshingTemplates(prev => {
+            const next = new Set(prev);
+            next.delete(typeId);
+            return next;
+          });
+        }
+        setRefreshLogs(prev => [...prev, { 
+          image: data.image, 
+          message: '❌ ' + (data.error || 'Template refresh failed'), 
+          timestamp: Date.now() 
+        }]);
+        setError(t('desktopTypes.refreshTemplateFailed', { error: data.error }));
       }
     });
 
@@ -435,6 +497,43 @@ export const DesktopTypesManager: React.FC = () => {
     }
   };
 
+  const handleRefreshTemplate = async (type: DesktopType) => {
+    if (!window.confirm(
+      `${t('desktopTypes.refreshTemplateTitle')}\n\n${t('desktopTypes.refreshTemplateMessage')}\n\n${t('desktopTypes.refreshTemplateWarning')}`
+    )) {
+      return;
+    }
+
+    setRefreshingTemplates(prev => new Set(prev).add(type.id));
+    setRefreshLogs([]);
+    setShowRefreshModal(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const response = await fetch('/api/config/templates/refresh', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Session-ID': localStorage.getItem('session_id') || '',
+        },
+        body: JSON.stringify({ image_name: type.docker_image })
+      });
+      const data = await response.json();
+
+      if (!data.success) {
+        setError(t('desktopTypes.refreshTemplateFailed', { error: data.error || t('errors.unknownError') }));
+      }
+    } catch (err: any) {
+      setError(t('desktopTypes.refreshTemplateFailed', { error: err.message || t('errors.unknownError') }));
+      setRefreshingTemplates(prev => {
+        const next = new Set(prev);
+        next.delete(type.id);
+        return next;
+      });
+    }
+  };
+
   if (authLoading) {
     return (
       <div className="container">
@@ -554,6 +653,14 @@ export const DesktopTypesManager: React.FC = () => {
                     disabled={pullingImages.has(type.id)}
                   >
                     {pullingImages.has(type.id) ? t('desktopTypes.pulling') : t('desktopTypes.pullImage')}
+                  </button>
+                  <button 
+                    className="btn btn-sm btn-secondary" 
+                    onClick={() => handleRefreshTemplate(type)}
+                    disabled={refreshingTemplates.has(type.id)}
+                    title={t('desktopTypes.refreshTemplateTitle')}
+                  >
+                    {refreshingTemplates.has(type.id) ? t('desktopTypes.refreshingTemplate') : t('desktopTypes.refreshTemplate')}
                   </button>
                   <button className="btn btn-sm btn-primary" onClick={() => openEditModal(type)}>
                     {t('desktopTypes.edit')}
@@ -752,6 +859,42 @@ export const DesktopTypesManager: React.FC = () => {
                 disabled={pullingImages.size > 0}
               >
                 {pullingImages.size > 0 ? t('desktopTypes.pullingInProgress') : t('desktopTypes.close')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Template Refresh Progress Modal */}
+      {showRefreshModal && (
+        <div className="modal-overlay" onClick={() => setShowRefreshModal(false)}>
+          <div className="modal-content pull-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>{t('desktopTypes.refreshingTemplate')}</h2>
+              <button className="modal-close" onClick={() => setShowRefreshModal(false)}>✕</button>
+            </div>
+            <div className="pull-logs-container">
+              {refreshLogs.length === 0 ? (
+                <div className="pull-log-entry">
+                  <span className="log-message">{t('desktopTypes.initializingRefresh')}</span>
+                </div>
+              ) : (
+                refreshLogs.map((log, index) => (
+                  <div key={index} className="pull-log-entry">
+                    <span className="log-image">{log.image.split('/').pop()}</span>
+                    <span className="log-message">{log.message}</span>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="modal-actions">
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                onClick={() => setShowRefreshModal(false)}
+                disabled={refreshingTemplates.size > 0}
+              >
+                {refreshingTemplates.size > 0 ? t('desktopTypes.refreshInProgress') : t('desktopTypes.close')}
               </button>
             </div>
           </div>

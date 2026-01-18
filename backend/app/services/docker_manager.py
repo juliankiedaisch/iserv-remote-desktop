@@ -12,7 +12,9 @@ from app import db
 from app.models.containers import Container
 from app.models.desktop_assignments import DesktopImage, DesktopAssignment
 from app.models.users import User
-
+import tarfile
+import io
+import shutil
 # Import WebSocket event emitters (lazy import to avoid circular dependencies)
 def _emit_container_created(container, user_id):
     try:
@@ -841,9 +843,7 @@ class DockerManager:
             current_app.logger.info(f"Creating temporary container to extract configs from {image_name}")
             temp_container = self.client.containers.create(
                 image_name,
-                name=temp_container_name,
-                entrypoint=['/bin/sh', '-c', 'sleep 1']
-            )
+                name=temp_container_name            )
             
             try:
                 # Start the container briefly to let initialization happen
@@ -857,9 +857,6 @@ class DockerManager:
                 temp_container.stop(timeout=5)
                 
                 # Extract the home directory structure
-                import tarfile
-                import io
-                
                 bits, stat = temp_container.get_archive('/home/kasm-user')
                 
                 # Extract tar stream
@@ -868,18 +865,10 @@ class DockerManager:
                     tar_stream.write(chunk)
                 tar_stream.seek(0)
                 
-                # List of config patterns to extract (hidden files/dirs and configs)
-                config_patterns = [
-                    '.config', '.cache', '.local', '.mozilla', '.pki', '.vnc',
-                    '.bashrc', '.bash_profile', '.profile', '.Xauthority', '.ICEauthority',
-                    '.gtkrc-2.0', '.kasmpasswd', '.wget-hsts', '.gnupg', '.ssh',
-                    '.java', '.filius', '.vscode', '.launchpadlib', '.gvfs'
-                ]
-                
                 container_uid = current_app.config.get('CONTAINER_USER_ID', 1000)
                 container_gid = current_app.config.get('CONTAINER_GROUP_ID', 1000)
                 
-                # Extract only config files/dirs
+                # Extract all hidden files and directories (those starting with '.')
                 with tarfile.open(fileobj=tar_stream) as tar:
                     for member in tar.getmembers():
                         # Skip the root directory itself
@@ -892,14 +881,10 @@ class DockerManager:
                         else:
                             relative_path = member.name
                         
-                        # Only extract config-related files
-                        is_config = False
-                        for pattern in config_patterns:
-                            if relative_path.startswith(pattern):
-                                is_config = True
-                                break
-                        
-                        if not is_config:
+                        # Only extract hidden files/directories (starting with '.')
+                        # Get the first component of the path
+                        first_component = relative_path.split('/')[0]
+                        if not first_component.startswith('.'):
                             continue
                         
                         target_path = os.path.join(template_dir, relative_path)
@@ -946,7 +931,6 @@ class DockerManager:
             user_config_dir: Destination user config directory
         """
         try:
-            import shutil
             
             container_uid = current_app.config.get('CONTAINER_USER_ID', 1000)
             container_gid = current_app.config.get('CONTAINER_GROUP_ID', 1000)
@@ -1018,13 +1002,10 @@ class DockerManager:
                     'error': f'No config template found for image {image_name} in centralized template directory'
                 }
             
-            # Backup current config
-            import shutil
-            from datetime import datetime
-            backup_dir = f"{user_config_dir}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            # Remove old config directory if it exists
             if os.path.exists(user_config_dir):
-                shutil.move(user_config_dir, backup_dir)
-                current_app.logger.info(f"Backed up current config to {backup_dir}")
+                shutil.rmtree(user_config_dir)
+                current_app.logger.info(f"Removed old config directory {user_config_dir}")
             
             # Recreate config directory
             os.makedirs(user_config_dir, exist_ok=True)
@@ -1036,8 +1017,7 @@ class DockerManager:
             
             return {
                 'success': True,
-                'message': f'Config reset to default for {desktop_type}',
-                'backup': backup_dir
+                'message': f'Config reset to default for {desktop_type}'
             }
             
         except Exception as e:
@@ -1058,9 +1038,15 @@ class DockerManager:
             Dict with success status and message
         """
         try:
-            # Pull the latest image first
-            current_app.logger.info(f"Pulling latest version of {image_name}")
-            self.client.images.pull(image_name)
+            # Emit started event
+            try:
+                from app.routes.websocket_routes import emit_template_refresh_event
+                emit_template_refresh_event('template_refresh_started', {
+                    'image': image_name,
+                    'message': f'Starting template refresh for {image_name}'
+                })
+            except Exception as e:
+                current_app.logger.debug(f"WebSocket emit failed (non-critical): {e}")
             
             # Normalize image name
             image_dir_name = image_name.replace('/', '-').replace(':', '-')
@@ -1069,12 +1055,32 @@ class DockerManager:
             template_data_base = current_app.config.get('TEMPLATE_DATA_BASE_DIR', '/data/templates')
             template_dir = os.path.join(template_data_base, image_dir_name)
             
-            # Backup old template if exists
+            # Emit progress - Removing old template
+            try:
+                from app.routes.websocket_routes import emit_template_refresh_event
+                emit_template_refresh_event('template_refresh_progress', {
+                    'image': image_name,
+                    'message': 'Removing old template...',
+                    'status': 'Cleaning'
+                })
+            except Exception as e:
+                current_app.logger.debug(f"WebSocket emit failed (non-critical): {e}")
+            
+            # Remove old template if exists
             if os.path.exists(template_dir):
-                import shutil
-                backup_dir = f"{template_dir}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-                shutil.move(template_dir, backup_dir)
-                current_app.logger.info(f"Backed up old centralized template to {backup_dir}")
+                shutil.rmtree(template_dir)
+                current_app.logger.info(f"Removed old centralized template {template_dir}")
+            
+            # Emit progress - Creating new template
+            try:
+                from app.routes.websocket_routes import emit_template_refresh_event
+                emit_template_refresh_event('template_refresh_progress', {
+                    'image': image_name,
+                    'message': 'Creating template directory...',
+                    'status': 'Creating'
+                })
+            except Exception as e:
+                current_app.logger.debug(f"WebSocket emit failed (non-critical): {e}")
             
             # Extract new template to centralized location
             os.makedirs(template_dir, exist_ok=True)
@@ -1083,9 +1089,30 @@ class DockerManager:
             os.chown(template_dir, container_uid, container_gid)
             os.chmod(template_dir, 0o755)
             
+            # Emit progress - Extracting template
+            try:
+                from app.routes.websocket_routes import emit_template_refresh_event
+                emit_template_refresh_event('template_refresh_progress', {
+                    'image': image_name,
+                    'message': 'Extracting configuration from image...',
+                    'status': 'Extracting'
+                })
+            except Exception as e:
+                current_app.logger.debug(f"WebSocket emit failed (non-critical): {e}")
+            
             self._extract_config_template(image_name, template_dir, image_dir_name)
             
             current_app.logger.info(f"Refreshed centralized config template for {image_name}")
+            
+            # Emit completed event
+            try:
+                from app.routes.websocket_routes import emit_template_refresh_event
+                emit_template_refresh_event('template_refresh_completed', {
+                    'image': image_name,
+                    'message': f'Template refresh completed for {image_name}'
+                })
+            except Exception as e:
+                current_app.logger.debug(f"WebSocket emit failed (non-critical): {e}")
             
             return {
                 'success': True,
@@ -1095,6 +1122,17 @@ class DockerManager:
             
         except Exception as e:
             current_app.logger.error(f"Failed to refresh config template: {str(e)}")
+            
+            # Emit error event
+            try:
+                from app.routes.websocket_routes import emit_template_refresh_event
+                emit_template_refresh_event('template_refresh_error', {
+                    'image': image_name,
+                    'error': str(e)
+                })
+            except Exception as ws_error:
+                current_app.logger.debug(f"WebSocket emit failed (non-critical): {ws_error}")
+            
             return {
                 'success': False,
                 'error': str(e)

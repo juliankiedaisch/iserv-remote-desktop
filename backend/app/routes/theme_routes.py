@@ -27,9 +27,8 @@ def get_theme():
 @theme_routes.route('/api/theme', methods=['PUT'])
 @require_auth
 @require_admin
-def update_theme(user):
+def update_theme(user, oauth_session, lang):
     """Update theme settings (admin only)."""
-    lang = get_language_from_request()
     
     try:
         data = request.get_json()
@@ -69,7 +68,7 @@ def update_theme(user):
 @theme_routes.route('/api/theme/export', methods=['GET'])
 @require_auth
 @require_admin
-def export_theme(user):
+def export_theme(user, oauth_session, lang):
     """Export theme as JSON file (admin only)."""
     try:
         theme = ThemeSettings.get_current_theme()
@@ -92,9 +91,8 @@ def export_theme(user):
 @theme_routes.route('/api/theme/import', methods=['POST'])
 @require_auth
 @require_admin
-def import_theme(user):
+def import_theme(user, oauth_session, lang):
     """Import theme from JSON data (admin only)."""
-    lang = get_language_from_request()
     
     try:
         data = request.get_json()
@@ -136,7 +134,7 @@ def import_theme(user):
 @theme_routes.route('/api/theme/reset', methods=['POST'])
 @require_auth
 @require_admin
-def reset_theme(user):
+def reset_theme(user, oauth_session, lang):
     """Reset theme to default settings (admin only)."""
     try:
         theme = ThemeSettings.get_current_theme()
@@ -182,9 +180,8 @@ def reset_theme(user):
 @theme_routes.route('/api/theme/favicon', methods=['POST'])
 @require_auth
 @require_admin
-def upload_favicon(user):
+def upload_favicon(user, oauth_session, lang):
     """Upload a new favicon (admin only)."""
-    lang = get_language_from_request()
     
     try:
         data = request.get_json()

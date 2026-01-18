@@ -85,21 +85,19 @@ def list_files(user_dict):
         
         # Check if path exists - if base directory doesn't exist, return empty list
         if not os.path.exists(full_path):
-            # If it's the base path itself that doesn't exist, return empty list instead of error
-            if full_path == base_path:
+            if not os.makedirs(full_path, exist_ok=True):
                 return jsonify({
-                    'success': True,
-                    'items': [],
-                    'current_path': path
-                })
-            return jsonify({
-                'success': False,
-                'error': get_message('directory_not_found', lang)
-            }), 404
+                    'success': False,
+                    'error': get_message('directory_not_found', lang)
+                }), 404
         
         # List files and directories
         items = []
         for item_name in os.listdir(full_path):
+            # Skip the Public folder in private space at root level
+            if space == 'private' and not path and item_name == 'Public':
+                continue
+            
             item_path = os.path.join(full_path, item_name)
             try:
                 stat = os.stat(item_path)

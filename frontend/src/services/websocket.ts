@@ -6,6 +6,7 @@ type StatusUpdateCallback = (update: ContainerStatusUpdate) => void;
 type MessageCallback = (message: WebSocketMessage) => void;
 type ConnectionCallback = (connected: boolean) => void;
 type ImagePullCallback = (event: string, data: any) => void;
+type TemplateRefreshCallback = (event: string, data: any) => void;
 
 class WebSocketService {
   private socket: Socket | null = null;
@@ -13,6 +14,7 @@ class WebSocketService {
   private messageCallbacks: Set<MessageCallback> = new Set();
   private connectionCallbacks: Set<ConnectionCallback> = new Set();
   private imagePullCallbacks: Set<ImagePullCallback> = new Set();
+  private templateRefreshCallbacks: Set<TemplateRefreshCallback> = new Set();
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
@@ -124,6 +126,23 @@ class WebSocketService {
     this.socket.on('image_pull_error', (data: any) => {
       this.imagePullCallbacks.forEach(callback => callback('error', data));
     });
+
+    // Template refresh events
+    this.socket.on('template_refresh_started', (data: any) => {
+      this.templateRefreshCallbacks.forEach(callback => callback('started', data));
+    });
+
+    this.socket.on('template_refresh_progress', (data: any) => {
+      this.templateRefreshCallbacks.forEach(callback => callback('progress', data));
+    });
+
+    this.socket.on('template_refresh_completed', (data: any) => {
+      this.templateRefreshCallbacks.forEach(callback => callback('completed', data));
+    });
+
+    this.socket.on('template_refresh_error', (data: any) => {
+      this.templateRefreshCallbacks.forEach(callback => callback('error', data));
+    });
   }
 
   disconnect(): void {
@@ -152,6 +171,11 @@ class WebSocketService {
   onImagePull(callback: ImagePullCallback): () => void {
     this.imagePullCallbacks.add(callback);
     return () => this.imagePullCallbacks.delete(callback);
+  }
+
+  onTemplateRefresh(callback: TemplateRefreshCallback): () => void {
+    this.templateRefreshCallbacks.add(callback);
+    return () => this.templateRefreshCallbacks.delete(callback);
   }
 
   private notifyConnectionChange(connected: boolean): void {
