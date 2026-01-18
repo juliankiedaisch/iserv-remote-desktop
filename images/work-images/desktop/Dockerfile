@@ -25,12 +25,12 @@ RUN bash $INST_SCRIPTS/vs_code/install_vs_code.sh  && rm -rf $INST_SCRIPTS/vs_co
 #Install Filius
 RUN apt-get update && apt-get -y install filius
 #Install Firefox
-RUN apt-get update && apt-get -y install firefox
+COPY ./src $INST_SCRIPTS/firefox/
+RUN bash $INST_SCRIPTS/firefox/install_firefox.sh  && rm -rf $INST_SCRIPTS/firefox/
 #Install Gimp
 RUN apt-get update && apt-get -y install gimp
 #Install LibreOffice
-COPY ./src $INST_SCRIPTS/libre_office/
-RUN bash $INST_SCRIPTS/libre_office/install_libre_office.sh  && rm -rf $INST_SCRIPTS/libre_office/
+RUN apt-get update && apt-get -y install libreoffice
 ######### End Customizations ###########
 
 RUN chown 1000:0 $HOME
