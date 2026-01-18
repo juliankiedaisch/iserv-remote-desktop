@@ -276,6 +276,8 @@ class DockerManager:
                 'VNC_PW': os.environ.get('VNC_PASSWORD', 'password'),
                 'USER': username,
                 'START_PULSEAUDIO': '1',  # Ensure PulseAudio starts for audio capture
+                'ISERV_PROFILE_SYNC': '1',  # Enable IServ bidirectional profile sync
+                'ISERV_SYNC_INTERVAL': os.environ.get('ISERV_SYNC_INTERVAL', '30'),  # Sync interval in seconds
             }
             
             # Get user data directory - ensure it exists
