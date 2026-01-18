@@ -407,6 +407,27 @@ function custom_startup (){
 	fi
 }
 
+function start_iserv_profile_sync (){
+	# Start IServ profile sync for bidirectional data persistence
+	# Syncs changes from /home/kasm-user back to mounted directories
+	if [[ ${ISERV_PROFILE_SYNC:-1} == 1 ]]; then
+		log 'Starting IServ profile synchronization'
+		
+		# Check if mounted directories exist
+		if [ -d "/home/kasm-user-private" ] && [ -d "/home/kasm-user-configs" ]; then
+			$STARTUPDIR/iserv_profile_sync.sh &
+			KASM_PROCS['iserv_profile_sync']=$!
+			
+			if [[ $DEBUG == true ]]; then
+				echo -e "\n------------------ Started IServ Profile Sync  ----------------------------"
+				echo "IServ Profile Sync PID: ${KASM_PROCS['iserv_profile_sync']}";
+			fi
+		else
+			log "IServ profile sync directories not mounted, skipping sync" "WARNING"
+		fi
+	fi
+}
+
 function ensure_recorder_running () {
     if [[ ${KASM_SVC_RECORDER:-0} != 1 ]]; then
         return
@@ -593,6 +614,9 @@ log "Kasm User ${KASM_USER}(${KASM_USER_ID}) started container id ${HOSTNAME} wi
 # start custom startup script
 custom_startup
 
+# start IServ profile sync
+start_iserv_profile_sync
+
 # Monitor Kasm Services
 sleep 3
 while :
@@ -677,6 +701,10 @@ do
 					echo "The custom startup script exited."
 					# custom startup scripts track the target process on their own, they should not exit
 					custom_startup
+					;;
+				iserv_profile_sync)
+					log "IServ profile sync exited, restarting" "WARNING"
+					start_iserv_profile_sync
 					;;
 				*)
 					echo "Unknown Service: $process"

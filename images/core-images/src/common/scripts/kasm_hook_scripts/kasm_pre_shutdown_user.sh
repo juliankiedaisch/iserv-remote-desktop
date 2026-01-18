@@ -116,4 +116,30 @@ if [ ! -z "$KASM_PROFILE_LDR" ]; then
 
 fi
 
+# Perform final IServ profile sync before shutdown
+if [[ ${ISERV_PROFILE_SYNC:-1} == 1 ]]; then
+    log "Performing final IServ profile sync before shutdown" "INFO"
+    
+    # Check if sync directories are mounted
+    if [ -d "/home/kasm-user-private" ] && [ -d "/home/kasm-user-configs" ]; then
+        # Send SIGTERM to background sync process if running
+        if [ -f /tmp/.iserv_profile_sync.pid ]; then
+            sync_pid=$(cat /tmp/.iserv_profile_sync.pid 2>/dev/null || echo "")
+            if [ ! -z "$sync_pid" ] && kill -0 "$sync_pid" 2>/dev/null; then
+                log "Stopping background sync process (PID: $sync_pid)"
+                kill -TERM "$sync_pid" 2>/dev/null || true
+                # Wait for graceful shutdown
+                sleep 2
+            fi
+        fi
+        
+        # Perform one final manual sync
+        log "Running final manual sync..."
+        /dockerstartup/iserv_profile_sync_once.sh || log "Final sync had errors" "WARNING"
+        log "Final IServ profile sync completed"
+    else
+        log "IServ profile sync directories not mounted, skipping final sync" "WARNING"
+    fi
+fi
+
 echo "Done"
