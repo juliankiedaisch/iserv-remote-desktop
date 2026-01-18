@@ -857,8 +857,6 @@ class DockerManager:
                 temp_container.stop(timeout=5)
                 
                 # Extract the home directory structure
-
-                
                 bits, stat = temp_container.get_archive('/home/kasm-user')
                 
                 # Extract tar stream
@@ -1016,12 +1014,10 @@ class DockerManager:
                     'error': f'No config template found for image {image_name} in centralized template directory'
                 }
             
-            # Backup current config
-            from datetime import datetime
-            backup_dir = f"{user_config_dir}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            # Remove old config directory if it exists
             if os.path.exists(user_config_dir):
-                shutil.move(user_config_dir, backup_dir)
-                current_app.logger.info(f"Backed up current config to {backup_dir}")
+                shutil.rmtree(user_config_dir)
+                current_app.logger.info(f"Removed old config directory {user_config_dir}")
             
             # Recreate config directory
             os.makedirs(user_config_dir, exist_ok=True)
@@ -1033,8 +1029,7 @@ class DockerManager:
             
             return {
                 'success': True,
-                'message': f'Config reset to default for {desktop_type}',
-                'backup': backup_dir
+                'message': f'Config reset to default for {desktop_type}'
             }
             
         except Exception as e:
@@ -1062,12 +1057,10 @@ class DockerManager:
             template_data_base = current_app.config.get('TEMPLATE_DATA_BASE_DIR', '/data/templates')
             template_dir = os.path.join(template_data_base, image_dir_name)
             
-            # Backup old template if exists
+            # Remove old template if exists
             if os.path.exists(template_dir):
-                import shutil
-                backup_dir = f"{template_dir}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-                shutil.move(template_dir, backup_dir)
-                current_app.logger.info(f"Backed up old centralized template to {backup_dir}")
+                shutil.rmtree(template_dir)
+                current_app.logger.info(f"Removed old centralized template {template_dir}")
             
             # Extract new template to centralized location
             os.makedirs(template_dir, exist_ok=True)
