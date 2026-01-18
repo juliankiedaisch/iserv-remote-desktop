@@ -281,6 +281,9 @@ class DockerManager:
             user_data_dir = ensure_user_directory(user_id)
             extern_user_data_dir = os.path.join(current_app.config.get('EXTERN_USERADATA_BASE_DIR'), str(user_id))
             
+            # Initialize default config files if missing (e.g., .config directory)
+            self._initialize_user_configs(user_data_dir, kasm_image, username)
+            
             # Get shared public directory from config
             extern_shared_public_dir = current_app.config.get('EXTERN_SHARED_DIR', '/data/shared/public')
             
@@ -703,6 +706,118 @@ class DockerManager:
         except (OSError, socket.timeout):
             # Port is already in use or timeout
             return False
+    
+    def _initialize_user_configs(self, user_data_dir, image_name, username):
+        """
+        Initialize default configuration files in user's home directory if missing.
+        This ensures .config and other essential files are present even if user deleted them.
+        
+        Args:
+            user_data_dir: Path to user's data directory on host
+            image_name: Docker image name to extract defaults from
+            username: Username for the container
+        """
+        try:
+            # Check if .config directory exists
+            config_dir = os.path.join(user_data_dir, '.config')
+            
+            # If .config exists and has content, assume configs are okay
+            if os.path.exists(config_dir) and os.listdir(config_dir):
+                current_app.logger.debug(f"User configs exist for {username}, skipping initialization")
+                return
+            
+            current_app.logger.info(f"Initializing default configs for user {username} from image {image_name}")
+            
+            # Create a temporary container to copy default files from
+            temp_container_name = f"temp-init-{username}-{os.urandom(4).hex()}"
+            
+            try:
+                # Create a temporary container (don't start it)
+                temp_container = self.client.containers.create(
+                    image_name,
+                    name=temp_container_name,
+                    entrypoint=['/bin/sh', '-c', 'sleep 1']  # Dummy command
+                )
+                
+                try:
+                    # Start the container briefly to let initialization happen
+                    temp_container.start()
+                    
+                    # Wait a moment for any startup scripts to run
+                    import time
+                    time.sleep(2)
+                    
+                    # Stop it
+                    temp_container.stop(timeout=5)
+                    
+                    # Export the home directory structure
+                    # Get the tar archive of /home/kasm-user
+                    import tarfile
+                    import io
+                    
+                    bits, stat = temp_container.get_archive('/home/kasm-user')
+                    
+                    # Extract tar stream to user's directory
+                    tar_stream = io.BytesIO()
+                    for chunk in bits:
+                        tar_stream.write(chunk)
+                    tar_stream.seek(0)
+                    
+                    # Open tar and extract only if files don't exist
+                    with tarfile.open(fileobj=tar_stream) as tar:
+                        for member in tar.getmembers():
+                            # Skip the root directory itself
+                            if member.name == 'kasm-user':
+                                continue
+                            
+                            # Remove 'kasm-user/' prefix from path
+                            if member.name.startswith('kasm-user/'):
+                                relative_path = member.name[len('kasm-user/'):]
+                            else:
+                                relative_path = member.name
+                            
+                            target_path = os.path.join(user_data_dir, relative_path)
+                            
+                            # Only extract if target doesn't exist
+                            if not os.path.exists(target_path):
+                                if member.isdir():
+                                    os.makedirs(target_path, exist_ok=True)
+                                    # Set ownership
+                                    container_uid = current_app.config.get('CONTAINER_USER_ID', 1000)
+                                    container_gid = current_app.config.get('CONTAINER_GROUP_ID', 1000)
+                                    os.chown(target_path, container_uid, container_gid)
+                                elif member.isfile():
+                                    # Extract file
+                                    os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                                    with open(target_path, 'wb') as f:
+                                        f.write(tar.extractfile(member).read())
+                                    # Set ownership
+                                    container_uid = current_app.config.get('CONTAINER_USER_ID', 1000)
+                                    container_gid = current_app.config.get('CONTAINER_GROUP_ID', 1000)
+                                    os.chown(target_path, container_uid, container_gid)
+                                    # Preserve permissions
+                                    os.chmod(target_path, member.mode)
+                    
+                    current_app.logger.info(f"Successfully initialized default configs for {username}")
+                    
+                finally:
+                    # Clean up temporary container
+                    temp_container.remove(force=True)
+                    current_app.logger.debug(f"Removed temporary init container {temp_container_name}")
+                    
+            except Exception as e:
+                current_app.logger.error(f"Failed to initialize configs from temp container: {str(e)}")
+                # Try to clean up temp container if it exists
+                try:
+                    temp_container = self.client.containers.get(temp_container_name)
+                    temp_container.remove(force=True)
+                except:
+                    pass
+                # Don't raise - allow container creation to proceed even if config init fails
+                
+        except Exception as e:
+            current_app.logger.warning(f"Could not initialize user configs: {str(e)}")
+            # Don't raise - this is a best-effort initialization
     
     def sync_database_with_docker(self):
         """
