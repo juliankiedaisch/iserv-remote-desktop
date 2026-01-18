@@ -281,16 +281,21 @@ class DockerManager:
             user_data_dir = ensure_user_directory(user_id)
             extern_user_data_dir = os.path.join(current_app.config.get('EXTERN_USERADATA_BASE_DIR'), str(user_id))
             
-            # Initialize default config files if missing (e.g., .config directory)
-            self._initialize_user_configs(user_data_dir, kasm_image, username)
+            # Prepare separated user files and image-specific configs
+            user_files_dir, user_config_dir = self._prepare_user_directories(user_id, kasm_image, username)
             
             # Get shared public directory from config
             extern_shared_public_dir = current_app.config.get('EXTERN_SHARED_DIR', '/data/shared/public')
             
-            # Setup volumes
+            # Setup volumes with separated user files and configs
+            # We'll use an overlay approach: mount user files first, then overlay configs
             volumes = {
-                extern_user_data_dir: {
+                user_files_dir: {
                     'bind': '/home/kasm-user',
+                    'mode': 'rw'
+                },
+                user_config_dir: {
+                    'bind': '/home/kasm-user-configs',
                     'mode': 'rw'
                 },
                 extern_shared_public_dir: {
@@ -344,9 +349,21 @@ class DockerManager:
             # Create and start container
             current_app.logger.info(f"Creating container {container_name} from image {kasm_image}")
             
+            # Add startup command to merge configs from /home/kasm-user-configs to /home/kasm-user
+            startup_script = (
+                '#!/bin/bash\n'
+                '# Merge image-specific configs into user home\n'
+                'if [ -d /home/kasm-user-configs ]; then\n'
+                '  cp -an /home/kasm-user-configs/. /home/kasm-user/ 2>/dev/null || true\n'
+                'fi\n'
+                '# Execute original entrypoint\n'
+                'exec /dockerstartup/kasm_default_profile.sh /dockerstartup/vnc_startup.sh\n'
+            )
+            
             container = self.client.containers.run(
                 kasm_image,
                 name=container_name,
+                entrypoint=['/bin/bash', '-c', startup_script],
                 ports={
                     f'{container_port}/tcp': host_port,  # VNC port (6901) → 7000+
                     '4901/tcp': audio_host_port  # Audio WebSocket port (4901) → 7000+
@@ -706,6 +723,354 @@ class DockerManager:
         except (OSError, socket.timeout):
             # Port is already in use or timeout
             return False
+    
+    def _prepare_user_directories(self, user_id, image_name, username):
+        """
+        Prepare separated user directories for files and image-specific configs.
+        
+        Directory structure:
+        - /data/users/{user_id}/files/ - User's actual files (Documents, Downloads, etc.)
+        - /data/users/{user_id}/configs/{image_name}/ - Image-specific configs (.config, .cache, etc.)
+        - /data/templates/{image_name}/ - Centralized default configs (shared across all users)
+        
+        Args:
+            user_id: User ID
+            image_name: Docker image name (e.g., 'teacherki/kasm-desktop:latest')
+            username: Username for logging
+            
+        Returns:
+            Tuple of (user_files_dir_extern, user_config_dir_extern) - paths on the host
+        """
+        try:
+            # Normalize image name for directory use (replace / and : with -)
+            image_dir_name = image_name.replace('/', '-').replace(':', '-')
+            
+            # Get base paths
+            user_data_base = current_app.config.get('USER_DATA_BASE_DIR', '/data/users')
+            extern_user_data_base = current_app.config.get('EXTERN_USERADATA_BASE_DIR', '/data/users')
+            template_data_base = current_app.config.get('TEMPLATE_DATA_BASE_DIR', '/data/templates')
+            
+            # Define directory paths (backend view)
+            user_base_dir = os.path.join(user_data_base, str(user_id))
+            user_files_dir = os.path.join(user_base_dir, 'files')
+            user_config_dir = os.path.join(user_base_dir, 'configs', image_dir_name)
+            config_template_dir = os.path.join(template_data_base, image_dir_name)
+            
+            # External paths (host view - for Docker mounts)
+            extern_user_files_dir = os.path.join(extern_user_data_base, str(user_id), 'files')
+            extern_user_config_dir = os.path.join(extern_user_data_base, str(user_id), 'configs', image_dir_name)
+            
+            # Create directories if they don't exist
+            os.makedirs(user_files_dir, exist_ok=True)
+            os.makedirs(user_config_dir, exist_ok=True)
+            # Note: config_template_dir is in centralized location, created separately
+            
+            # Set proper permissions
+            container_uid = current_app.config.get('CONTAINER_USER_ID', 1000)
+            container_gid = current_app.config.get('CONTAINER_GROUP_ID', 1000)
+            
+            for dir_path in [user_files_dir, user_config_dir]:
+                os.chown(dir_path, container_uid, container_gid)
+                os.chmod(dir_path, 0o755)
+            
+            # Check if centralized config template exists for this image
+            template_initialized = os.path.join(config_template_dir, '.template_initialized')
+            if not os.path.exists(template_initialized):
+                current_app.logger.info(f"Extracting config template for image {image_name} to centralized location")
+                # Create template directory if it doesn't exist
+                os.makedirs(config_template_dir, exist_ok=True)
+                os.chown(config_template_dir, container_uid, container_gid)
+                os.chmod(config_template_dir, 0o755)
+                self._extract_config_template(image_name, config_template_dir, image_dir_name)
+            
+            # Initialize user's config directory from centralized template if empty
+            if not os.listdir(user_config_dir):
+                current_app.logger.info(f"Initializing user configs from centralized template for {username}")
+                self._copy_template_to_user_config(config_template_dir, user_config_dir)
+            
+            # Ensure standard user directories exist in files dir
+            standard_dirs = ['Desktop', 'Documents', 'Downloads', 'Music', 'Pictures', 'Videos', 'Public', 'PDF']
+            for dir_name in standard_dirs:
+                dir_path = os.path.join(user_files_dir, dir_name)
+                if not os.path.exists(dir_path):
+                    os.makedirs(dir_path, exist_ok=True)
+                    os.chown(dir_path, container_uid, container_gid)
+                    os.chmod(dir_path, 0o755)
+            
+            current_app.logger.info(
+                f"User directories prepared - Files: {extern_user_files_dir}, Configs: {extern_user_config_dir}"
+            )
+            
+            return extern_user_files_dir, extern_user_config_dir
+            
+        except Exception as e:
+            current_app.logger.error(f"Failed to prepare user directories: {str(e)}")
+            raise
+    
+    def _extract_config_template(self, image_name, template_dir, image_dir_name):
+        """
+        Extract default config files from a Docker image to use as template.
+        
+        Args:
+            image_name: Docker image name
+            template_dir: Directory to save template files
+            image_dir_name: Sanitized image name for temp container
+        """
+        temp_container_name = f"temp-extract-{image_dir_name}-{os.urandom(4).hex()}"
+        
+        try:
+            # Create a temporary container
+            current_app.logger.info(f"Creating temporary container to extract configs from {image_name}")
+            temp_container = self.client.containers.create(
+                image_name,
+                name=temp_container_name,
+                entrypoint=['/bin/sh', '-c', 'sleep 1']
+            )
+            
+            try:
+                # Start the container briefly to let initialization happen
+                temp_container.start()
+                
+                # Wait for startup scripts to run
+                import time
+                time.sleep(3)
+                
+                # Stop it
+                temp_container.stop(timeout=5)
+                
+                # Extract the home directory structure
+                import tarfile
+                import io
+                
+                bits, stat = temp_container.get_archive('/home/kasm-user')
+                
+                # Extract tar stream
+                tar_stream = io.BytesIO()
+                for chunk in bits:
+                    tar_stream.write(chunk)
+                tar_stream.seek(0)
+                
+                # List of config patterns to extract (hidden files/dirs and configs)
+                config_patterns = [
+                    '.config', '.cache', '.local', '.mozilla', '.pki', '.vnc',
+                    '.bashrc', '.bash_profile', '.profile', '.Xauthority', '.ICEauthority',
+                    '.gtkrc-2.0', '.kasmpasswd', '.wget-hsts', '.gnupg', '.ssh',
+                    '.java', '.filius', '.vscode', '.launchpadlib', '.gvfs'
+                ]
+                
+                container_uid = current_app.config.get('CONTAINER_USER_ID', 1000)
+                container_gid = current_app.config.get('CONTAINER_GROUP_ID', 1000)
+                
+                # Extract only config files/dirs
+                with tarfile.open(fileobj=tar_stream) as tar:
+                    for member in tar.getmembers():
+                        # Skip the root directory itself
+                        if member.name == 'kasm-user':
+                            continue
+                        
+                        # Remove 'kasm-user/' prefix from path
+                        if member.name.startswith('kasm-user/'):
+                            relative_path = member.name[len('kasm-user/'):]
+                        else:
+                            relative_path = member.name
+                        
+                        # Only extract config-related files
+                        is_config = False
+                        for pattern in config_patterns:
+                            if relative_path.startswith(pattern):
+                                is_config = True
+                                break
+                        
+                        if not is_config:
+                            continue
+                        
+                        target_path = os.path.join(template_dir, relative_path)
+                        
+                        if member.isdir():
+                            os.makedirs(target_path, exist_ok=True)
+                            os.chown(target_path, container_uid, container_gid)
+                        elif member.isfile():
+                            os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                            with open(target_path, 'wb') as f:
+                                f.write(tar.extractfile(member).read())
+                            os.chown(target_path, container_uid, container_gid)
+                            os.chmod(target_path, member.mode)
+                
+                # Mark template as initialized
+                template_initialized = os.path.join(template_dir, '.template_initialized')
+                with open(template_initialized, 'w') as f:
+                    f.write(f"Template extracted from {image_name} at {datetime.now(timezone.utc).isoformat()}\n")
+                os.chown(template_initialized, container_uid, container_gid)
+                
+                current_app.logger.info(f"Successfully extracted config template for {image_name}")
+                
+            finally:
+                # Clean up temporary container
+                temp_container.remove(force=True)
+                current_app.logger.debug(f"Removed temporary container {temp_container_name}")
+                
+        except Exception as e:
+            current_app.logger.error(f"Failed to extract config template: {str(e)}")
+            # Try to clean up
+            try:
+                temp_container = self.client.containers.get(temp_container_name)
+                temp_container.remove(force=True)
+            except:
+                pass
+            raise
+    
+    def _copy_template_to_user_config(self, template_dir, user_config_dir):
+        """
+        Copy template configs to user's config directory.
+        
+        Args:
+            template_dir: Source template directory
+            user_config_dir: Destination user config directory
+        """
+        try:
+            import shutil
+            
+            container_uid = current_app.config.get('CONTAINER_USER_ID', 1000)
+            container_gid = current_app.config.get('CONTAINER_GROUP_ID', 1000)
+            
+            # Copy all files from template to user config
+            for item in os.listdir(template_dir):
+                # Skip the marker file
+                if item == '.template_initialized':
+                    continue
+                
+                src = os.path.join(template_dir, item)
+                dst = os.path.join(user_config_dir, item)
+                
+                if os.path.isdir(src):
+                    shutil.copytree(src, dst, dirs_exist_ok=True)
+                    # Set ownership recursively
+                    for root, dirs, files in os.walk(dst):
+                        os.chown(root, container_uid, container_gid)
+                        for file in files:
+                            file_path = os.path.join(root, file)
+                            os.chown(file_path, container_uid, container_gid)
+                else:
+                    shutil.copy2(src, dst)
+                    os.chown(dst, container_uid, container_gid)
+            
+            current_app.logger.info("Successfully copied template to user config directory")
+            
+        except Exception as e:
+            current_app.logger.error(f"Failed to copy template to user config: {str(e)}")
+            raise
+    
+    def reset_user_config(self, user_id, image_name):
+        """
+        Reset user's config for a specific image to the default template.
+        Fetches from centralized template directory.
+        
+        Args:
+            user_id: User ID
+            image_name: Docker image name
+            
+        Returns:
+            Dict with success status and message
+        """
+        try:
+            # Normalize image name
+            image_dir_name = image_name.replace('/', '-').replace(':', '-')
+            
+            # Get paths
+            user_data_base = current_app.config.get('USER_DATA_BASE_DIR', '/data/users')
+            template_data_base = current_app.config.get('TEMPLATE_DATA_BASE_DIR', '/data/templates')
+            user_config_dir = os.path.join(user_data_base, str(user_id), 'configs', image_dir_name)
+            config_template_dir = os.path.join(template_data_base, image_dir_name)
+            
+            # Check if centralized template exists
+            if not os.path.exists(config_template_dir):
+                return {
+                    'success': False,
+                    'error': f'No config template found for image {image_name} in centralized template directory'
+                }
+            
+            # Backup current config
+            import shutil
+            from datetime import datetime
+            backup_dir = f"{user_config_dir}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            if os.path.exists(user_config_dir):
+                shutil.move(user_config_dir, backup_dir)
+                current_app.logger.info(f"Backed up current config to {backup_dir}")
+            
+            # Recreate config directory
+            os.makedirs(user_config_dir, exist_ok=True)
+            
+            # Copy centralized template to user config
+            self._copy_template_to_user_config(config_template_dir, user_config_dir)
+            
+            current_app.logger.info(f"Reset config for user {user_id}, image {image_name} from centralized template")
+            
+            return {
+                'success': True,
+                'message': f'Config reset to default for {image_name}',
+                'backup': backup_dir
+            }
+            
+        except Exception as e:
+            current_app.logger.error(f"Failed to reset user config: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def refresh_config_template(self, image_name):
+        """
+        Re-extract config template from an image to centralized location (useful after image updates).
+        
+        Args:
+            image_name: Docker image name
+            
+        Returns:
+            Dict with success status and message
+        """
+        try:
+            # Pull the latest image first
+            current_app.logger.info(f"Pulling latest version of {image_name}")
+            self.client.images.pull(image_name)
+            
+            # Normalize image name
+            image_dir_name = image_name.replace('/', '-').replace(':', '-')
+            
+            # Get centralized template directory
+            template_data_base = current_app.config.get('TEMPLATE_DATA_BASE_DIR', '/data/templates')
+            template_dir = os.path.join(template_data_base, image_dir_name)
+            
+            # Backup old template if exists
+            if os.path.exists(template_dir):
+                import shutil
+                backup_dir = f"{template_dir}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                shutil.move(template_dir, backup_dir)
+                current_app.logger.info(f"Backed up old centralized template to {backup_dir}")
+            
+            # Extract new template to centralized location
+            os.makedirs(template_dir, exist_ok=True)
+            container_uid = current_app.config.get('CONTAINER_USER_ID', 1000)
+            container_gid = current_app.config.get('CONTAINER_GROUP_ID', 1000)
+            os.chown(template_dir, container_uid, container_gid)
+            os.chmod(template_dir, 0o755)
+            
+            self._extract_config_template(image_name, template_dir, image_dir_name)
+            
+            current_app.logger.info(f"Refreshed centralized config template for {image_name}")
+            
+            return {
+                'success': True,
+                'message': f'Centralized config template refreshed for {image_name}',
+                'template_location': template_dir
+            }
+            
+        except Exception as e:
+            current_app.logger.error(f"Failed to refresh config template: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
     
     def _initialize_user_configs(self, user_data_dir, image_name, username):
         """

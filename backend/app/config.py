@@ -28,8 +28,10 @@ class Config:
     
     # Data directory paths
     USER_DATA_BASE_DIR = os.environ.get('USER_DATA_BASE_DIR', '/data/users')
+    TEMPLATE_DATA_BASE_DIR = os.environ.get('TEMPLATE_DATA_BASE_DIR', '/data/templates')
     SHARED_PUBLIC_DIR = os.environ.get('SHARED_PUBLIC_DIR', '/data/shared/public')
     EXTERN_USERADATA_BASE_DIR = os.environ.get('EXTERN_USERADATA_BASE_DIR', '/data/users')
+    EXTERN_TEMPLATE_DATA_BASE_DIR = os.environ.get('EXTERN_TEMPLATE_DATA_BASE_DIR', '/data/templates')
     EXTERN_SHARED_DIR = os.environ.get('EXTERN_SHARED_DIR', '/data/shared/public')
     
     # Container idle timeout (in hours) - containers inactive for this duration will be stopped
