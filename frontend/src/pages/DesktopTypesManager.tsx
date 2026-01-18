@@ -34,6 +34,7 @@ export const DesktopTypesManager: React.FC = () => {
   const [iconFile, setIconFile] = useState<File | null>(null);
   const [iconPreview, setIconPreview] = useState<string | null>(null);
   const [uploadingIcon, setUploadingIcon] = useState(false);
+  const [refreshingTemplates, setRefreshingTemplates] = useState<Set<number>>(new Set());
 
   // Form state
   const [formData, setFormData] = useState({
@@ -435,6 +436,44 @@ export const DesktopTypesManager: React.FC = () => {
     }
   };
 
+  const handleRefreshTemplate = async (type: DesktopType) => {
+    if (!window.confirm(
+      `${t('desktopTypes.refreshTemplateTitle')}\n\n${t('desktopTypes.refreshTemplateMessage')}\n\n${t('desktopTypes.refreshTemplateWarning')}`
+    )) {
+      return;
+    }
+
+    setRefreshingTemplates(prev => new Set(prev).add(type.id));
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const response = await fetch('/api/config/templates/refresh', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Session-ID': localStorage.getItem('session_id') || '',
+        },
+        body: JSON.stringify({ image_name: type.docker_image })
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        setSuccessMessage(t('desktopTypes.refreshTemplateSuccess', { image: type.docker_image }));
+      } else {
+        setError(t('desktopTypes.refreshTemplateFailed', { error: data.error || t('errors.unknownError') }));
+      }
+    } catch (err: any) {
+      setError(t('desktopTypes.refreshTemplateFailed', { error: err.message || t('errors.unknownError') }));
+    } finally {
+      setRefreshingTemplates(prev => {
+        const next = new Set(prev);
+        next.delete(type.id);
+        return next;
+      });
+    }
+  };
+
   if (authLoading) {
     return (
       <div className="container">
@@ -554,6 +593,14 @@ export const DesktopTypesManager: React.FC = () => {
                     disabled={pullingImages.has(type.id)}
                   >
                     {pullingImages.has(type.id) ? t('desktopTypes.pulling') : t('desktopTypes.pullImage')}
+                  </button>
+                  <button 
+                    className="btn btn-sm btn-secondary" 
+                    onClick={() => handleRefreshTemplate(type)}
+                    disabled={refreshingTemplates.has(type.id)}
+                    title={t('desktopTypes.refreshTemplateTitle')}
+                  >
+                    {refreshingTemplates.has(type.id) ? t('desktopTypes.refreshingTemplate') : t('desktopTypes.refreshTemplate')}
                   </button>
                   <button className="btn btn-sm btn-primary" onClick={() => openEditModal(type)}>
                     {t('desktopTypes.edit')}
