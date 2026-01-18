@@ -227,6 +227,43 @@ class ApiService {
     );
     return response.data;
   }
+
+  // Config management endpoints
+  async resetConfig(imageName: string): Promise<ApiResponse<{ message: string; backup: string }>> {
+    const response = await this.client.post<ApiResponse<{ message: string; backup: string }>>(
+      '/api/config/reset',
+      { image_name: imageName }
+    );
+    return response.data;
+  }
+
+  async resetContainerConfig(containerId: string): Promise<ApiResponse<{ message: string; backup: string }>> {
+    const response = await this.client.post<ApiResponse<{ message: string; backup: string }>>(
+      `/api/admin/container/${containerId}/config/reset`
+    );
+    return response.data;
+  }
+
+  async resetContainersConfigBulk(containerIds: string[]): Promise<{ 
+    success: boolean; 
+    message: string; 
+    success_count: number; 
+    error_count: number; 
+    results: any[];
+    error?: string;
+  }> {
+    const response = await this.client.post<{ 
+      success: boolean; 
+      message: string; 
+      success_count: number; 
+      error_count: number; 
+      results: any[];
+    }>(
+      '/api/admin/containers/config/reset-bulk',
+      { container_ids: containerIds }
+    );
+    return response.data;
+  }
 }
 
 // Export singleton instance

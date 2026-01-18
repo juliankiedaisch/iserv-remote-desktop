@@ -53,7 +53,13 @@
     "justNow": "gerade eben",
     "minutesAgo": "vor {{count}} Minuten",
     "hoursAgo": "vor {{count}} Stunden",
-    "daysAgo": "vor {{count}} Tagen"
+    "daysAgo": "vor {{count}} Tagen",
+    "resetConfig": "🔄 Konfiguration zurücksetzen",
+    "resetConfigTitle": "Container-Konfiguration zurücksetzen",
+    "resetConfigMessage": "Möchten Sie die Konfiguration für diesen Container wirklich zurücksetzen? Ihre Desktop-Einstellungen (Hintergrundbild, Panel-Layout usw.) werden auf die Standardwerte zurückgesetzt.",
+    "resetConfigWarning": "Dies betrifft nicht Ihre Dateien, nur die Desktop-Einstellungen.",
+    "configResetSuccess": "Konfiguration erfolgreich zurückgesetzt",
+    "configResetFailed": "Konfiguration konnte nicht zurückgesetzt werden"
   },
   "header": {
     "dashboard": "Dashboard",
@@ -101,7 +107,19 @@
     "tablePort": "Port",
     "tableCreated": "Erstellt",
     "tableLastAccessed": "Zuletzt aufgerufen",
-    "tableActions": "Aktionen"
+    "tableActions": "Aktionen",
+    "resetConfig": "🔄 Konfiguration zurücksetzen",
+    "resetConfigBulk": "🔄 Ausgewählte Konfigurationen zurücksetzen",
+    "resetConfigTitle": "Container-Konfiguration zurücksetzen",
+    "resetConfigMessage": "Möchten Sie die Konfiguration für Container \"{{containerName}}\" wirklich zurücksetzen?",
+    "resetConfigBulkTitle": "Mehrere Container-Konfigurationen zurücksetzen",
+    "resetConfigBulkMessage": "Möchten Sie die Konfigurationen für {{count}} ausgewählte(n) Container wirklich zurücksetzen?",
+    "resetConfigWarning": "Dies setzt Desktop-Einstellungen (Hintergrundbild, Panel-Layout usw.) auf die Standardwerte zurück. Dateien sind nicht betroffen.",
+    "configResetSuccess": "Konfiguration erfolgreich zurückgesetzt",
+    "configResetBulkSuccess": "{{count}} Konfiguration(en) erfolgreich zurückgesetzt",
+    "configResetBulkPartial": "{{successCount}} Konfiguration(en) zurückgesetzt, {{errorCount}} fehlgeschlagen",
+    "configResetFailed": "Konfiguration konnte nicht zurückgesetzt werden",
+    "selectContainers": "Container zum Zurücksetzen der Konfiguration auswählen"
   },
   "fileManager": {
     "title": "Dateimanager",

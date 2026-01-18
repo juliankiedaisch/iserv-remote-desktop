@@ -1,37 +1,64 @@
 from flask import Blueprint, request, jsonify, current_app
 from app import db
 from app.models.users import User
+from app.models.oauth_session import OAuthSession
 from app.models.desktop_assignments import DesktopImage
 from app.services.docker_manager import DockerManager
 from functools import wraps
 from app.i18n import get_message, get_language_from_request
+from datetime import datetime, timezone
 import os
 
 config_bp = Blueprint('config', __name__)
 
 
-def require_auth(f):
-    """Decorator to require authentication"""
+def require_session(f):
+    """Decorator to require valid session"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # Get user from session or token
-        # For now, use a simple implementation
-        user_id = request.headers.get('X-User-ID')
-        if not user_id:
-            return jsonify({'error': 'Authentication required'}), 401
+        lang = get_language_from_request()
         
-        user = User.query.get(user_id)
-        if not user:
-            return jsonify({'error': 'User not found'}), 404
+        # Get session ID from various sources
+        session_id = request.args.get('session_id')
         
-        return f(user, *args, **kwargs)
+        if not session_id:
+            session_id = request.headers.get('X-Session-ID')
+        
+        if not session_id:
+            auth_header = request.headers.get('Authorization')
+            if auth_header and auth_header.startswith('Bearer '):
+                session_id = auth_header.split(' ')[1]
+        
+        if not session_id:
+            return jsonify({'error': get_message('no_session_id_provided', lang)}), 400
+        
+        # Validate session
+        oauth_session = OAuthSession.query.filter_by(id=session_id).first()
+        if not oauth_session:
+            return jsonify({'error': get_message('invalid_session', lang)}), 401
+        
+        # Check if session is expired
+        current_time = datetime.now(timezone.utc)
+        expires_at = oauth_session.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        
+        if expires_at < current_time:
+            return jsonify({'error': get_message('session_expired', lang)}), 401
+        
+        # Update last accessed
+        oauth_session.last_accessed = current_time
+        db.session.commit()
+        
+        # Pass session to the route
+        return f(oauth_session, *args, **kwargs)
     
     return decorated_function
 
 
 @config_bp.route('/config/reset', methods=['POST'])
-@require_auth
-def reset_config(user):
+@require_session
+def reset_config(oauth_session):
     """
     Reset user's config for a specific image to default template.
     
@@ -41,6 +68,7 @@ def reset_config(user):
         }
     """
     lang = get_language_from_request()
+    user = oauth_session.user
     
     try:
         data = request.get_json() or {}
@@ -78,8 +106,8 @@ def reset_config(user):
 
 
 @config_bp.route('/config/templates/refresh', methods=['POST'])
-@require_auth
-def refresh_template(user):
+@require_session
+def refresh_template(oauth_session):
     """
     Refresh config template from an image (admin only).
     
@@ -89,10 +117,11 @@ def refresh_template(user):
         }
     """
     lang = get_language_from_request()
+    user = oauth_session.user
     
     try:
         # Check if user is admin
-        if user.role != 'admin':
+        if not user.is_admin:
             return jsonify({
                 'success': False,
                 'error': get_message('admin_required', lang)
@@ -125,12 +154,13 @@ def refresh_template(user):
 
 
 @config_bp.route('/config/list', methods=['GET'])
-@require_auth
-def list_configs(user):
+@require_session
+def list_configs(oauth_session):
     """
     List all config directories for the current user.
     """
     lang = get_language_from_request()
+    user = oauth_session.user
     
     try:
         user_data_base = current_app.config.get('USER_DATA_BASE_DIR', '/data/users')
@@ -177,12 +207,13 @@ def list_configs(user):
 
 
 @config_bp.route('/config/info/<image_dir>', methods=['GET'])
-@require_auth
-def get_config_info(user, image_dir):
+@require_session
+def get_config_info(oauth_session, image_dir):
     """
     Get detailed information about a specific config.
     """
     lang = get_language_from_request()
+    user = oauth_session.user
     
     try:
         user_data_base = current_app.config.get('USER_DATA_BASE_DIR', '/data/users')

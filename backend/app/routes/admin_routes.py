@@ -323,3 +323,106 @@ def update_user_role(oauth_session, lang, user_id):
             'success': False,
             'error': get_message('error_occurred', lang)
         }), 500
+
+
+@admin_bp.route('/admin/container/<container_id>/config/reset', methods=['POST'])
+@require_admin
+def reset_container_config(oauth_session, lang, container_id):
+    """Reset config for a specific container (admin only)"""
+    try:
+        container = Container.query.get(container_id)
+        
+        if not container:
+            return jsonify({
+                'success': False,
+                'error': get_message('container_not_found', lang)
+            }), 404
+        
+        # Reset config for the container's user and image
+        docker_manager = DockerManager()
+        result = docker_manager.reset_user_config(container.user_id, container.image_name)
+        
+        if result['success']:
+            current_app.logger.info(
+                f"Admin {oauth_session.user.username} reset config for container {container.container_name} "
+                f"(user: {container.user_id}, image: {container.image_name})"
+            )
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 500
+            
+    except Exception as e:
+        current_app.logger.error(f"Failed to reset container config: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@admin_bp.route('/admin/containers/config/reset-bulk', methods=['POST'])
+@require_admin
+def reset_containers_config_bulk(oauth_session, lang):
+    """Reset config for multiple containers (admin only)"""
+    try:
+        data = request.get_json() or {}
+        container_ids = data.get('container_ids', [])
+        
+        if not container_ids or not isinstance(container_ids, list):
+            return jsonify({
+                'success': False,
+                'error': 'container_ids must be provided as an array'
+            }), 400
+        
+        docker_manager = DockerManager()
+        results = []
+        success_count = 0
+        error_count = 0
+        
+        for container_id in container_ids:
+            container = Container.query.get(container_id)
+            
+            if not container:
+                results.append({
+                    'container_id': container_id,
+                    'success': False,
+                    'error': 'Container not found'
+                })
+                error_count += 1
+                continue
+            
+            # Reset config for this container
+            result = docker_manager.reset_user_config(container.user_id, container.image_name)
+            results.append({
+                'container_id': container_id,
+                'container_name': container.container_name,
+                'user_id': container.user_id,
+                'image_name': container.image_name,
+                'success': result['success'],
+                'message': result.get('message'),
+                'error': result.get('error')
+            })
+            
+            if result['success']:
+                success_count += 1
+            else:
+                error_count += 1
+        
+        current_app.logger.info(
+            f"Admin {oauth_session.user.username} performed bulk config reset: "
+            f"{success_count} succeeded, {error_count} failed"
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': f'Reset {success_count} config(s) successfully, {error_count} failed',
+            'success_count': success_count,
+            'error_count': error_count,
+            'results': results
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Failed to perform bulk config reset: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
