@@ -35,6 +35,12 @@ The application uses a **separated frontend-backend architecture**:
 - Automatic Kasm workspace provisioning
 - Session-based container lifecycle
 - Admin panel for managing all containers
+- **Bidirectional Container Synchronization**
+  - Automatic sync of changes from containers back to host
+  - Handles multiple concurrent containers gracefully
+  - Separates configs from user files
+  - Newest file wins conflict resolution
+  - See [CONTAINER_SYNC.md](CONTAINER_SYNC.md) for details
 - **File Manager** for uploading and downloading files to/from containers
   - Private and public file spaces
   - Drag-and-drop upload support
