@@ -151,6 +151,7 @@ def create_assignment(user):
             teacher_private_path = os.path.join(
                 user_data_base,
                 user['user_id'],
+                'PRIVATE',
                 folder_path
             )
             
