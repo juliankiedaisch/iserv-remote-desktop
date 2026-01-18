@@ -24,11 +24,11 @@ Each container has three key directories:
 
 1. **Initial Copy** - Files are copied FROM mounted directories TO `/home/kasm-user`:
    ```bash
-   # Copy private files first (base layer)
-   cp -a /home/kasm-user-private/. /home/kasm-user/
+   # Copy private files first (base layer) - uses rsync for better performance
+   rsync -au /home/kasm-user-private/ /home/kasm-user/
    
-   # Overlay configs (without overwriting)
-   cp -an /home/kasm-user-configs/. /home/kasm-user/
+   # Overlay configs (without overwriting existing files)
+   rsync -a --ignore-existing /home/kasm-user-configs/ /home/kasm-user/
    ```
 
 2. **Background Sync Starts** - The `iserv_profile_sync.sh` script starts:
@@ -118,6 +118,13 @@ Synced to `/home/kasm-user-private/` (shared across desktops):
 
 ### Scripts
 
+#### `iserv_profile_init.sh`
+Initial profile setup script that runs once at container startup:
+- Copies files FROM mounted directories TO `/home/kasm-user`
+- Uses rsync to preserve permissions and handle existing files
+- Runs before any services start to ensure user data is available
+- Copies private files first, then overlays config files
+
 #### `iserv_profile_sync.sh`
 Background daemon that performs continuous synchronization:
 - Runs in an infinite loop
@@ -136,6 +143,7 @@ One-time sync script for shutdown:
 
 #### `vnc_startup.sh`
 Container startup script that:
+- Calls `iserv_profile_init.sh` to initialize user home from mounted directories
 - Starts the background sync after all services are running
 - Monitors the sync process and restarts if needed
 - Adds sync to the `KASM_PROCS` array for monitoring
@@ -181,8 +189,12 @@ cat /tmp/.iserv_profile_sync.pid
 
 ### Manual Sync Trigger
 
-If needed, manually trigger sync inside container:
+If needed, manually trigger initialization or sync inside container:
 ```bash
+# Initial copy from mounted dirs to home (normally happens at startup)
+/dockerstartup/iserv_profile_init.sh
+
+# One-time sync from home to mounted dirs
 /dockerstartup/iserv_profile_sync_once.sh
 ```
 
