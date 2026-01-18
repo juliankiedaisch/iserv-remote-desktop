@@ -75,6 +75,9 @@ def ensure_user_directory(user_id):
         user_dir = os.path.join(user_data_base, str(user_id))
         ensure_directory_exists(user_dir, container_uid, container_gid)
         
+        user_private_dir = os.path.join(user_dir, "PRIVATE")
+        ensure_directory_exists(user_private_dir, container_uid, container_gid)
+
         return user_dir
         
     except Exception as e:
