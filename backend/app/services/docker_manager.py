@@ -4,6 +4,7 @@ from flask import current_app
 import os
 import random
 import socket
+import secrets
 from datetime import datetime, timezone
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
@@ -119,10 +120,13 @@ class DockerManager:
             # Generate unique container name with desktop type
             container_name = f"kasm-{username}-{desktop_type}-{session_id[:8]}"
             
-            # Generate unique proxy path for reverse proxy access
+            # Generate unique proxy path for reverse proxy access with security token
+            # Include a random token to prevent unauthorized access by guessing URLs
             # Replace periods with dashes for DNS subdomain compatibility
             username_safe = username.replace('.', '-')
-            proxy_path = f"{username_safe}-{desktop_type}"
+            # Generate URL-safe random token (12 bytes = 16 characters base64url)
+            access_token = secrets.token_urlsafe(12)
+            proxy_path = f"{username_safe}-{desktop_type}-{access_token}"
             
             # Check if container already exists for this session and desktop type in any state
             # We check by session_id, user_id, and desktop_type to ensure we only find containers for this user
@@ -172,14 +176,12 @@ class DockerManager:
                         db.session.commit()
                         current_app.logger.info(f"Removed database record for container {existing.container_name}")
             
-            # Also check for any containers with conflicting proxy_path or container_name
+            # Also check for any containers with conflicting container_name
             # These could be from previous sessions that weren't properly cleaned up
             # Use row-level locking to prevent concurrent cleanup attempts
+            # Note: proxy_path now includes random token, so no need to check for conflicts there
             conflicting_containers = Container.query.filter(
-                or_(
-                    Container.proxy_path == proxy_path,
-                    Container.container_name == container_name
-                ),
+                Container.container_name == container_name,
                 Container.user_id == user_id  # Only cleanup user's own containers
             ).with_for_update(skip_locked=True).all()
             
