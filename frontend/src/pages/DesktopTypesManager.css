@@ -125,13 +125,10 @@
 }
 
 .desktop-type-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 0.5rem;
   margin-top: auto;
-}
-
-.desktop-type-actions button {
-  flex: 1;
 }
 
 .status-badge.enabled {

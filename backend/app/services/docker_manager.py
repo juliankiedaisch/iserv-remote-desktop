@@ -865,18 +865,10 @@ class DockerManager:
                     tar_stream.write(chunk)
                 tar_stream.seek(0)
                 
-                # List of config patterns to extract (hidden files/dirs and configs)
-                config_patterns = [
-                    '.config', '.cache', '.local', '.mozilla', '.pki', '.vnc',
-                    '.bashrc', '.bash_profile', '.profile', '.Xauthority', '.ICEauthority',
-                    '.gtkrc-2.0', '.kasmpasswd', '.wget-hsts', '.gnupg', '.ssh',
-                    '.java', '.filius', '.vscode', '.launchpadlib', '.gvfs'
-                ]
-                
                 container_uid = current_app.config.get('CONTAINER_USER_ID', 1000)
                 container_gid = current_app.config.get('CONTAINER_GROUP_ID', 1000)
                 
-                # Extract only config files/dirs
+                # Extract all hidden files and directories (those starting with '.')
                 with tarfile.open(fileobj=tar_stream) as tar:
                     for member in tar.getmembers():
                         # Skip the root directory itself
@@ -889,14 +881,10 @@ class DockerManager:
                         else:
                             relative_path = member.name
                         
-                        # Only extract config-related files
-                        is_config = False
-                        for pattern in config_patterns:
-                            if relative_path.startswith(pattern):
-                                is_config = True
-                                break
-                        
-                        if not is_config:
+                        # Only extract hidden files/directories (starting with '.')
+                        # Get the first component of the path
+                        first_component = relative_path.split('/')[0]
+                        if not first_component.startswith('.'):
                             continue
                         
                         target_path = os.path.join(template_dir, relative_path)
@@ -1049,7 +1037,17 @@ class DockerManager:
         Returns:
             Dict with success status and message
         """
-        try:           
+        try:
+            # Emit started event
+            try:
+                from app.routes.websocket_routes import emit_template_refresh_event
+                emit_template_refresh_event('template_refresh_started', {
+                    'image': image_name,
+                    'message': f'Starting template refresh for {image_name}'
+                })
+            except Exception as e:
+                current_app.logger.debug(f"WebSocket emit failed (non-critical): {e}")
+            
             # Normalize image name
             image_dir_name = image_name.replace('/', '-').replace(':', '-')
             
@@ -1057,10 +1055,32 @@ class DockerManager:
             template_data_base = current_app.config.get('TEMPLATE_DATA_BASE_DIR', '/data/templates')
             template_dir = os.path.join(template_data_base, image_dir_name)
             
+            # Emit progress - Removing old template
+            try:
+                from app.routes.websocket_routes import emit_template_refresh_event
+                emit_template_refresh_event('template_refresh_progress', {
+                    'image': image_name,
+                    'message': 'Removing old template...',
+                    'status': 'Cleaning'
+                })
+            except Exception as e:
+                current_app.logger.debug(f"WebSocket emit failed (non-critical): {e}")
+            
             # Remove old template if exists
             if os.path.exists(template_dir):
                 shutil.rmtree(template_dir)
                 current_app.logger.info(f"Removed old centralized template {template_dir}")
+            
+            # Emit progress - Creating new template
+            try:
+                from app.routes.websocket_routes import emit_template_refresh_event
+                emit_template_refresh_event('template_refresh_progress', {
+                    'image': image_name,
+                    'message': 'Creating template directory...',
+                    'status': 'Creating'
+                })
+            except Exception as e:
+                current_app.logger.debug(f"WebSocket emit failed (non-critical): {e}")
             
             # Extract new template to centralized location
             os.makedirs(template_dir, exist_ok=True)
@@ -1069,9 +1089,30 @@ class DockerManager:
             os.chown(template_dir, container_uid, container_gid)
             os.chmod(template_dir, 0o755)
             
+            # Emit progress - Extracting template
+            try:
+                from app.routes.websocket_routes import emit_template_refresh_event
+                emit_template_refresh_event('template_refresh_progress', {
+                    'image': image_name,
+                    'message': 'Extracting configuration from image...',
+                    'status': 'Extracting'
+                })
+            except Exception as e:
+                current_app.logger.debug(f"WebSocket emit failed (non-critical): {e}")
+            
             self._extract_config_template(image_name, template_dir, image_dir_name)
             
             current_app.logger.info(f"Refreshed centralized config template for {image_name}")
+            
+            # Emit completed event
+            try:
+                from app.routes.websocket_routes import emit_template_refresh_event
+                emit_template_refresh_event('template_refresh_completed', {
+                    'image': image_name,
+                    'message': f'Template refresh completed for {image_name}'
+                })
+            except Exception as e:
+                current_app.logger.debug(f"WebSocket emit failed (non-critical): {e}")
             
             return {
                 'success': True,
@@ -1081,6 +1122,17 @@ class DockerManager:
             
         except Exception as e:
             current_app.logger.error(f"Failed to refresh config template: {str(e)}")
+            
+            # Emit error event
+            try:
+                from app.routes.websocket_routes import emit_template_refresh_event
+                emit_template_refresh_event('template_refresh_error', {
+                    'image': image_name,
+                    'error': str(e)
+                })
+            except Exception as ws_error:
+                current_app.logger.debug(f"WebSocket emit failed (non-critical): {ws_error}")
+            
             return {
                 'success': False,
                 'error': str(e)

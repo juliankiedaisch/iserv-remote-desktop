@@ -201,3 +201,29 @@ def emit_image_pull_event(event_type, data, user_id=None):
     # Always emit to admins for image pull events
     socketio.emit(event_type, event_data, room="admins")
 
+
+def emit_template_refresh_event(event_type, data, user_id=None):
+    """
+    Emit template refresh events for real-time progress updates
+    
+    Args:
+        event_type: Type of event (template_refresh_started, template_refresh_progress, 
+                    template_refresh_completed, template_refresh_error)
+        data: Event data dict
+        user_id: Optional user_id to target specific user
+    """
+    if not socketio:
+        return
+    
+    event_data = {
+        **data,
+        'timestamp': datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Emit to specific user if provided
+    if user_id:
+        socketio.emit(event_type, event_data, room=f"user_{user_id}")
+    
+    # Always emit to admins for template refresh events
+    socketio.emit(event_type, event_data, room="admins")
+

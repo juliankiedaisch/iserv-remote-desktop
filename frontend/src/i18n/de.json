@@ -314,7 +314,9 @@
     "refreshTemplateMessage": "Dies wird die Standardkonfiguration aus dem Container-Image neu extrahieren und die zentrale Vorlage aktualisieren. Nur versteckte Dateien und Ordner aus einem frischen Container werden kopiert.",
     "refreshTemplateWarning": "Bestehende Benutzerkonfigurationen werden NICHT betroffen. Nur neue Container oder Benutzer, die ihre Konfiguration zurücksetzen, verwenden die aktualisierte Vorlage.",
     "refreshTemplateSuccess": "Vorlage erfolgreich aktualisiert für {{image}}",
-    "refreshTemplateFailed": "Vorlage konnte nicht aktualisiert werden: {{error}}"
+    "refreshTemplateFailed": "Vorlage konnte nicht aktualisiert werden: {{error}}",
+    "initializingRefresh": "Aktualisierung wird initialisiert...",
+    "refreshInProgress": "Aktualisierung läuft..."
   },
   "assignments": {
     "title": "Zuweisungs-Manager",

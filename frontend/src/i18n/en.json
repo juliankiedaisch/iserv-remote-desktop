@@ -314,7 +314,9 @@
     "refreshTemplateMessage": "This will re-extract the default configuration from the container image and update the centralized template. Only hidden files and folders from a fresh container will be copied.",
     "refreshTemplateWarning": "Existing user configurations will NOT be affected. Only new containers or users who reset their config will use the updated template.",
     "refreshTemplateSuccess": "Template refreshed successfully for {{image}}",
-    "refreshTemplateFailed": "Failed to refresh template: {{error}}"
+    "refreshTemplateFailed": "Failed to refresh template: {{error}}",
+    "initializingRefresh": "Initializing template refresh...",
+    "refreshInProgress": "Refresh in Progress..."
   },
   "assignments": {
     "title": "Assignment Manager",
