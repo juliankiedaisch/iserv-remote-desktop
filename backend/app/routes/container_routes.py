@@ -5,62 +5,21 @@ from app.models.containers import Container
 from app.models.desktop_assignments import DesktopImage, DesktopAssignment
 from app.services.docker_manager import DockerManager
 from app.i18n import get_message, get_language_from_request
+from app.middlewares.auth import require_auth
 from datetime import datetime, timezone
-from functools import wraps
 
 container_bp = Blueprint('container', __name__)
 
-def require_session(f):
-    """Decorator to require valid session"""
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        lang = get_language_from_request()
-        
-        # Get session ID from various sources
-        session_id = request.args.get('session_id')
-        
-        if not session_id:
-            session_id = request.headers.get('X-Session-ID')
-        
-        if not session_id:
-            auth_header = request.headers.get('Authorization')
-            if auth_header and auth_header.startswith('Bearer '):
-                session_id = auth_header.split(' ')[1]
-        
-        if not session_id:
-            return jsonify({'error': get_message('no_session_id_provided', lang)}), 400
-        
-        # Validate session
-        oauth_session = OAuthSession.query.filter_by(id=session_id).first()
-        if not oauth_session:
-            return jsonify({'error': get_message('invalid_session', lang)}), 401
-        
-        # Check if session is expired
-        current_time = datetime.now(timezone.utc)
-        expires_at = oauth_session.expires_at
-        if expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=timezone.utc)
-        
-        if expires_at < current_time:
-            return jsonify({'error': get_message('session_expired', lang)}), 401
-        
-        # Update last accessed
-        oauth_session.last_accessed = current_time
-        db.session.commit()
-        
-        # Pass session to the route
-        return f(oauth_session, *args, **kwargs)
-    
-    return decorated_function
-
 
 @container_bp.route('/container/start', methods=['POST'])
-@require_session
-def start_container(oauth_session):
+@require_auth
+def start_container(user_dict):
     """Start a new container for the user"""
     lang = get_language_from_request()
     
     try:
+        # Get oauth_session from request context (set by require_auth)
+        oauth_session = request.oauth_session
         user = oauth_session.user
         
         # Get desktop_type from query params or request body
@@ -141,12 +100,15 @@ def start_container(oauth_session):
 
 
 @container_bp.route('/container/status', methods=['GET'])
-@require_session
-def get_container_status(oauth_session):
+@require_auth
+def get_container_status(user_dict):
     """Get status of user's container"""
     lang = get_language_from_request()
     
     try:
+        # Get oauth_session from request context (set by require_auth)
+        oauth_session = request.oauth_session
+        
         # Get container for this session
         container = Container.get_by_session(oauth_session.id)
         
@@ -179,12 +141,15 @@ def get_container_status(oauth_session):
 
 
 @container_bp.route('/container/stop', methods=['POST'])
-@require_session
-def stop_container(oauth_session):
+@require_auth
+def stop_container(user_dict):
     """Stop user's container"""
     lang = get_language_from_request()
     
     try:
+        # Get oauth_session from request context (set by require_auth)
+        oauth_session = request.oauth_session
+        
         # Get desktop type from request
         data = request.get_json() or {}
         desktop_type = data.get('desktop_type') or request.args.get('desktop_type')
@@ -230,12 +195,15 @@ def stop_container(oauth_session):
 
 
 @container_bp.route('/container/remove', methods=['POST', 'DELETE'])
-@require_session
-def remove_container(oauth_session):
+@require_auth
+def remove_container(user_dict):
     """Remove user's container"""
     lang = get_language_from_request()
     
     try:
+        # Get oauth_session from request context (set by require_auth)
+        oauth_session = request.oauth_session
+        
         # Get container for this session
         container = Container.get_by_session(oauth_session.id)
         
@@ -267,10 +235,12 @@ def remove_container(oauth_session):
 
 
 @container_bp.route('/container/list', methods=['GET'])
-@require_session
-def list_containers(oauth_session):
+@require_auth
+def list_containers(user_dict):
     """List all containers for the user (only for assigned desktop images)"""
     try:
+        # Get oauth_session and user from request context (set by require_auth)
+        oauth_session = request.oauth_session
         user = oauth_session.user
         user_group_ids = [g.id for g in user.groups]
         
@@ -324,10 +294,12 @@ def list_containers(oauth_session):
 
 
 @container_bp.route('/container/available-types', methods=['GET'])
-@require_session
-def get_available_desktop_types(oauth_session):
+@require_auth
+def get_available_desktop_types(user_dict):
     """Get list of desktop types available to the current user"""
     try:
+        # Get oauth_session and user from request context (set by require_auth)
+        oauth_session = request.oauth_session
         user = oauth_session.user
         user_group_ids = [g.id for g in user.groups]
         
@@ -370,12 +342,15 @@ def get_available_desktop_types(oauth_session):
 
 
 @container_bp.route('/container/health', methods=['GET'])
-@require_session
-def check_container_health(oauth_session):
+@require_auth
+def check_container_health(user_dict):
     """Check if a specific container is ready and responding"""
     lang = get_language_from_request()
     
     try:
+        # Get oauth_session from request context (set by require_auth)
+        oauth_session = request.oauth_session
+        
         desktop_type = request.args.get('desktop_type')
         
         if not desktop_type:
