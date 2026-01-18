@@ -41,7 +41,6 @@ export const FileManager: React.FC = () => {
   const [dragOver, setDragOver] = useState(false);
   const [showNewFolderModal, setShowNewFolderModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
-  const [showHiddenFiles, setShowHiddenFiles] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [fileToDelete, setFileToDelete] = useState<FileItem | null>(null);
   const [draggedItem, setDraggedItem] = useState<FileItem | null>(null);
@@ -319,10 +318,6 @@ export const FileManager: React.FC = () => {
     return date.toLocaleString();
   };
 
-  const visibleFiles = showHiddenFiles 
-    ? files 
-    : files.filter(file => !file.name.startsWith('.'));
-
   const toggleMenu = (path: string) => {
     setOpenMenuPath(openMenuPath === path ? null : path);
   };
@@ -486,12 +481,6 @@ export const FileManager: React.FC = () => {
             <button className="btn btn-secondary" onClick={loadFiles}>
               🔄 {t('common.refresh')}
             </button>
-            <button 
-              className="btn btn-secondary" 
-              onClick={() => setShowHiddenFiles(!showHiddenFiles)}
-            >
-              {showHiddenFiles ? `👁️ ${t('fileManager.hideHiddenFiles')}` : `👁️‍🗨️ ${t('fileManager.showHiddenFiles')}`}
-            </button>
           </div>
 
           <input
@@ -511,7 +500,7 @@ export const FileManager: React.FC = () => {
         >
           {loading ? (
             <Loading message={t('fileManager.loadingFiles')} />
-          ) : visibleFiles.length === 0 ? (
+          ) : files.length === 0 ? (
             <div className="empty-state">
               <p>{t('fileManager.noFiles')}</p>
               <p className="empty-hint">{t('fileManager.emptyHint')}</p>
@@ -527,7 +516,7 @@ export const FileManager: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {visibleFiles.map((file) => (
+                {files.map((file) => (
                   <tr 
                     key={file.path}
                     draggable
