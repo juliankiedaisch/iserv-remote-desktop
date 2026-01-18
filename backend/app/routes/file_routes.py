@@ -3,56 +3,13 @@ from werkzeug.utils import secure_filename
 from app import db
 from app.models.oauth_session import OAuthSession
 from app.models.desktop_assignments import DesktopAssignment
+from app.middlewares.auth import require_auth
 from app.i18n import get_message, get_language_from_request
-from functools import wraps
 import os
 import shutil
 from datetime import datetime, timezone
 
 file_bp = Blueprint('file', __name__)
-
-def require_session(f):
-    """Decorator to require valid session"""
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        lang = get_language_from_request()
-        
-        # Get session ID from various sources
-        session_id = request.args.get('session_id')
-        
-        if not session_id:
-            session_id = request.headers.get('X-Session-ID')
-        
-        if not session_id:
-            auth_header = request.headers.get('Authorization')
-            if auth_header and auth_header.startswith('Bearer '):
-                session_id = auth_header.split(' ')[1]
-        
-        if not session_id:
-            return jsonify({'error': get_message('no_session_id_provided', lang)}), 400
-        
-        # Validate session
-        oauth_session = OAuthSession.query.filter_by(id=session_id).first()
-        if not oauth_session:
-            return jsonify({'error': get_message('invalid_session', lang)}), 401
-        
-        # Check if session is expired
-        current_time = datetime.now(timezone.utc)
-        expires_at = oauth_session.expires_at
-        if expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=timezone.utc)
-        
-        if expires_at < current_time:
-            return jsonify({'error': get_message('session_expired', lang)}), 401
-        
-        # Update last accessed
-        oauth_session.last_accessed = current_time
-        db.session.commit()
-        
-        # Pass session to the route
-        return f(oauth_session, *args, **kwargs)
-    
-    return decorated_function
 
 
 def get_container_path(user_id, space='private'):
@@ -91,12 +48,13 @@ def validate_path_security(base_path, full_path):
 
 
 @file_bp.route('/files/list', methods=['GET'])
-@require_session
-def list_files(oauth_session):
+@require_auth
+def list_files(user_dict):
     """List files in user's private or public space"""
     lang = get_language_from_request()
     
     try:
+        oauth_session = request.oauth_session
         user = oauth_session.user
         space = request.args.get('space', 'private')  # 'private' or 'public'
         path = request.args.get('path', '')  # relative path within the space
@@ -198,12 +156,13 @@ def list_files(oauth_session):
 
 
 @file_bp.route('/files/upload', methods=['POST'])
-@require_session
-def upload_file(oauth_session):
+@require_auth
+def upload_file(user_dict):
     """Upload a file to user's private or public space"""
     lang = get_language_from_request()
     
     try:
+        oauth_session = request.oauth_session
         user = oauth_session.user
         space = request.form.get('space', 'private')
         path = request.form.get('path', '')  # relative path within the space
@@ -276,12 +235,13 @@ def upload_file(oauth_session):
 
 
 @file_bp.route('/files/download', methods=['GET'])
-@require_session
-def download_file(oauth_session):
+@require_auth
+def download_file(user_dict):
     """Download a file from user's private or public space"""
     lang = get_language_from_request()
     
     try:
+        oauth_session = request.oauth_session
         user = oauth_session.user
         space = request.args.get('space', 'private')
         path = request.args.get('path', '')
@@ -333,12 +293,13 @@ def download_file(oauth_session):
 
 
 @file_bp.route('/files/delete', methods=['DELETE'])
-@require_session
-def delete_file(oauth_session):
+@require_auth
+def delete_file(user_dict):
     """Delete a file or directory from user's private or public space"""
     lang = get_language_from_request()
     
     try:
+        oauth_session = request.oauth_session
         user = oauth_session.user
         space = request.args.get('space', 'private')
         path = request.args.get('path', '')
@@ -395,12 +356,13 @@ def delete_file(oauth_session):
 
 
 @file_bp.route('/files/create-folder', methods=['POST'])
-@require_session
-def create_folder(oauth_session):
+@require_auth
+def create_folder(user_dict):
     """Create a new folder in user's private or public space"""
     lang = get_language_from_request()
     
     try:
+        oauth_session = request.oauth_session
         user = oauth_session.user
         data = request.get_json() or {}
         space = data.get('space', 'private')
@@ -468,12 +430,13 @@ def create_folder(oauth_session):
 
 
 @file_bp.route('/files/move', methods=['POST'])
-@require_session
-def move_file(oauth_session):
+@require_auth
+def move_file(user_dict):
     """Move a file or folder to a different location"""
     lang = get_language_from_request()
     
     try:
+        oauth_session = request.oauth_session
         user = oauth_session.user
         data = request.get_json() or {}
         space = data.get('space', 'private')
