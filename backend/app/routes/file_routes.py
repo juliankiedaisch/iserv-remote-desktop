@@ -85,17 +85,11 @@ def list_files(user_dict):
         
         # Check if path exists - if base directory doesn't exist, return empty list
         if not os.path.exists(full_path):
-            # If it's the base path itself that doesn't exist, return empty list instead of error
-            if full_path == base_path:
+            if not os.makedirs(full_path, exist_ok=True):
                 return jsonify({
-                    'success': True,
-                    'items': [],
-                    'current_path': path
-                })
-            return jsonify({
-                'success': False,
-                'error': get_message('directory_not_found', lang)
-            }), 404
+                    'success': False,
+                    'error': get_message('directory_not_found', lang)
+                }), 404
         
         # List files and directories
         items = []
