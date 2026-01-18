@@ -18,7 +18,8 @@ def get_container_path(user_id, space='private'):
         return current_app.config.get('SHARED_PUBLIC_DIR', '/data/shared/public')
     else:
         user_data_base = current_app.config.get('USER_DATA_BASE_DIR', '/data/users')
-        return os.path.join(user_data_base, str(user_id))
+        # User's private files are in PRIVATE subdirectory (shared across containers)
+        return os.path.join(user_data_base, str(user_id), 'PRIVATE')
 
 
 def validate_path_security(base_path, full_path):

@@ -283,17 +283,17 @@ class DockerManager:
             user_data_dir = ensure_user_directory(user_id)
             extern_user_data_dir = os.path.join(current_app.config.get('EXTERN_USERADATA_BASE_DIR'), str(user_id))
             
-            # Prepare separated user files and image-specific configs
-            user_files_dir, user_config_dir = self._prepare_user_directories(user_id, kasm_image, username)
+            # Prepare separated user private files and desktop-type-specific configs
+            user_private_dir, user_config_dir = self._prepare_user_directories(user_id, kasm_image, desktop_type, username)
             
             # Get shared public directory from config
             extern_shared_public_dir = current_app.config.get('EXTERN_SHARED_DIR', '/data/shared/public')
             
-            # Setup volumes with separated user files and configs
-            # We'll use an overlay approach: mount user files first, then overlay configs
+            # Setup volumes with separated user private files and desktop-type-specific configs
+            # We use an overlay approach: mount private user space, then overlay desktop configs
             volumes = {
-                user_files_dir: {
-                    'bind': '/home/kasm-user',
+                user_private_dir: {
+                    'bind': '/home/kasm-user-private',
                     'mode': 'rw'
                 },
                 user_config_dir: {
@@ -316,17 +316,19 @@ class DockerManager:
                     )
                     
                     if assignment and assignment.assignment_folder_path:
-                        # Get teacher's private folder path
+                        # Get teacher's private folder path (inside PRIVATE subdirectory)
                         user_data_base = current_app.config.get('USER_DATA_BASE_DIR', '/data/users')
                         teacher_folder_path = os.path.join(
                             user_data_base,
                             str(assignment.created_by),
+                            'PRIVATE',
                             assignment.assignment_folder_path
                         )
                         extern_user_data_base = current_app.config.get('EXTERN_USERADATA_BASE_DIR', '/data/users')
                         extern_teacher_folder_path = os.path.join(
                             extern_user_data_base,
                             str(assignment.created_by),
+                            'PRIVATE',
                             assignment.assignment_folder_path
                         )
                         
@@ -351,10 +353,17 @@ class DockerManager:
             # Create and start container
             current_app.logger.info(f"Creating container {container_name} from image {kasm_image}")
             
-            # Add startup command to merge configs from /home/kasm-user-configs to /home/kasm-user
+            # Add startup command to merge private user space and desktop configs into /home/kasm-user
+            # This implements an overlayFS-like behavior where:
+            # 1. Private user files (shared across all containers) are copied first as the base layer
+            # 2. Desktop-type-specific configs are overlaid on top (with -n to not overwrite)
             startup_script = (
                 '#!/bin/bash\n'
-                '# Merge image-specific configs into user home\n'
+                '# Merge private user space into home directory (shared across all containers)\n'
+                'if [ -d /home/kasm-user-private ]; then\n'
+                '  cp -a /home/kasm-user-private/. /home/kasm-user/ 2>/dev/null || true\n'
+                'fi\n'
+                '# Overlay desktop-type-specific configs on top (without overwriting private files)\n'
                 'if [ -d /home/kasm-user-configs ]; then\n'
                 '  cp -an /home/kasm-user-configs/. /home/kasm-user/ 2>/dev/null || true\n'
                 'fi\n'
@@ -726,22 +735,26 @@ class DockerManager:
             # Port is already in use or timeout
             return False
     
-    def _prepare_user_directories(self, user_id, image_name, username):
+    def _prepare_user_directories(self, user_id, image_name, desktop_type, username):
         """
-        Prepare separated user directories for files and image-specific configs.
+        Prepare separated user directories for private files and desktop-type-specific configs.
         
         Directory structure:
-        - /data/users/{user_id}/files/ - User's actual files (Documents, Downloads, etc.)
-        - /data/users/{user_id}/configs/{image_name}/ - Image-specific configs (.config, .cache, etc.)
+        - /data/users/{user_id}/PRIVATE/ - User's private files (shared across all containers)
+        - /data/users/{user_id}/{desktop_type}/ - Desktop-type-specific configs (.config, .cache, etc.)
         - /data/templates/{image_name}/ - Centralized default configs (shared across all users)
+        
+        Each desktop type has its own config directory so users can have different settings
+        for different desktop environments (e.g., ubuntu-desktop vs filius-desktop).
         
         Args:
             user_id: User ID
             image_name: Docker image name (e.g., 'teacherki/kasm-desktop:latest')
+            desktop_type: Desktop type name (e.g., 'ubuntu-desktop', 'filius-desktop')
             username: Username for logging
             
         Returns:
-            Tuple of (user_files_dir_extern, user_config_dir_extern) - paths on the host
+            Tuple of (user_private_dir_extern, user_config_dir_extern) - paths on the host
         """
         try:
             # Normalize image name for directory use (replace / and : with -)
@@ -754,16 +767,17 @@ class DockerManager:
             
             # Define directory paths (backend view)
             user_base_dir = os.path.join(user_data_base, str(user_id))
-            user_files_dir = os.path.join(user_base_dir, 'files')
-            user_config_dir = os.path.join(user_base_dir, 'configs', image_dir_name)
+            user_private_dir = os.path.join(user_base_dir, 'PRIVATE')
+            # Use desktop_type for config directory (not full container name)
+            user_config_dir = os.path.join(user_base_dir, desktop_type)
             config_template_dir = os.path.join(template_data_base, image_dir_name)
             
             # External paths (host view - for Docker mounts)
-            extern_user_files_dir = os.path.join(extern_user_data_base, str(user_id), 'files')
-            extern_user_config_dir = os.path.join(extern_user_data_base, str(user_id), 'configs', image_dir_name)
+            extern_user_private_dir = os.path.join(extern_user_data_base, str(user_id), 'PRIVATE')
+            extern_user_config_dir = os.path.join(extern_user_data_base, str(user_id), desktop_type)
             
             # Create directories if they don't exist
-            os.makedirs(user_files_dir, exist_ok=True)
+            os.makedirs(user_private_dir, exist_ok=True)
             os.makedirs(user_config_dir, exist_ok=True)
             # Note: config_template_dir is in centralized location, created separately
             
@@ -771,7 +785,7 @@ class DockerManager:
             container_uid = current_app.config.get('CONTAINER_USER_ID', 1000)
             container_gid = current_app.config.get('CONTAINER_GROUP_ID', 1000)
             
-            for dir_path in [user_files_dir, user_config_dir]:
+            for dir_path in [user_private_dir, user_config_dir]:
                 os.chown(dir_path, container_uid, container_gid)
                 os.chmod(dir_path, 0o755)
             
@@ -787,23 +801,23 @@ class DockerManager:
             
             # Initialize user's config directory from centralized template if empty
             if not os.listdir(user_config_dir):
-                current_app.logger.info(f"Initializing user configs from centralized template for {username}")
+                current_app.logger.info(f"Initializing desktop configs from centralized template for {username}/{desktop_type}")
                 self._copy_template_to_user_config(config_template_dir, user_config_dir)
             
-            # Ensure standard user directories exist in files dir
+            # Ensure standard user directories exist in PRIVATE dir (shared across all containers)
             standard_dirs = ['Desktop', 'Documents', 'Downloads', 'Music', 'Pictures', 'Videos', 'Public', 'PDF']
             for dir_name in standard_dirs:
-                dir_path = os.path.join(user_files_dir, dir_name)
+                dir_path = os.path.join(user_private_dir, dir_name)
                 if not os.path.exists(dir_path):
                     os.makedirs(dir_path, exist_ok=True)
                     os.chown(dir_path, container_uid, container_gid)
                     os.chmod(dir_path, 0o755)
             
             current_app.logger.info(
-                f"User directories prepared - Files: {extern_user_files_dir}, Configs: {extern_user_config_dir}"
+                f"User directories prepared - Private: {extern_user_private_dir}, Configs: {extern_user_config_dir}"
             )
             
-            return extern_user_files_dir, extern_user_config_dir
+            return extern_user_private_dir, extern_user_config_dir
             
         except Exception as e:
             current_app.logger.error(f"Failed to prepare user directories: {str(e)}")
@@ -964,7 +978,7 @@ class DockerManager:
     
     def reset_user_config(self, user_id, image_name):
         """
-        Reset user's config for a specific image to the default template.
+        Reset user's config for a specific desktop type to the default template.
         Fetches from centralized template directory.
         
         Args:
@@ -975,13 +989,24 @@ class DockerManager:
             Dict with success status and message
         """
         try:
-            # Normalize image name
+            # Find the desktop type for this image
+            desktop_image = DesktopImage.query.filter_by(docker_image=image_name).first()
+            if not desktop_image:
+                return {
+                    'success': False,
+                    'error': f'Desktop image {image_name} not found in database'
+                }
+            
+            desktop_type = desktop_image.name
+            
+            # Normalize image name for template directory
             image_dir_name = image_name.replace('/', '-').replace(':', '-')
             
             # Get paths
             user_data_base = current_app.config.get('USER_DATA_BASE_DIR', '/data/users')
             template_data_base = current_app.config.get('TEMPLATE_DATA_BASE_DIR', '/data/templates')
-            user_config_dir = os.path.join(user_data_base, str(user_id), 'configs', image_dir_name)
+            # User configs are now stored by desktop_type, not image name
+            user_config_dir = os.path.join(user_data_base, str(user_id), desktop_type)
             config_template_dir = os.path.join(template_data_base, image_dir_name)
             
             # Check if centralized template exists
@@ -1005,11 +1030,11 @@ class DockerManager:
             # Copy centralized template to user config
             self._copy_template_to_user_config(config_template_dir, user_config_dir)
             
-            current_app.logger.info(f"Reset config for user {user_id}, image {image_name} from centralized template")
+            current_app.logger.info(f"Reset config for user {user_id}, desktop type {desktop_type} (image {image_name}) from centralized template")
             
             return {
                 'success': True,
-                'message': f'Config reset to default for {image_name}',
+                'message': f'Config reset to default for {desktop_type}',
                 'backup': backup_dir
             }
             

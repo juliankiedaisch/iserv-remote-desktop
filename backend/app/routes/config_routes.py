@@ -124,33 +124,38 @@ def list_configs(user_dict):
     try:
         user_data_base = current_app.config.get('USER_DATA_BASE_DIR', '/data/users')
         template_data_base = current_app.config.get('TEMPLATE_DATA_BASE_DIR', '/data/templates')
-        configs_base = os.path.join(user_data_base, str(user.id), 'configs')
+        user_base_dir = os.path.join(user_data_base, str(user.id))
         
-        if not os.path.exists(configs_base):
+        if not os.path.exists(user_base_dir):
             return jsonify({
                 'success': True,
                 'configs': []
             })
         
         configs = []
-        for image_dir in os.listdir(configs_base):
-            config_path = os.path.join(configs_base, image_dir)
-            if os.path.isdir(config_path):
-                # Try to find matching desktop image
-                image_name = image_dir.replace('-', '/', 1).replace('-', ':', 1)
-                desktop_image = DesktopImage.query.filter_by(docker_image=image_name).first()
+        # Iterate through user directory to find desktop-type config directories
+        # Skip special directories like PRIVATE
+        skip_dirs = {'PRIVATE', 'configs', 'config_templates', 'files'}
+        
+        for item_name in os.listdir(user_base_dir):
+            item_path = os.path.join(user_base_dir, item_name)
+            # Check if it's a directory and not in skip list
+            if os.path.isdir(item_path) and item_name not in skip_dirs:
+                # Try to find matching desktop image by name
+                desktop_image = DesktopImage.query.filter_by(name=item_name).first()
                 
-                # Check centralized template location
-                centralized_template = os.path.join(template_data_base, image_dir)
-                
-                # Get config info
-                config_info = {
-                    'image_dir': image_dir,
-                    'image_name': image_name if desktop_image else None,
-                    'display_name': desktop_image.name if desktop_image else image_dir,
-                    'has_template': os.path.exists(centralized_template)
-                }
-                configs.append(config_info)
+                # If found, check for template
+                if desktop_image:
+                    image_dir_name = desktop_image.docker_image.replace('/', '-').replace(':', '-')
+                    centralized_template = os.path.join(template_data_base, image_dir_name)
+                    
+                    config_info = {
+                        'desktop_type': item_name,
+                        'image_name': desktop_image.docker_image,
+                        'display_name': desktop_image.name,
+                        'has_template': os.path.exists(centralized_template)
+                    }
+                    configs.append(config_info)
         
         return jsonify({
             'success': True,
