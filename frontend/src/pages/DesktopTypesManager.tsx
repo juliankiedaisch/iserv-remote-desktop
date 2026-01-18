@@ -445,6 +445,7 @@ export const DesktopTypesManager: React.FC = () => {
 
     setRefreshingTemplates(prev => new Set(prev).add(type.id));
     setError(null);
+    setSuccessMessage(null);
 
     try {
       const response = await fetch('/api/config/templates/refresh', {
@@ -460,10 +461,10 @@ export const DesktopTypesManager: React.FC = () => {
       if (data.success) {
         setSuccessMessage(t('desktopTypes.refreshTemplateSuccess', { image: type.docker_image }));
       } else {
-        setError(t('desktopTypes.refreshTemplateFailed', { error: data.error || 'Unknown error' }));
+        setError(t('desktopTypes.refreshTemplateFailed', { error: data.error || t('errors.unknownError') }));
       }
     } catch (err: any) {
-      setError(t('desktopTypes.refreshTemplateFailed', { error: err.message || 'Unknown error' }));
+      setError(t('desktopTypes.refreshTemplateFailed', { error: err.message || t('errors.unknownError') }));
     } finally {
       setRefreshingTemplates(prev => {
         const next = new Set(prev);

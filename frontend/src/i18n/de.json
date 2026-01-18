@@ -412,6 +412,7 @@
     "notFound": "Die angeforderte Ressource wurde nicht gefunden.",
     "serverError": "Serverfehler. Bitte versuchen Sie es später erneut.",
     "invalidInput": "Ungültige Eingabe. Bitte überprüfen Sie Ihre Daten.",
-    "timeout": "Anfrage-Zeitüberschreitung. Bitte versuchen Sie es erneut."
+    "timeout": "Anfrage-Zeitüberschreitung. Bitte versuchen Sie es erneut.",
+    "unknownError": "Unbekannter Fehler"
   }
 }
