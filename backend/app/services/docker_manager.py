@@ -12,7 +12,9 @@ from app import db
 from app.models.containers import Container
 from app.models.desktop_assignments import DesktopImage, DesktopAssignment
 from app.models.users import User
-
+import tarfile
+import io
+import shutil
 # Import WebSocket event emitters (lazy import to avoid circular dependencies)
 def _emit_container_created(container, user_id):
     try:
@@ -841,9 +843,7 @@ class DockerManager:
             current_app.logger.info(f"Creating temporary container to extract configs from {image_name}")
             temp_container = self.client.containers.create(
                 image_name,
-                name=temp_container_name,
-                entrypoint=['/bin/sh', '-c', 'sleep 1']
-            )
+                name=temp_container_name            )
             
             try:
                 # Start the container briefly to let initialization happen
@@ -857,8 +857,7 @@ class DockerManager:
                 temp_container.stop(timeout=5)
                 
                 # Extract the home directory structure
-                import tarfile
-                import io
+
                 
                 bits, stat = temp_container.get_archive('/home/kasm-user')
                 
@@ -946,7 +945,6 @@ class DockerManager:
             user_config_dir: Destination user config directory
         """
         try:
-            import shutil
             
             container_uid = current_app.config.get('CONTAINER_USER_ID', 1000)
             container_gid = current_app.config.get('CONTAINER_GROUP_ID', 1000)
@@ -1019,7 +1017,6 @@ class DockerManager:
                 }
             
             # Backup current config
-            import shutil
             from datetime import datetime
             backup_dir = f"{user_config_dir}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             if os.path.exists(user_config_dir):
@@ -1057,11 +1054,7 @@ class DockerManager:
         Returns:
             Dict with success status and message
         """
-        try:
-            # Pull the latest image first
-            current_app.logger.info(f"Pulling latest version of {image_name}")
-            self.client.images.pull(image_name)
-            
+        try:           
             # Normalize image name
             image_dir_name = image_name.replace('/', '-').replace(':', '-')
             
