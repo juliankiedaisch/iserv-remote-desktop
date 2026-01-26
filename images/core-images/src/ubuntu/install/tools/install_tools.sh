@@ -43,9 +43,9 @@ else
 
   # software-properties is removed from kali-rolling and debian trixie
   if grep -q "kali-rolling" /etc/os-release || grep -q "trixie" /etc/os-release; then
-    apt-get install ${PARROTEXTRA} -y vim wget net-tools locales bzip2 wmctrl mesa-utils bc vulkan-tools
+    apt-get install ${PARROTEXTRA} -y vim wget net-tools locales bzip2 wmctrl mesa-utils bc vulkan-tools rsync
   else
-    apt-get install ${PARROTEXTRA} -y vim wget net-tools locales bzip2 wmctrl software-properties-common mesa-utils bc vulkan-tools
+    apt-get install ${PARROTEXTRA} -y vim wget net-tools locales bzip2 wmctrl software-properties-common mesa-utils bc vulkan-tools rsync
   fi
 
   # Install openssh-client on Ubuntu
