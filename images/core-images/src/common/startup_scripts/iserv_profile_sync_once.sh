@@ -33,8 +33,8 @@ find "$HOME_DIR" -maxdepth 1 -name ".*" ! -name "." ! -name ".." -print0 | while
         mkdir -p "$(dirname "$dest")"
         cp -a "$item" "$dest" 2>/dev/null || true
     elif [ -d "$item" ]; then
-        # It's a directory - sync recursively
-        rsync -a --update "$item/" "$dest/" 2>/dev/null || true
+        # It's a directory - sync recursively with deletions
+        rsync -a --update --delete "$item/" "$dest/" 2>/dev/null || true
     fi
 done
 
@@ -51,9 +51,9 @@ find "$HOME_DIR" -maxdepth 1 ! -name ".*" ! -name "kasm-user" -print0 | while IF
         mkdir -p "$(dirname "$dest")"
         cp -a "$item" "$dest" 2>/dev/null || true
     elif [ -d "$item" ]; then
-        # It's a directory - sync recursively
+        # It's a directory - sync recursively with deletions
         mkdir -p "$dest"
-        rsync -a --update "$item/" "$dest/" 2>/dev/null || true
+        rsync -a --update --delete "$item/" "$dest/" 2>/dev/null || true
     fi
 done
 
