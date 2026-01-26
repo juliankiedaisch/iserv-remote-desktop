@@ -40,25 +40,21 @@ done
 
 # Sync visible files/folders to private directory
 log "Syncing visible files to private directory..."
-dirs=("Desktop" "Documents" "Downloads" "Music" "Pictures" "Videos" "Public" "PDF")
 
-for dir in "${dirs[@]}"; do
-    src="$HOME_DIR/$dir"
-    dest="$PRIVATE_DIR/$dir"
-    
-    if [ -d "$src" ]; then
-        # Sync directory contents with conflict resolution
-        mkdir -p "$dest"
-        rsync -a --update "$src/" "$dest/" 2>/dev/null || true
-    fi
-done
-
-# Also sync any other non-hidden files in home directory
-find "$HOME_DIR" -maxdepth 1 ! -name ".*" ! -name "kasm-user" -type f -print0 | while IFS= read -r -d '' file; do
-    basename=$(basename "$file")
+# Sync ALL non-hidden files and folders from home directory
+find "$HOME_DIR" -maxdepth 1 ! -name ".*" ! -name "kasm-user" -print0 | while IFS= read -r -d '' item; do
+    basename=$(basename "$item")
     dest="$PRIVATE_DIR/$basename"
-    mkdir -p "$(dirname "$dest")"
-    cp -a "$file" "$dest" 2>/dev/null || true
+    
+    if [ -f "$item" ]; then
+        # It's a file
+        mkdir -p "$(dirname "$dest")"
+        cp -a "$item" "$dest" 2>/dev/null || true
+    elif [ -d "$item" ]; then
+        # It's a directory - sync recursively
+        mkdir -p "$dest"
+        rsync -a --update "$item/" "$dest/" 2>/dev/null || true
+    fi
 done
 
 log "One-time profile sync completed successfully"

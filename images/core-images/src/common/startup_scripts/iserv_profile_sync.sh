@@ -83,25 +83,19 @@ sync_hidden_to_config() {
 sync_visible_to_private() {
     log "Syncing visible files to private directory..."
     
-    # List of standard directories to sync
-    local dirs=("Desktop" "Documents" "Downloads" "Music" "Pictures" "Videos" "Public" "PDF")
-    
-    for dir in "${dirs[@]}"; do
-        local src="$HOME_DIR/$dir"
-        local dest="$PRIVATE_DIR/$dir"
-        
-        if [ -d "$src" ]; then
-            # Sync directory contents with conflict resolution
-            mkdir -p "$dest"
-            rsync -a --update "$src/" "$dest/" 2>/dev/null || true
-        fi
-    done
-    
-    # Also sync any other non-hidden files/folders in home directory
-    find "$HOME_DIR" -maxdepth 1 ! -name ".*" ! -name "kasm-user" -type f -print0 | while IFS= read -r -d '' file; do
-        local basename=$(basename "$file")
+    # Sync ALL non-hidden files and folders from home directory
+    find "$HOME_DIR" -maxdepth 1 ! -name ".*" ! -name "kasm-user" -print0 | while IFS= read -r -d '' item; do
+        local basename=$(basename "$item")
         local dest="$PRIVATE_DIR/$basename"
-        sync_file "$file" "$dest"
+        
+        if [ -f "$item" ]; then
+            # It's a file
+            sync_file "$item" "$dest"
+        elif [ -d "$item" ]; then
+            # It's a directory - sync recursively
+            mkdir -p "$dest"
+            rsync -a --update "$item/" "$dest/" 2>/dev/null || true
+        fi
     done
 }
 
