@@ -35,7 +35,7 @@ export const Viewer: React.FC = () => {
   
   const vncUrl = `https://${containerPrefix}-${proxyPath}.hub.mdg-hamburg.de/?resize=remote&autoconnect=true&reconnect=true&reconnect_delay=2000&show_control_bar=true&quality=9&compression=0&anti_aliasing=1&view_only=false`;
 
-  // Auto-start audio connection
+  // Auto-start audio connection with slight delay to prioritize VNC connection
   useEffect(() => {
     if (!proxyPath) return;
 
@@ -43,38 +43,42 @@ export const Viewer: React.FC = () => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const audioUrl = `${protocol}//${audioPrefix}-${proxyPath}.hub.mdg-hamburg.de/`;
 
-    console.log('Connecting to audio:', audioUrl);
+    // Delay audio connection by 1 second to let VNC establish first
+    const audioTimeout = setTimeout(() => {
+      console.log('Connecting to audio:', audioUrl);
 
-    // Create hidden canvas for jsmpeg
-    if (!canvasRef.current) {
-      canvasRef.current = document.createElement('canvas');
-      canvasRef.current.style.display = 'none';
-      document.body.appendChild(canvasRef.current);
-    }
+      // Create hidden canvas for jsmpeg
+      if (!canvasRef.current) {
+        canvasRef.current = document.createElement('canvas');
+        canvasRef.current.style.display = 'none';
+        document.body.appendChild(canvasRef.current);
+      }
 
-    try {
-      audioPlayerRef.current = new JSMpeg.Player(audioUrl, {
-        canvas: canvasRef.current,
-        audio: true,
-        video: false,
-        autoplay: true,
-        loop: false,
-        protocols: [],
-        // @ts-ignore
-        onPlay: () => {
-          console.log('Audio connected');
-        },
-        // @ts-ignore
-        onError: (error: Error) => {
-          console.error('Audio error:', error);
-        },
-      });
-    } catch (error) {
-      console.error('Failed to start audio:', error);
-    }
+      try {
+        audioPlayerRef.current = new JSMpeg.Player(audioUrl, {
+          canvas: canvasRef.current,
+          audio: true,
+          video: false,
+          autoplay: true,
+          loop: false,
+          protocols: [],
+          // @ts-ignore
+          onPlay: () => {
+            console.log('Audio connected');
+          },
+          // @ts-ignore
+          onError: (error: Error) => {
+            console.error('Audio error:', error);
+          },
+        });
+      } catch (error) {
+        console.error('Failed to start audio:', error);
+      }
+    }, 1000); // 1 second delay
 
     // Cleanup
     return () => {
+      clearTimeout(audioTimeout);
       if (audioPlayerRef.current) {
         try {
           audioPlayerRef.current.destroy();
