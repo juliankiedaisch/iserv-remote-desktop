@@ -1,4 +1,4 @@
-- sync script of users files don't work in the container (the first sync via docker_manager.py works)
+#- sync script of users files don't work in the container (the first sync via docker_manager.py works)
 - remove all dialogs in the frontend and replace them by modals
 - restructure Admin-Panel: Main Page only buttons to enter different spaces.
 - Containerview without personal data for override admins
