@@ -73,8 +73,8 @@ sync_hidden_to_config() {
             # It's a file
             sync_file "$item" "$dest"
         elif [ -d "$item" ]; then
-            # It's a directory - sync recursively
-            rsync -a --update "$item/" "$dest/" 2>/dev/null || true
+            # It's a directory - sync recursively with deletions
+            rsync -a --update --delete "$item/" "$dest/" 2>/dev/null || true
         fi
     done
 }
@@ -92,9 +92,9 @@ sync_visible_to_private() {
             # It's a file
             sync_file "$item" "$dest"
         elif [ -d "$item" ]; then
-            # It's a directory - sync recursively
+            # It's a directory - sync recursively with deletions
             mkdir -p "$dest"
-            rsync -a --update "$item/" "$dest/" 2>/dev/null || true
+            rsync -a --update --delete "$item/" "$dest/" 2>/dev/null || true
         fi
     done
 }
