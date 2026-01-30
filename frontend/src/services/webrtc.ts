@@ -39,7 +39,8 @@ class WebRTCService {
   async initialize(): Promise<boolean> {
     try {
       // Check if WebRTC is enabled in frontend config
-      const frontendEnabled = process.env.REACT_APP_WEBRTC_ENABLED === 'true';
+      const frontendEnabled = (window as any).REACT_APP_WEBRTC_ENABLED === 'true' || 
+                             (typeof process !== 'undefined' && process.env?.REACT_APP_WEBRTC_ENABLED === 'true');
       if (!frontendEnabled) {
         console.log('WebRTC disabled in frontend configuration');
         return false;
