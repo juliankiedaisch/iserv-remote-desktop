@@ -116,7 +116,9 @@ class WebRTCService {
     // RTCPeerConnection configuration
     const config: RTCConfiguration = {
       iceServers: this.iceServers,
-      iceTransportPolicy: this.isLocalNetwork ? 'all' : 'relay'
+      // Always use 'all' to allow ICE to select the best path
+      // The presence of TURN server ensures fallback if direct connection fails
+      iceTransportPolicy: 'all'
     };
     
     this.peerConnection = new RTCPeerConnection(config);

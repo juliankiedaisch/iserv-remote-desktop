@@ -112,6 +112,13 @@ def create_app(debug=False):
         container_queue.start()
         app.logger.info("Container creation queue started")
     
+    # Register teardown handler to stop queue gracefully
+    @app.teardown_appcontext
+    def shutdown_queue(exception=None):
+        if container_queue.is_running():
+            app.logger.info("Stopping container creation queue...")
+            container_queue.stop()
+    
     # Add scheduled tasks
     # Sync database with Docker every 5 minutes
     scheduler.add_task(sync_database_with_docker, interval_seconds=300, name='sync_database')

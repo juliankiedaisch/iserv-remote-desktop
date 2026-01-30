@@ -130,13 +130,13 @@ class ContainerQueue:
         """
         with self._stats_lock:
             self._stats['total_requests'] += 1
+            queue_size = self._queue.qsize() + self._stats['in_progress']
         
         self._queue.put(request)
-        queue_size = self._queue.qsize()
         
         logger.info(
             f"Enqueued container creation request: {request.request_id} "
-            f"(queue size: {queue_size})"
+            f"(queue position: {queue_size})"
         )
         
         return request.request_id
@@ -247,14 +247,17 @@ class ContainerQueue:
 
 # Global instance
 _container_queue = None
+_container_queue_lock = threading.Lock()
 
 
 def get_container_queue() -> ContainerQueue:
     """Get the global container queue instance"""
     global _container_queue
     if _container_queue is None:
-        _container_queue = ContainerQueue()
-        # Auto-start the queue
-        if not _container_queue.is_running():
-            _container_queue.start()
+        with _container_queue_lock:
+            if _container_queue is None:
+                _container_queue = ContainerQueue()
+                # Auto-start the queue
+                if not _container_queue.is_running():
+                    _container_queue.start()
     return _container_queue

@@ -51,12 +51,14 @@ def get_webrtc_config(user_dict):
         if turn_url:
             if static_auth_secret:
                 # Use REST API authentication with time-limited credentials
-                # Generate time-limited credentials
+                # Generate time-limited credentials using HMAC-SHA1
+                # Note: SHA1 is used for compatibility with RFC 5766 TURN REST API
+                # Most TURN servers (including coturn) require SHA1 for this purpose
                 username = user_dict.get('username', 'user')
                 timestamp = int(time.time()) + 86400  # Valid for 24 hours
                 turn_username = f"{timestamp}:{username}"
                 
-                # Generate credential using HMAC-SHA1
+                # Generate credential using HMAC-SHA1 (RFC 5766 requirement)
                 message = turn_username.encode('utf-8')
                 key = static_auth_secret.encode('utf-8')
                 turn_credential = base64.b64encode(
