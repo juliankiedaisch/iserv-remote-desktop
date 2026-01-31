@@ -6,3 +6,5 @@
 - Multiple Assignments with the same image -> different spaces -> teacher should be visible as assignment description
 - Network lacking when 20 simultanious containers gets streamed over the same accesspoint. -> adding nginx
 - When a container stopps and started again, the automaticly opening tab has a false proxy path
+- Adding version of backend / frontend on the frontend page
+- multiple container when stopped and recreated. the stopped container should be restarted
