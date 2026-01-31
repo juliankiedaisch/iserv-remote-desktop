@@ -7,10 +7,10 @@ from sqlalchemy import func
 import subprocess
 import os
 
-apache_api_bp = Blueprint('apache_api', __name__, url_prefix='/api/apache')
+apache_api_bp = Blueprint('apache_api', __name__)
 
 # Shared secret for Apache authentication
-APACHE_API_KEY = os.environ.get('APACHE_API_KEY', 'change-this-in-production')
+APACHE_API_KEY = os.environ.get('APACHE_API_KEY', 'lFSSwVI4bzjY5XJuEWAVXB')
 
 @apache_api_bp.route('/container-target/<proxy_path>', methods=['GET'])
 def get_container_target(proxy_path):

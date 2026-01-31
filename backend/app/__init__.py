@@ -91,7 +91,7 @@ def create_app(debug=False):
     app.register_blueprint(container_bp, url_prefix='/api')
     app.register_blueprint(admin_bp, url_prefix='/api')
     app.register_blueprint(debug_bp, url_prefix='/api')
-    app.register_blueprint(apache_api_bp)
+    app.register_blueprint(apache_api_bp, url_prefix='/api')
     app.register_blueprint(desktop_admin_bp)
     app.register_blueprint(teacher_bp)
     app.register_blueprint(theme_routes)

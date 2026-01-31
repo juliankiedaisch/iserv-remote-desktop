@@ -40,6 +40,7 @@ export const Dashboard: React.FC = () => {
         const proxyPath = typeof result === 'string' && result.includes('//') 
           ? result.split('//')[1].split('.')[0].replace(/^(test-desktop|desktop)-/, '')
           : desktopType;
+        console.log('Opening viewer for proxy path:', proxyPath);
         window.open(`/viewer/${proxyPath}`, '_blank');
         setStartingProgress(null);
       } else {
