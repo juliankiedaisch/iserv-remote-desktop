@@ -20,4 +20,3 @@ docker
 flask-socketio
 python-socketio
 gevent-websocket
-shutil
