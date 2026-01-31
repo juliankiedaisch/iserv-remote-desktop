@@ -111,7 +111,7 @@ export function useContainers() {
         console.log('Container creation queued, waiting for WebSocket notification...');
         
         // Wait for container_created or container_error event via WebSocket
-        const containerCreated = await new Promise<{ container_id: string; container_name: string } | null>((resolve, reject) => {
+        const containerCreated = await new Promise<{ container_id: string; container_name: string }>((resolve, reject) => {
           const timeout = setTimeout(() => {
             unsubscribe();
             reject(new Error('Timeout waiting for container creation'));
@@ -129,10 +129,6 @@ export function useContainers() {
             }
           });
         });
-
-        if (!containerCreated) {
-          throw new Error('Failed to receive container creation confirmation');
-        }
 
         // Small delay to ensure container status is fully updated in backend
         await new Promise(resolve => setTimeout(resolve, 500));
