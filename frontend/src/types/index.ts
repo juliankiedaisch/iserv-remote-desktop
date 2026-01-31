@@ -86,9 +86,14 @@ export interface ContainerListResponse {
 export interface ContainerStartResponse {
   success: boolean;
   message: string;
-  container: Container;
-  url: string;
+  container?: Container;
+  url?: string;
   error?: string;
+  // Queue-specific fields
+  status?: 'queued';
+  request_id?: string;
+  queue_position?: number;
+  desktop_type?: string;
 }
 
 export interface DesktopTypesResponse {
@@ -113,8 +118,22 @@ export interface ContainerStatusUpdate {
   timestamp: string;
 }
 
+export interface ContainerCreatedEvent {
+  container_id: string;
+  container_name: string;
+  desktop_type: string;
+  status: string;
+  timestamp: string;
+}
+
+export interface ContainerErrorEvent {
+  error: string;
+  desktop_type: string;
+  timestamp: string;
+}
+
 export interface WebSocketMessage {
-  type: 'container_status' | 'container_created' | 'container_stopped' | 'error';
+  type: 'container_status' | 'container_created' | 'container_stopped' | 'container_error' | 'error';
   data: any;
   timestamp: string;
 }
