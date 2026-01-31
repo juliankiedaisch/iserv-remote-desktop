@@ -62,6 +62,16 @@ with app.app_context():
     from app.services.scheduler import scheduler
     scheduler.start()
 
+    # Initialize and start container creation queue
+    from app.services.container_queue import get_container_queue
+    container_queue = get_container_queue(app)
+    if not container_queue.is_running():
+        app.logger.warning("ContainerQueue was not running, attempting to restart with app context...")
+        container_queue.start(app)
+        app.logger.info("Container creation queue started (forced)")
+    else:
+        app.logger.info("Container creation queue already running")
+
 if __name__ == '__main__':
     # Use SocketIO server for WebSocket support (Socket.IO + flask-sock)
     # This provides both Socket.IO for real-time updates and flask-sock for VNC proxy

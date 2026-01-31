@@ -102,13 +102,6 @@ def create_app(debug=False):
     # Initialize and start background scheduler
     from app.services.scheduler import scheduler, check_idle_containers, sync_database_with_docker
     scheduler.init_app(app)
-    
-    # Initialize and start container creation queue
-    from app.services.container_queue import get_container_queue
-    container_queue = get_container_queue()
-    if not container_queue.is_running():
-        container_queue.start()
-        app.logger.info("Container creation queue started")
 
     # Add scheduled tasks
     # Sync database with Docker every 5 minutes

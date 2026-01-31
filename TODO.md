@@ -4,4 +4,5 @@
 - Containerview without personal data for override admins
 - Desktop entries sync with the config path (but only the ones from the original image)
 - Multiple Assignments with the same image -> different spaces -> teacher should be visible as assignment description
-- Network lacking when 20 simultanious containers gets streamed over the same accesspoint.
+- Network lacking when 20 simultanious containers gets streamed over the same accesspoint. -> adding nginx
+- When a container stopps and started again, the automaticly opening tab has a false proxy path

@@ -78,6 +78,7 @@ class ContainerQueue:
         self._queue = queue.Queue()
         self._worker_thread = None
         self._running = False
+        self._app = None  # Store Flask app instance for worker thread context
         self._stats = {
             'total_requests': 0,
             'successful': 0,
@@ -89,10 +90,41 @@ class ContainerQueue:
         
         logger.info("ContainerQueue initialized")
     
-    def start(self):
-        """Start the worker thread to process queue"""
+    def start(self, app=None):
+        """
+        Start the worker thread to process queue
+        
+        Args:
+            app: Flask application instance (required for worker thread context)
+        """
+        logger.info(f"start() called - current state: running={self._running}, thread_alive={self._worker_thread.is_alive() if self._worker_thread else 'None'}")
+        
         if self._running:
-            logger.warning("ContainerQueue already running")
+            if self._worker_thread and self._worker_thread.is_alive():
+                logger.warning("ContainerQueue already running with live worker thread")
+                return
+            else:
+                logger.warning("Queue marked as running but worker thread is dead! Resetting...")
+                self._running = False
+        
+        # Store Flask app for worker thread context
+        if app:
+            self._app = app
+            logger.info(f"ContainerQueue: Flask app provided: {app}")
+        elif not self._app:
+            # Try to get current app if available
+            try:
+                self._app = current_app._get_current_object()
+                logger.info(f"ContainerQueue: Got Flask app from context: {self._app}")
+            except RuntimeError as e:
+                logger.error(f"No Flask app context available: {e}. Queue may not work properly.")
+                # Don't start without an app
+                return
+        else:
+            logger.info(f"ContainerQueue: Using existing Flask app: {self._app}")
+        
+        if not self._app:
+            logger.error("Cannot start queue without Flask app!")
             return
         
         self._running = True
@@ -101,8 +133,19 @@ class ContainerQueue:
             name="ContainerQueueWorker",
             daemon=True
         )
-        self._worker_thread.start()
-        logger.info("ContainerQueue worker thread started")
+        
+        try:
+            self._worker_thread.start()
+            logger.info(f"ContainerQueue worker thread started (thread alive: {self._worker_thread.is_alive()})")
+            # Give thread a moment to start
+            import time
+            time.sleep(0.1)
+            if not self._worker_thread.is_alive():
+                logger.error("Worker thread died immediately after starting!")
+                self._running = False
+        except Exception as e:
+            logger.error(f"Failed to start worker thread: {e}", exc_info=True)
+            self._running = False
     
     def stop(self):
         """Stop the worker thread"""
@@ -128,11 +171,15 @@ class ContainerQueue:
         Returns:
             Request ID for tracking
         """
+        logger.info(f"ContainerQueue.enqueue called for user: {request.username}, desktop: {request.desktop_type}")
+        logger.info(f"ContainerQueue state - running: {self._running}, worker alive: {self._worker_thread.is_alive() if self._worker_thread else False}")
+        
         with self._stats_lock:
             self._stats['total_requests'] += 1
             queue_size = self._queue.qsize() + self._stats['in_progress']
         
         self._queue.put(request)
+        logger.info(f"Request added to queue. Queue size now: {self._queue.qsize()}")
         
         logger.info(
             f"Enqueued container creation request: {request.request_id} "
@@ -143,83 +190,131 @@ class ContainerQueue:
     
     def _process_queue(self):
         """Worker thread function to process container creation requests"""
-        logger.info("Container queue worker started processing")
-        
-        while self._running:
-            try:
-                # Wait for a request with timeout to allow checking _running flag
-                request = self._queue.get(timeout=1)
-                
-                # Sentinel value for shutdown
-                if request is None:
-                    break
-                
-                # Update stats
-                with self._stats_lock:
-                    self._stats['in_progress'] += 1
-                
-                logger.info(f"Processing container creation request: {request.request_id}")
-                
+        try:
+            logger.info("=" * 60)
+            logger.info("Container queue worker started processing")
+            logger.info(f"Worker thread ID: {threading.current_thread().ident}")
+            logger.info(f"Worker thread name: {threading.current_thread().name}")
+            
+            # Check if we have a Flask app for context
+            if not self._app:
+                logger.error("No Flask app available for worker thread. Cannot process queue.")
+                self._running = False
+                return
+            
+            logger.info(f"Flask app available: {self._app}")
+            logger.info(f"Queue running flag: {self._running}")
+            logger.info("=" * 60)
+            
+            while self._running:
                 try:
-                    # Import here to avoid circular dependencies
-                    from app.services.docker_manager import DockerManager
+                    #logger.debug(f"Waiting for request... (queue size: {self._queue.qsize()})")
                     
-                    # Create the container
-                    docker_manager = DockerManager()
-                    container = docker_manager.create_container(
-                        user_id=request.user_id,
-                        session_id=request.session_id,
-                        username=request.username,
-                        desktop_type=request.desktop_type,
-                        desktop_image_id=request.desktop_image_id
-                    )
+                    # Wait for a request with timeout to allow checking _running flag
+                    request = self._queue.get(timeout=1)
+                    
+                    logger.info(f"Got request from queue: {request}")
+                    
+                    # Sentinel value for shutdown
+                    if request is None:
+                        logger.info("Received shutdown sentinel, stopping worker")
+                        break
                     
                     # Update stats
                     with self._stats_lock:
-                        self._stats['successful'] += 1
-                        self._stats['in_progress'] -= 1
+                        self._stats['in_progress'] += 1
                     
-                    logger.info(
-                        f"Successfully created container for request: {request.request_id} "
-                        f"(container_id: {container.id if container else 'unknown'})"
-                    )
+                    logger.info(f"Processing container creation request: {request.request_id}")
                     
-                    # Call success callback if provided
-                    if request.callback:
+                    # Process the request within Flask app context
+                    logger.info("Entering Flask app context...")
+                    with self._app.app_context():
+                        logger.info("Inside Flask app context")
                         try:
-                            request.callback(container)
+                            # Import here to avoid circular dependencies
+                            logger.info("Importing DockerManager...")
+                            from app.services.docker_manager import DockerManager
+                            
+                            # Create the container
+                            logger.info(f"Creating DockerManager instance...")
+                            docker_manager = DockerManager()
+                            logger.info(f"Calling create_container for user {request.username}...")
+                            container = docker_manager.create_container(
+                                user_id=request.user_id,
+                                session_id=request.session_id,
+                                username=request.username,
+                                desktop_type=request.desktop_type,
+                                desktop_image_id=request.desktop_image_id
+                            )
+                            logger.info(f"Container created successfully: {container.id if container else 'None'}")
+                            
+                            # Update stats
+                            with self._stats_lock:
+                                self._stats['successful'] += 1
+                                self._stats['in_progress'] -= 1
+                            
+                            logger.info(
+                                f"Successfully created container for request: {request.request_id} "
+                                f"(container_id: {container.id if container else 'unknown'})"
+                            )
+                            
+                            # Call success callback if provided
+                            if request.callback:
+                                try:
+                                    request.callback(container)
+                                except Exception as e:
+                                    logger.error(f"Error in success callback: {e}")
+                        
                         except Exception as e:
-                            logger.error(f"Error in success callback: {e}")
-                
-                except Exception as e:
-                    # Update stats
-                    with self._stats_lock:
-                        self._stats['failed'] += 1
-                        self._stats['in_progress'] -= 1
+                            # Update stats
+                            with self._stats_lock:
+                                self._stats['failed'] += 1
+                                self._stats['in_progress'] -= 1
+                            
+                            logger.error("=" * 60)
+                            logger.error(
+                                f"Failed to create container for request: {request.request_id} - {str(e)}",
+                                exc_info=True
+                            )
+                            logger.error(f"Error type: {type(e).__name__}")
+                            logger.error("=" * 60)
+                            
+                            # Call error callback if provided
+                            if request.error_callback:
+                                try:
+                                    request.error_callback(e)
+                                except Exception as callback_error:
+                                    logger.error(f"Error in error callback: {callback_error}")
                     
-                    logger.error(
-                        f"Failed to create container for request: {request.request_id} - {str(e)}",
-                        exc_info=True
-                    )
-                    
-                    # Call error callback if provided
-                    if request.error_callback:
-                        try:
-                            request.error_callback(e)
-                        except Exception as callback_error:
-                            logger.error(f"Error in error callback: {callback_error}")
-                
-                finally:
-                    # Mark task as done
+                    # Mark task as done (outside app context)
+                    logger.info(f"Marking task as done for request: {request.request_id}")
                     self._queue.task_done()
-                    
-            except queue.Empty:
-                # Timeout occurred, continue loop to check _running flag
-                continue
-            except Exception as e:
-                logger.error(f"Unexpected error in queue worker: {e}", exc_info=True)
+                    logger.info(f"Task marked as done. Queue size now: {self._queue.qsize()}")
+                        
+                except queue.Empty:
+                    # Timeout occurred, continue loop to check _running flag
+                    # logger.debug("Queue timeout (1s) - no requests, continuing...")
+                    continue
+                except Exception as e:
+                    logger.error("=" * 60)
+                    logger.error(f"Unexpected error in queue worker: {e}", exc_info=True)
+                    logger.error(f"Error type: {type(e).__name__}")
+                    logger.error("=" * 60)
+                    # Still mark as done to prevent queue blocking
+                    try:
+                        self._queue.task_done()
+                    except:
+                        pass
         
-        logger.info("Container queue worker stopped")
+            logger.info("=" * 60)
+            logger.info("Container queue worker stopped")
+            logger.info("=" * 60)
+        except Exception as e:
+            logger.error("=" * 60)
+            logger.error(f"FATAL: Worker thread crashed with uncaught exception: {e}", exc_info=True)
+            logger.error("=" * 60)
+            self._running = False
+            raise
     
     def get_stats(self) -> Dict[str, Any]:
         """
@@ -250,14 +345,36 @@ _container_queue = None
 _container_queue_lock = threading.Lock()
 
 
-def get_container_queue() -> ContainerQueue:
-    """Get the global container queue instance"""
+def get_container_queue(app=None) -> ContainerQueue:
+    """
+    Get the global container queue instance
+    
+    Args:
+        app: Flask application instance (optional, but recommended for first call)
+    """
     global _container_queue
+    
+    logger.info(f"get_container_queue called with app: {app}")
+    
     if _container_queue is None:
+        logger.info("Creating new ContainerQueue instance (first time)")
         with _container_queue_lock:
             if _container_queue is None:
                 _container_queue = ContainerQueue()
-                # Auto-start the queue
+                logger.info(f"ContainerQueue instance created, is_running: {_container_queue.is_running()}")
+                # Auto-start the queue with app context if available
                 if not _container_queue.is_running():
-                    _container_queue.start()
+                    logger.info("Auto-starting queue...")
+                    _container_queue.start(app)
+                    logger.info(f"After start(), is_running: {_container_queue.is_running()}")
+                else:
+                    logger.warning("Queue already running, skipping auto-start")
+    else:
+        logger.info(f"Returning existing queue, is_running: {_container_queue.is_running()}")
+        # If queue exists but not running, restart it
+        if not _container_queue.is_running() and app:
+            logger.warning("Queue exists but not running! Attempting to restart...")
+            _container_queue.start(app)
+    
     return _container_queue
+
