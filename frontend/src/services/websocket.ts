@@ -90,6 +90,16 @@ class WebSocketService {
       this.messageCallbacks.forEach(callback => callback(message));
     });
 
+    // Container error event
+    this.socket.on('container_error', (data: any) => {
+      const message: WebSocketMessage = {
+        type: 'container_error',
+        data,
+        timestamp: new Date().toISOString()
+      };
+      this.messageCallbacks.forEach(callback => callback(message));
+    });
+
     // Container stopped event
     this.socket.on('container_stopped', (data: any) => {
       const message: WebSocketMessage = {

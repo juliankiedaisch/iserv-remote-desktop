@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Container, DesktopType, ContainerStatusUpdate } from '../types';
+import { Container, DesktopType, ContainerStatusUpdate, ContainerCreatedEvent, ContainerErrorEvent } from '../types';
 import { apiService } from '../services/api';
 import { wsService } from '../services/websocket';
 
@@ -72,6 +72,29 @@ export function useContainers() {
     }
   }, []);
 
+  // Get container by desktop type
+  const getContainerByType = useCallback((desktopType: string): Container | undefined => {
+    // Get all containers for this desktop type
+    const matchingContainers = state.containers.filter(c => c.desktop_type === desktopType);
+    
+    if (matchingContainers.length === 0) {
+      return undefined;
+    }
+    
+    // Prefer running containers over stopped ones
+    const runningContainer = matchingContainers.find(c => c.status === 'running');
+    if (runningContainer) {
+      return runningContainer;
+    }
+    
+    // If no running container, return the most recently created one
+    return matchingContainers.sort((a, b) => {
+      const aTime = new Date(a.created_at || 0).getTime();
+      const bTime = new Date(b.created_at || 0).getTime();
+      return bTime - aTime; // Most recent first
+    })[0];
+  }, [state.containers]);
+
   // Start container with health polling
   const startContainer = useCallback(async (desktopType: string): Promise<string | null> => {
     setState(prev => ({ ...prev, starting: desktopType, error: null }));
@@ -79,7 +102,84 @@ export function useContainers() {
     try {
       const response = await apiService.startContainer(desktopType);
       
-      if (!response.success || !response.url) {
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to start container');
+      }
+
+      // Check if response is queued (HTTP 202)
+      if (response.status === 'queued') {
+        console.log('Container creation queued, waiting for WebSocket notification...');
+        
+        // Wait for container_created or container_error event via WebSocket
+        const containerCreated = await new Promise<{ container_id: string; container_name: string }>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            unsubscribe();
+            reject(new Error('Timeout waiting for container creation'));
+          }, 120000); // 2 minute timeout
+
+          const unsubscribe = wsService.onMessage((message) => {
+            if (message.type === 'container_created' && message.data.desktop_type === desktopType) {
+              clearTimeout(timeout);
+              unsubscribe();
+              resolve(message.data);
+            } else if (message.type === 'container_error' && message.data.desktop_type === desktopType) {
+              clearTimeout(timeout);
+              unsubscribe();
+              reject(new Error(message.data.error || 'Container creation failed'));
+            }
+          });
+        });
+
+        // Small delay to ensure container status is fully updated in backend
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Reload containers to get updated status
+        await loadContainers();
+
+        // Get the container URL
+        const container = getContainerByType(desktopType);
+        if (!container || !container.proxy_path) {
+          throw new Error('Container created but proxy path not available');
+        }
+
+        // Poll for container readiness
+        const maxAttempts = 30;
+        let attempts = 0;
+        let ready = false;
+
+        // Initial wait: Docker containers need time to start their services.
+        const CONTAINER_INIT_DELAY_MS = 3000;
+        await new Promise(resolve => setTimeout(resolve, CONTAINER_INIT_DELAY_MS));
+
+        while (attempts < maxAttempts && !ready) {
+          attempts++;
+          try {
+            const health = await apiService.checkContainerHealth(desktopType);
+            if (health.success && health.ready) {
+              ready = true;
+              break;
+            }
+          } catch (e) {
+            console.log(`Health check attempt ${attempts} failed`);
+          }
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        setState(prev => ({ ...prev, starting: null }));
+        
+        // Final small delay to ensure VNC is ready
+        if (ready) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+
+        // Construct the URL from the proxy path
+        const containerPrefix = process.env.REACT_APP_CONTAINER_PREFIX || 'desktop';
+        const url = `https://${containerPrefix}-${container.proxy_path}.hub.mdg-hamburg.de`;
+        return url;
+      }
+
+      // Handle immediate response (legacy mode)
+      if (!response.url) {
         throw new Error(response.error || 'Failed to start container');
       }
 
@@ -95,7 +195,6 @@ export function useContainers() {
       let ready = false;
 
       // Initial wait: Docker containers need time to start their services.
-      // This delay allows the container to initialize before we start health checks.
       const CONTAINER_INIT_DELAY_MS = 3000;
       await new Promise(resolve => setTimeout(resolve, CONTAINER_INIT_DELAY_MS));
 
@@ -130,7 +229,7 @@ export function useContainers() {
       }));
       return null;
     }
-  }, [loadContainers]);
+  }, [loadContainers, getContainerByType]);
 
   // Stop container
   const stopContainer = useCallback(async (desktopType: string): Promise<boolean> => {
@@ -156,29 +255,6 @@ export function useContainers() {
       return false;
     }
   }, [loadContainers]);
-
-  // Get container by desktop type
-  const getContainerByType = useCallback((desktopType: string): Container | undefined => {
-    // Get all containers for this desktop type
-    const matchingContainers = state.containers.filter(c => c.desktop_type === desktopType);
-    
-    if (matchingContainers.length === 0) {
-      return undefined;
-    }
-    
-    // Prefer running containers over stopped ones
-    const runningContainer = matchingContainers.find(c => c.status === 'running');
-    if (runningContainer) {
-      return runningContainer;
-    }
-    
-    // If no running container, return the most recently created one
-    return matchingContainers.sort((a, b) => {
-      const aTime = new Date(a.created_at || 0).getTime();
-      const bTime = new Date(b.created_at || 0).getTime();
-      return bTime - aTime; // Most recent first
-    })[0];
-  }, [state.containers]);
 
   // Handle WebSocket updates
   const handleStatusUpdate = useCallback((update: ContainerStatusUpdate) => {

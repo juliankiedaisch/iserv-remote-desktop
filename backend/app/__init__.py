@@ -86,6 +86,7 @@ def create_app(debug=False):
     from app.routes.theme_routes import theme_routes
     from app.routes.file_routes import file_bp
     from app.routes.config_routes import config_bp
+    from app.routes.webrtc_routes import webrtc_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(container_bp, url_prefix='/api')
@@ -97,11 +98,26 @@ def create_app(debug=False):
     app.register_blueprint(theme_routes)
     app.register_blueprint(file_bp, url_prefix='/api')
     app.register_blueprint(config_bp, url_prefix='/api')
+    app.register_blueprint(webrtc_bp, url_prefix='/api')
 
     
     # Initialize and start background scheduler
     from app.services.scheduler import scheduler, check_idle_containers, sync_database_with_docker
     scheduler.init_app(app)
+    
+    # Initialize and start container creation queue
+    from app.services.container_queue import get_container_queue
+    container_queue = get_container_queue()
+    if not container_queue.is_running():
+        container_queue.start()
+        app.logger.info("Container creation queue started")
+    
+    # Register teardown handler to stop queue gracefully
+    @app.teardown_appcontext
+    def shutdown_queue(exception=None):
+        if container_queue.is_running():
+            app.logger.info("Stopping container creation queue...")
+            container_queue.stop()
     
     # Add scheduled tasks
     # Sync database with Docker every 5 minutes

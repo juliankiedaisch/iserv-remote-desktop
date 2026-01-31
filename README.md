@@ -34,6 +34,16 @@ The application uses a **separated frontend-backend architecture**:
 - Per-user Docker container management
 - Automatic Kasm workspace provisioning
 - Session-based container lifecycle
+- **Container Creation Queue System**
+  - Prevents race conditions when multiple users start containers simultaneously
+  - Sequential processing of container creation requests
+  - Configurable via `CONTAINER_QUEUE_ENABLED` environment variable
+  - Monitoring endpoint for queue statistics
+- **WebRTC Infrastructure Support**
+  - TURN/STUN server configuration for future direct UDP connections
+  - Network detection API for local vs. external access
+  - Complete coturn installation documentation
+  - See [COTURN_SETUP.md](COTURN_SETUP.md) and [WEBRTC_IMPLEMENTATION_NOTES.md](WEBRTC_IMPLEMENTATION_NOTES.md)
 - Admin panel for managing all containers
 - **Bidirectional Container Synchronization**
   - Automatic sync of changes from containers back to host
@@ -50,6 +60,7 @@ The application uses a **separated frontend-backend architecture**:
 - Last access timestamps for each desktop
 - Automatic cleanup of stopped containers
 - **Scalable to 50-100+ concurrent users** (see [SCALABILITY_GUIDE.md](SCALABILITY_GUIDE.md))
+
 
 ## Setup
 

@@ -4,9 +4,11 @@ from app.models.oauth_session import OAuthSession
 from app.models.containers import Container
 from app.models.desktop_assignments import DesktopImage, DesktopAssignment
 from app.services.docker_manager import DockerManager
+from app.services.container_queue import get_container_queue, ContainerCreationRequest
 from app.i18n import get_message, get_language_from_request
 from app.middlewares.auth import require_auth
 from datetime import datetime, timezone
+import os
 
 container_bp = Blueprint('container', __name__)
 
@@ -72,24 +74,78 @@ def start_container(user_dict):
                     'url': url
                 })
         
-        # Create new container
-        docker_manager = DockerManager()
-        container = docker_manager.create_container(
-            user_id=user.id,
-            session_id=oauth_session.id,
-            username=user.username,
-            desktop_type=desktop_type,
-            desktop_image_id=desktop_type_record.id if desktop_type_record else None
-        )
+        # Check if queue mode is enabled (default: True for production)
+        use_queue = os.environ.get('CONTAINER_QUEUE_ENABLED', 'true').lower() == 'true'
         
-        url = docker_manager.get_container_url(container)
-        
-        return jsonify({
-            'success': True,
-            'message': get_message('container_started', lang),
-            'container': container.to_dict(),
-            'url': url
-        }), 201
+        if use_queue:
+            # Queue-based container creation (prevents race conditions)
+            container_queue = get_container_queue()
+            
+            # Callbacks for WebSocket notifications
+            def on_success(container):
+                """Called when container is successfully created"""
+                try:
+                    from app.routes.websocket_routes import emit_container_created
+                    emit_container_created(container, user.id)
+                    current_app.logger.info(f"Container created via queue: {container.container_name}")
+                except Exception as e:
+                    current_app.logger.error(f"Error in success callback: {e}")
+            
+            def on_error(error):
+                """Called when container creation fails"""
+                try:
+                    from app.routes.websocket_routes import socketio
+                    if socketio:
+                        socketio.emit('container_error', {
+                            'error': str(error),
+                            'desktop_type': desktop_type,
+                            'timestamp': datetime.now(timezone.utc).isoformat()
+                        }, room=f"user_{user.id}")
+                    current_app.logger.error(f"Container creation failed in queue: {error}")
+                except Exception as e:
+                    current_app.logger.error(f"Error in error callback: {e}")
+            
+            # Create and enqueue request
+            creation_request = ContainerCreationRequest(
+                user_id=user.id,
+                session_id=oauth_session.id,
+                username=user.username,
+                desktop_type=desktop_type,
+                desktop_image_id=desktop_type_record.id if desktop_type_record else None,
+                callback=on_success,
+                error_callback=on_error
+            )
+            
+            request_id = container_queue.enqueue(creation_request)
+            queue_size = container_queue.get_queue_size()
+            
+            return jsonify({
+                'success': True,
+                'status': 'queued',
+                'message': get_message('container_queued', lang) if lang else f'Container creation queued (position: {queue_size})',
+                'request_id': request_id,
+                'queue_position': queue_size,
+                'desktop_type': desktop_type
+            }), 202  # HTTP 202 Accepted
+        else:
+            # Legacy synchronous creation (for backward compatibility)
+            docker_manager = DockerManager()
+            container = docker_manager.create_container(
+                user_id=user.id,
+                session_id=oauth_session.id,
+                username=user.username,
+                desktop_type=desktop_type,
+                desktop_image_id=desktop_type_record.id if desktop_type_record else None
+            )
+            
+            url = docker_manager.get_container_url(container)
+            
+            return jsonify({
+                'success': True,
+                'message': get_message('container_started', lang),
+                'container': container.to_dict(),
+                'url': url
+            }), 201
         
     except Exception as e:
         current_app.logger.error(f"Failed to start container: {str(e)}")
@@ -392,5 +448,27 @@ def check_container_health(user_dict):
         return jsonify({
             'success': False,
             'ready': False,
+            'error': str(e)
+        }), 500
+
+
+
+@container_bp.route('/container/queue/stats', methods=['GET'])
+@require_auth
+def get_queue_stats(user_dict):
+    """Get container creation queue statistics"""
+    try:
+        container_queue = get_container_queue()
+        stats = container_queue.get_stats()
+        
+        return jsonify({
+            'success': True,
+            'stats': stats
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Failed to get queue stats: {str(e)}")
+        return jsonify({
+            'success': False,
             'error': str(e)
         }), 500
