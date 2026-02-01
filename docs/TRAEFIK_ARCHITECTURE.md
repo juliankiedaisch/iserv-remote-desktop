@@ -77,12 +77,20 @@ This document describes the Traefik-based direct routing architecture for Kasm c
 
 **Responsibilities:**
 - SSL/TLS termination
-- Authentication via dashboard.hub.mdg-hamburg.de
+- Authentication via backend container access check endpoint
 - Basic Auth header injection for Kasm containers
 - Proxy traffic to Docker server's Traefik
 
 **Key Configuration:**
 ```nginx
+location = /auth-check-internal {
+    internal;
+    # Forward auth request to backend
+    proxy_pass http://172.22.0.27:5021/api/container-access-check;
+    proxy_set_header Cookie $http_cookie;
+    proxy_set_header Host $host;
+}
+
 location / {
     # Check authentication
     auth_request /auth-check-internal;
@@ -131,15 +139,19 @@ services:
 ### 3. Backend (Python/Flask)
 
 **Location:** 172.22.0.27:5021  
-**Service:** `backend/app/services/docker_manager.py`
+**Service:** `backend/app/services/docker_manager.py` and `backend/app/routes/apache_api_routes.py`
 
 **Responsibilities:**
+- Authentication and access control via `/api/container-access-check` endpoint
 - Create containers with Traefik labels
 - Connect containers to kasm_proxy network
 - Generate subdomain URLs
 - Container lifecycle management
 
-**Key Methods:**
+**Key Methods/Endpoints:**
+- `/api/container-access-check`: Authenticates users and checks container access permissions
+  - Owners have access to their containers
+  - Teachers and admins have access to all containers
 - `_generate_traefik_labels()`: Generates routing labels
 - `create_container()`: Creates containers with labels
 - `get_container_url()`: Returns correct subdomain URL
@@ -158,7 +170,9 @@ User Browser → https://test-desktop-user-abc.hub.mdg-hamburg.de/
 Nginx:
 1. Receives HTTPS request on port 443
 2. Executes auth_request to /auth-check-internal
-3. Checks authentication at dashboard.hub.mdg-hamburg.de/approvals/check
+3. Checks authentication at backend: http://172.22.0.27:5021/api/container-access-check
+   - Backend validates session cookie
+   - Backend checks if user is owner, teacher, or admin
 4. If auth OK, injects Basic Auth header
 5. Proxies to http://172.22.0.28 (Traefik)
 6. Preserves Host header: test-desktop-user-abc.hub.mdg-hamburg.de
@@ -353,23 +367,38 @@ DASHBOARD_AUTH_URL=https://dashboard.hub.mdg-hamburg.de/approvals/check
 
 ### Authentication Fails
 
-**Symptom:** 401 Unauthorized or redirect to login
+**Symptom:** 401 Unauthorized or 403 Forbidden
 
 **Checks:**
-1. Verify dashboard auth endpoint is accessible:
+1. Verify backend auth endpoint is accessible:
    ```bash
-   curl -v https://dashboard.hub.mdg-hamburg.de/approvals/check
+   curl -v http://172.22.0.27:5021/api/container-access-check
    ```
 
-2. Check nginx logs on proxy server:
+2. Check backend logs for authentication errors:
+   ```bash
+   docker-compose logs backend | grep "Container access check"
+   ```
+
+3. Verify session cookie is valid:
+   - Check that user is logged in via OAuth
+   - Check session hasn't expired
+   
+4. Check nginx logs on proxy server:
    ```bash
    tail -f /var/log/nginx/test-desktop_vnc_combined.log
    ```
 
-3. Verify cookies are being forwarded:
+5. Verify cookies are being forwarded:
    ```nginx
    proxy_set_header Cookie $http_cookie;
    ```
+
+6. For 403 Forbidden errors, check access permissions:
+   - Container owner always has access
+   - Teachers (role='teacher') have access to all containers
+   - Admins (role='admin') have access to all containers
+   - Other users are denied access
 
 ### WebSocket Connection Fails
 
@@ -432,10 +461,21 @@ DASHBOARD_AUTH_URL=https://dashboard.hub.mdg-hamburg.de/approvals/check
 ## Security Considerations
 
 ### Authentication Flow
-1. User authenticates via dashboard OAuth
-2. Proxy validates session via auth_request
-3. Only authenticated requests reach Docker server
-4. Traefik itself doesn't handle auth (by design)
+1. User authenticates via OAuth (IServ)
+2. Session cookie is stored in browser
+3. For each container access request:
+   - Nginx calls backend `/api/container-access-check` endpoint via auth_request
+   - Backend validates session cookie
+   - Backend checks container ownership and user role
+   - Access granted if: user is owner, teacher, or admin
+4. Only authenticated and authorized requests reach Docker server
+5. Traefik itself doesn't handle auth (by design)
+
+### Access Control
+- **Container Owners:** Full access to their own containers
+- **Teachers (role='teacher'):** Access to all containers (for supervision/support)
+- **Admins (role='admin'):** Access to all containers (for administration)
+- **Students:** Only access to their own containers
 
 ### Network Isolation
 - kasm_proxy network is internal only

@@ -215,20 +215,40 @@ curl -H "Host: test-desktop-user-xxx.hub.mdg-hamburg.de" http://172.22.0.28
 
 ### Authentication Fails
 
-**Check 1:** Dashboard auth endpoint is accessible
+**Check 1:** Backend auth endpoint is accessible
 ```bash
-curl -v https://dashboard.hub.mdg-hamburg.de/approvals/check
+curl -v http://172.22.0.27:5021/api/container-access-check
 ```
 
-**Check 2:** Nginx auth_request location is configured
+**Check 2:** Backend logs show authentication checks
+```bash
+docker-compose logs backend | grep "Container access check"
+```
+
+**Check 3:** Nginx auth_request location is configured correctly
 ```bash
 grep -A5 "auth-check-internal" /etc/nginx/nginx.conf
 ```
 
-**Check 3:** Cookies are being forwarded
+Expected output:
+```nginx
+location = /auth-check-internal {
+    internal;
+    proxy_pass http://172.22.0.27:5021/api/container-access-check;
+    ...
+}
+```
+
+**Check 4:** Cookies are being forwarded
 ```bash
 grep "Cookie" /etc/nginx/nginx.conf
 ```
+
+**Check 5:** User has proper role for access
+- Container owner: Always has access
+- Teachers (role='teacher'): Have access to all containers
+- Admins (role='admin'): Have access to all containers
+- Check user's role in database or backend logs
 
 ### WebSocket Fails
 

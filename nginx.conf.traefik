@@ -43,8 +43,8 @@ server {
     location = /auth-check-internal {
         internal;
         
-        # Forward auth request to dashboard
-        proxy_pass https://dashboard.hub.mdg-hamburg.de/approvals/check;
+        # Forward auth request to backend container access check
+        proxy_pass http://172.22.0.27:5021/api/container-access-check;
         
         # Don't forward the request body
         proxy_pass_request_body off;
@@ -54,15 +54,13 @@ server {
         proxy_set_header X-Original-URI $request_uri;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Host $host;
         proxy_set_header Cookie $http_cookie;
-        
-        # Disable SSL verification for self-signed certs (adjust as needed)
-        proxy_ssl_verify off;
     }
 
     # Main location - proxy to Docker server Traefik
     location / {
-        # Authenticate user via dashboard first
+        # Authenticate user via backend first
         auth_request /auth-check-internal;
         
         # Proxy to Docker server Traefik (on internal IP 172.22.0.28:80)
