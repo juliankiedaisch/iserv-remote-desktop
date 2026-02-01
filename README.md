@@ -5,7 +5,7 @@ This application provides remote desktop access via Kasm Workspaces in Docker co
 
 ## Architecture
 
-The application uses a **separated frontend-backend architecture**:
+The application uses a **separated frontend-backend architecture** with **Traefik-based direct routing** for optimal performance:
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
@@ -15,11 +15,19 @@ The application uses a **separated frontend-backend architecture**:
          │                       │
          │    WebSocket (WS)     │
          └───────────────────────┘
+         
+User VNC/WebSocket Traffic Flow:
+User → Proxy (Auth + SSL) → Traefik → Container
 ```
 
 - **Frontend**: React SPA with TypeScript, communicates via REST API and WebSocket
 - **Backend**: Flask API server with Socket.IO for real-time updates
 - **WebSocket**: Socket.IO for container status updates, flask-sock for VNC proxy
+- **Routing**: Traefik-based direct routing for container access (see [docs/TRAEFIK_ARCHITECTURE.md](docs/TRAEFIK_ARCHITECTURE.md))
+  - Proxy server handles authentication and SSL termination
+  - Traefik on Docker server routes based on container labels
+  - Reduces network load on proxy server
+  - Auto-discovery of containers via Docker labels
 
 ## Features
 

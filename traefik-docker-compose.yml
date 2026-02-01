@@ -1,0 +1,56 @@
+# Traefik Docker Compose Configuration
+# Deploy on Docker Server for dynamic routing of Kasm containers
+#
+# This configuration sets up Traefik as a reverse proxy that:
+# - Receives traffic from the proxy server (OpenResty/Nginx)
+# - Routes traffic to containers based on Traefik labels
+# - Automatically discovers new containers via Docker provider
+#
+# Deployment Instructions:
+# 1. Ensure kasm_proxy network exists: docker network create --subnet=192.168.100.0/24 --gateway=192.168.100.1 kasm_proxy
+# 2. Deploy: docker-compose -f traefik-docker-compose.yml up -d
+
+version: '3.8'
+
+services:
+  traefik:
+    image: traefik:latest
+    container_name: traefik-kasm-router
+    command:
+      # Disable API dashboard (security)
+      - "--api.insecure=false"
+      
+      # Enable Docker provider for automatic service discovery
+      - "--providers.docker=true"
+      - "--providers.docker.network=kasm_proxy"
+      - "--providers.docker.exposedbydefault=false"
+      
+      # Logging
+      - "--log.level=INFO"
+      - "--accesslog=true"
+      
+      # Define entrypoints
+      - "--entrypoints.web.address=:80"
+    
+    ports:
+      # Expose port 80 for incoming HTTP traffic from proxy server
+      - "80:80"
+    
+    networks:
+      kasm_proxy:
+        ipv4_address: 192.168.100.50
+    
+    volumes:
+      # Mount Docker socket for container discovery (read-only for security)
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    
+    restart: unless-stopped
+    
+    labels:
+      # Disable Traefik routing for itself
+      - "traefik.enable=false"
+
+networks:
+  kasm_proxy:
+    external: true
+    name: kasm_proxy

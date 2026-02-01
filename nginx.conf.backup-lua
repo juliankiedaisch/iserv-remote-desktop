@@ -1,0 +1,200 @@
+map $container_proto $proxy_upgrade {
+    default        "";
+    ws             "$http_upgrade";
+    wss            "$http_upgrade";
+}
+map $container_proto $proxy_connection {
+    default        "";
+    ws             "$connection_upgrade";
+    wss            "$connection_upgrade";
+}
+map $container_proto $proxy_ssl {
+    default        0;
+    https          1;
+    wss            1;
+}
+map $container_proto $proxy_authorization {
+    default        "";
+    https          "Basic a2FzbV91c2VyOnBhc3N3b3Jk";
+    wss            "Basic a2FzbV91c2VyOnBhc3N3b3Jk";
+}
+
+server {
+    listen 443 ssl;
+    server_name ~^(test-desktop|test-audio)-[^.]+\.hub\.mdg-hamburg\.de$;
+
+    ssl_certificate      /etc/ssl/certs/hub.combined;
+    ssl_certificate_key  /etc/ssl/private/hub.key;
+    ssl_protocols        TLSv1.2 TLSv1.3;
+    ssl_ciphers          HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+
+    client_max_body_size 100m;
+
+    # Timeouts für lange Desktop-Sitzungen/WebSockets
+    proxy_connect_timeout  1800;
+    proxy_send_timeout     1800;
+    proxy_read_timeout     1800;
+    send_timeout           1800;
+
+    keepalive_timeout      5 5;
+    keepalive_requests     100;
+    root /dev/null;
+
+    # ---- Dynamisches container backend und Protokoll lookup via Lua ----
+    set $container_path "";
+    set $container_proto "http";
+    set $proxy_pass_target "";
+
+        access_by_lua_block {
+            ngx.log(ngx.ERR, "[DEBUG] Starting access_by_lua_block")
+            local host = ngx.var.host or ""
+            local upgrade = ngx.req.get_headers()["Upgrade"] or ""
+            local http = require "resty.http"
+            local port_type, proxy_path
+            local proto = "http"
+            local real_proto = "http"
+
+            ngx.log(ngx.ERR, "[DEBUG] Host: ", host)
+
+            if host:match("^test%-audio%-.+%.hub%.mdg%-hamburg%.de$") then
+                proxy_path = host:gsub("^test%-audio%-", ""):gsub("%.hub%.mdg%-hamburg%.de$", "")
+                port_type = "audio"
+                proto = "ws"
+            elseif host:match("^test%-desktop%-.+%.hub%.mdg%-hamburg%.de$") then
+                proxy_path = host:gsub("^test%-desktop%-", ""):gsub("%.hub%.mdg%-hamburg%.de$", "")
+                port_type = "vnc"
+                if upgrade:lower() == "websocket" then
+                    proto = "wss"
+                    real_proto = "https"
+                else
+                    proto = "https"
+                    real_proto = "https"
+                end
+            end
+            ngx.var.container_proto = proto
+
+            ngx.log(ngx.ERR, "[DEBUG] proxy_path: ", tostring(proxy_path), " port_type: ", tostring(port_type), " proto: ", tostring(proto))
+
+            if proxy_path and proto then
+                local httpc = http.new()
+                httpc:set_timeout(2000)
+                local api_url = "http://172.22.0.27:5021/api/container-target/" .. ngx.escape_uri(proxy_path)
+                ngx.log(ngx.ERR, "[DEBUG] API URL: ", api_url)
+                local res = httpc:request_uri(
+                    api_url, {
+                        headers = { ["X-API-Key"] = os.getenv("APACHE_API_KEY") or "lFSSwVI4bzjY5XJuEWAVXB" },
+                        query = { port_type = port_type }
+                    }
+                )
+                if res then
+                    ngx.log(ngx.ERR, "[DEBUG] API status: ", tostring(res.status), " body: ", tostring(res.body))
+                    if res.status == 200 then
+                        local target = res.body:match('"target"%s*:%s*"([^"]+)"')
+                        ngx.log(ngx.ERR, "[DEBUG] target: ", tostring(target))
+                        if target and target ~= "" then
+                            ngx.var.container_path = target
+                            ngx.var.proxy_pass_target = real_proto .. "://" .. target
+                        else
+                            ngx.log(ngx.ERR, "[ERROR] No target found in API response")
+                        end
+                    else
+                        ngx.log(ngx.ERR, "[ERROR] API returned non-200 status: ", tostring(res.status))
+                    end
+                else
+                    ngx.log(ngx.ERR, "[ERROR] API request failed")
+                end
+            else
+                ngx.log(ngx.ERR, "[ERROR] proxy_path or proto not set")
+            end
+            ngx.log(ngx.ERR, "[DEBUG] container_backend: ", tostring(ngx.var.container_path))
+        }
+
+
+    location / {
+
+        proxy_pass $proxy_pass_target;
+        proxy_http_version 1.1;
+        proxy_read_timeout     3600;
+        proxy_send_timeout     3600;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Authorization $proxy_authorization;
+
+        # WebSocket headers only for ws/wss
+        proxy_set_header Upgrade $proxy_upgrade;
+        proxy_set_header Connection $proxy_connection;
+
+        # SSL options only for https/wss
+        proxy_ssl_verify off;
+        proxy_ssl_server_name on;
+        # These will only be used if $proto is https or wss
+
+        # loggin $debug_proxy for debugging WITH LUA
+        
+    }
+
+    access_log /var/log/nginx/test-desktop_vnc_combined.log combined;
+    error_log  /var/log/nginx/test-desktop_vnc_combined.log;
+}
+
+server {
+    listen 443 ssl;
+    server_name test-desktop.hub.mdg-hamburg.de;
+
+    ssl_certificate      /etc/ssl/certs/hub.combined;
+    ssl_certificate_key  /etc/ssl/private/hub.key;
+    ssl_protocols        TLSv1.2 TLSv1.3;
+    ssl_ciphers          HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+
+    client_max_body_size 100m;
+
+    # Timeouts für lange Desktop-Sitzungen/WebSockets
+    proxy_connect_timeout  1800;
+    proxy_send_timeout     1800;
+    proxy_read_timeout     1800;
+    send_timeout           1800;
+
+    keepalive_timeout      5 5;
+    keepalive_requests     100;
+    root /dev/null;
+
+    # ...Frontend fallback/React proxy...
+    location / {
+        proxy_pass http://172.22.0.27:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+
+    # ------ API Backend Proxy ---------
+    location /api/ {
+        proxy_pass   http://172.22.0.27:5021;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+    }
+
+    # ------ WebSocket Proxy für /ws ---------
+    location /ws/ {
+        proxy_pass   http://172.22.0.27:5021;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+    }
+
+    access_log /var/log/nginx/test-desktop_access.log;
+    error_log  /var/log/nginx/test-desktop_error.log;
+}
