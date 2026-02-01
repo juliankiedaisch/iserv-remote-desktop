@@ -13,9 +13,9 @@ def generate_traefik_labels(username, desktop_type, subdomain):
     Generate Traefik labels for automatic container routing
     (Standalone version for testing)
     """
-    # Create a safe container name for use in Traefik labels
-    container_name = f"kasm_{username}_{desktop_type}"
-    safe_name = container_name.replace('.', '-').replace('_', '-')
+    # Create a safe service name for Traefik labels
+    label_base = f"kasm_{username}_{desktop_type}"
+    safe_name = label_base.replace('.', '-').replace('_', '-')
     
     # Get domain from environment
     domain = os.environ.get('TRAEFIK_DOMAIN', 'hub.mdg-hamburg.de')

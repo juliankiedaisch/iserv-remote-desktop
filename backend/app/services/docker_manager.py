@@ -706,10 +706,10 @@ class DockerManager:
         Returns:
             dict: Dictionary of Traefik labels
         """
-        # Create a safe container name for use in Traefik labels
+        # Create a safe service name for Traefik labels
         # Replace dots and underscores with hyphens to ensure DNS compatibility
-        container_name = f"kasm_{username}_{desktop_type}"
-        safe_name = container_name.replace('.', '-').replace('_', '-')
+        label_base = f"kasm_{username}_{desktop_type}"
+        safe_name = label_base.replace('.', '-').replace('_', '-')
         
         # Get domain from environment (default to hub.mdg-hamburg.de)
         domain = os.environ.get('TRAEFIK_DOMAIN', 'hub.mdg-hamburg.de')

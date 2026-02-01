@@ -83,7 +83,11 @@ class TestTraefikLabels(unittest.TestCase):
     
     def test_generate_traefik_labels_custom_domain(self):
         """Test label generation with custom domain"""
-        with patch.dict(os.environ, {'TRAEFIK_DOMAIN': 'custom.example.com'}):
+        # Save original value
+        original_domain = os.environ.get('TRAEFIK_DOMAIN')
+        
+        try:
+            os.environ['TRAEFIK_DOMAIN'] = 'custom.example.com'
             username = "user"
             desktop_type = "ubuntu"
             subdomain = "test-desktop-user-ubuntu-token"
@@ -98,6 +102,12 @@ class TestTraefikLabels(unittest.TestCase):
             # Should use custom domain
             self.assertIn("custom.example.com", rule)
             self.assertEqual(rule, f"Host(`{subdomain}.custom.example.com`)")
+        finally:
+            # Restore original value
+            if original_domain is not None:
+                os.environ['TRAEFIK_DOMAIN'] = original_domain
+            elif 'TRAEFIK_DOMAIN' in os.environ:
+                del os.environ['TRAEFIK_DOMAIN']
     
     def test_generate_traefik_labels_entrypoint(self):
         """Test that entrypoint is set to 'web'"""

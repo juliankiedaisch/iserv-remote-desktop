@@ -69,7 +69,9 @@ server {
         proxy_pass http://172.22.0.28;
         
         # Set Basic Auth for Kasm containers
-        # Base64 encoded: kasm_user:password
+        # TODO: Consider using environment variables via nginx envsubst or similar
+        # Base64 encoded: kasm_user:password (same as original Lua implementation)
+        # This should match VNC_PASSWORD in backend .env
         proxy_set_header Authorization "Basic a2FzbV91c2VyOnBhc3N3b3Jk";
         
         # Forward the original hostname for Traefik routing

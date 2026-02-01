@@ -14,7 +14,7 @@ version: '3.8'
 
 services:
   traefik:
-    image: traefik:latest
+    image: traefik:v3.0
     container_name: traefik-kasm-router
     command:
       # Disable API dashboard (security)
