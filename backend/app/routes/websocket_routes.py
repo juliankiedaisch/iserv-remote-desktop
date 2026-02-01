@@ -141,6 +141,7 @@ def emit_container_created(container, user_id=None):
         'container_id': container.id,
         'container_name': container.container_name,
         'desktop_type': container.desktop_type,
+        'proxy_path': container.proxy_path,
         'status': container.status,
         'timestamp': datetime.now(timezone.utc).isoformat()
     }

@@ -130,53 +130,86 @@ class DockerManager:
             access_token = secrets.token_urlsafe(12)
             proxy_path = f"{username_safe}-{desktop_type}-{access_token}"
             
-            # Check if container already exists for this session and desktop type in any state
-            # We check by session_id, user_id, and desktop_type to ensure we only find containers for this user
+            # Check if container already exists for this user and desktop type (regardless of session)
+            # We want only ONE container per user per desktop_type
             # Use row-level locking to prevent concurrent creation attempts
             existing = Container.query.filter_by(
-                session_id=session_id,
                 user_id=user_id,
                 desktop_type=desktop_type
             ).with_for_update(skip_locked=False).first()
             
             if existing:
-                # If it's running, return it
+                # If it's running, update session_id and return it
                 if existing.status == 'running':
-                    current_app.logger.info(f"Container already exists for session {session_id} and type {desktop_type}")
+                    current_app.logger.info(f"Container already exists for user {user_id} and type {desktop_type}")
+                    # Update the session_id to the current session
+                    existing.session_id = session_id
+                    existing.last_accessed = datetime.now(timezone.utc)
+                    db.session.commit()
                     return existing
                 
-                # If the existing container is in an error, stopped, or creating state, clean it up
-                if existing.status in ['error', 'stopped', 'creating']:
+                # If stopped, try to restart the existing Docker container
+                if existing.status == 'stopped' and existing.container_id:
+                    current_app.logger.info(
+                        f"Found stopped container {existing.container_name}, attempting to restart"
+                    )
+                    try:
+                        container = self.client.containers.get(existing.container_id)
+                        # Restart the existing container
+                        container.start()
+                        
+                        # Update database record with new session
+                        existing.session_id = session_id
+                        existing.status = 'running'
+                        existing.started_at = datetime.now(timezone.utc)
+                        existing.last_accessed = datetime.now(timezone.utc)
+                        db.session.commit()
+                        
+                        current_app.logger.info(
+                            f"Restarted existing container {existing.container_name} "
+                            f"(proxy_path: {existing.proxy_path}, container_id: {existing.container_id})"
+                        )
+                        
+                        # Emit WebSocket event for real-time updates
+                        _emit_container_created(existing, user_id)
+                        
+                        return existing
+                    except NotFound:
+                        current_app.logger.info(f"Docker container {existing.container_id} not found, will create new")
+                        # Container doesn't exist in Docker, clean up DB record and continue to create new
+                        db.session.delete(existing)
+                        db.session.commit()
+                    except Exception as e:
+                        current_app.logger.warning(f"Failed to restart container: {str(e)}, will create new")
+                        # If restart fails, clean up and create new
+                        try:
+                            container = self.client.containers.get(existing.container_id)
+                            container.remove(force=True)
+                        except:
+                            pass
+                        db.session.delete(existing)
+                        db.session.commit()
+                
+                # If in error or creating state (stuck), clean it up
+                if existing.status in ['error', 'creating']:
                     current_app.logger.info(
                         f"Found existing container {existing.container_name} in state {existing.status}, cleaning up"
                     )
                     # Try to remove the Docker container if it exists
-                    docker_removed = False
                     if existing.container_id:
                         try:
                             container = self.client.containers.get(existing.container_id)
                             container.remove(force=True)
                             current_app.logger.info(f"Removed existing Docker container {existing.container_id}")
-                            docker_removed = True
                         except NotFound:
                             current_app.logger.info(f"Docker container {existing.container_id} not found")
-                            docker_removed = True  # Container doesn't exist, safe to remove DB record
                         except Exception as e:
                             current_app.logger.warning(f"Failed to remove Docker container: {str(e)}")
-                            # Don't remove DB record if Docker removal failed
-                            raise Exception(
-                                f"Cannot cleanup existing container '{existing.container_name}' (status: {existing.status}): "
-                                f"Docker container removal failed"
-                            ) from e
-                    else:
-                        # No Docker container ID, safe to remove DB record
-                        docker_removed = True
                     
-                    # Only remove the database record if Docker removal succeeded or container doesn't exist
-                    if docker_removed:
-                        db.session.delete(existing)
-                        db.session.commit()
-                        current_app.logger.info(f"Removed database record for container {existing.container_name}")
+                    # Remove the database record
+                    db.session.delete(existing)
+                    db.session.commit()
+                    current_app.logger.info(f"Removed database record for container {existing.container_name}")
             
             # Also check for any containers with conflicting container_name
             # These could be from previous sessions that weren't properly cleaned up
