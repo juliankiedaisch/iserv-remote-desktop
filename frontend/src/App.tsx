@@ -5,7 +5,7 @@ import { Dashboard, AdminPanel, Login, ThemeEditor, DesktopTypesManager, Assignm
 import Viewer from './pages/Viewer';
 import { useAuth } from './hooks/useAuth';
 import { useTheme } from './hooks/useTheme';
-import { Loading, LanguageSwitcher } from './components';
+import { Loading, LanguageSwitcher, VersionFooter } from './components';
 import './App.css';
 
 // Protected Route component
@@ -103,6 +103,7 @@ const AppContent: React.FC = () => {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       {!isViewerPage && <LanguageSwitcher />}
+      {!isViewerPage && <VersionFooter />}
     </div>
   );
 };
