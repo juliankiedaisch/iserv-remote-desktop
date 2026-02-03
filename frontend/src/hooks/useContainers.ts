@@ -110,8 +110,7 @@ export function useContainers() {
         console.log('Container creation queued, waiting for WebSocket notification...');
         
         // Wait for container_created or container_error event via WebSocket
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const containerCreated = await new Promise<{ container_id: string; container_name: string }>((resolve, reject) => {
+        await new Promise<{ container_id: string; container_name: string }>((resolve, reject) => {
           const timeout = setTimeout(() => {
             unsubscribe();
             reject(new Error('Timeout waiting for container creation'));

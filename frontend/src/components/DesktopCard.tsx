@@ -173,7 +173,7 @@ export const DesktopCard: React.FC<DesktopCardProps> = ({
       {showResetModal && (
         <div className="modal-overlay" onClick={cancelResetConfig}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>{t('desktopCard.resetConfigTitle')}</h3>
+            <h2>{t('desktopCard.resetConfigTitle')}</h2>
             <p>{t('desktopCard.resetConfigMessage')}</p>
             <p className="warning">{t('desktopCard.resetConfigWarning')}</p>
             {resetError && (
@@ -203,7 +203,7 @@ export const DesktopCard: React.FC<DesktopCardProps> = ({
       {showSuccessModal && (
         <div className="modal-overlay" onClick={() => setShowSuccessModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>{t('common.success')}</h3>
+            <h2>{t('common.success')}</h2>
             <p>{t('desktopCard.configResetSuccess')}</p>
             <div className="modal-actions">
               <button 
