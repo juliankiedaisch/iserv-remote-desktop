@@ -538,7 +538,7 @@ export const DesktopTypesManager: React.FC = () => {
       setError(t('desktopTypes.refreshTemplateFailed', { error: err.message || t('errors.unknownError') }));
       setRefreshingTemplates(prev => {
         const next = new Set(prev);
-        next.delete(type.id);
+        next.delete(typeToRefresh.id);
         return next;
       });
     }

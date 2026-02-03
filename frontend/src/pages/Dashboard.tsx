@@ -1,6 +1,5 @@
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
 import { Header, DesktopCard, Loading, Alert } from '../components';
 import { useAuth } from '../hooks/useAuth';
 import { useContainers } from '../hooks/useContainers';
@@ -11,7 +10,6 @@ export const Dashboard: React.FC = () => {
   const { user, isAdmin, isTeacher, logout, loading: authLoading } = useAuth();
   const { themeData } = useTheme();
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const {
     desktopTypes,
     loading,
