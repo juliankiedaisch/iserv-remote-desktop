@@ -37,6 +37,10 @@ export const DesktopTypesManager: React.FC = () => {
   const [refreshingTemplates, setRefreshingTemplates] = useState<Set<number>>(new Set());
   const [showRefreshModal, setShowRefreshModal] = useState(false);
   const [refreshLogs, setRefreshLogs] = useState<Array<{image: string, message: string, timestamp: number}>>([]);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [typeToDelete, setTypeToDelete] = useState<{id: number, name: string} | null>(null);
+  const [showRefreshConfirmModal, setShowRefreshConfirmModal] = useState(false);
+  const [typeToRefresh, setTypeToRefresh] = useState<DesktopType | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -297,14 +301,18 @@ export const DesktopTypesManager: React.FC = () => {
   };
 
   const handleDelete = async (typeId: number, typeName: string) => {
-    if (!window.confirm(t('desktopTypes.deleteConfirmation', { name: typeName }))) {
-      return;
-    }
+    setTypeToDelete({ id: typeId, name: typeName });
+    setShowDeleteModal(true);
+  };
 
+  const confirmDelete = async () => {
+    if (!typeToDelete) return;
+
+    setShowDeleteModal(false);
     setLoading(true);
 
     try {
-      const response = await fetch(`/api/admin/desktops/types/${typeId}`, {
+      const response = await fetch(`/api/admin/desktops/types/${typeToDelete.id}`, {
         method: 'DELETE',
         headers: {
           'X-Session-ID': localStorage.getItem('session_id') || '',
@@ -498,13 +506,15 @@ export const DesktopTypesManager: React.FC = () => {
   };
 
   const handleRefreshTemplate = async (type: DesktopType) => {
-    if (!window.confirm(
-      `${t('desktopTypes.refreshTemplateTitle')}\n\n${t('desktopTypes.refreshTemplateMessage')}\n\n${t('desktopTypes.refreshTemplateWarning')}`
-    )) {
-      return;
-    }
+    setTypeToRefresh(type);
+    setShowRefreshConfirmModal(true);
+  };
 
-    setRefreshingTemplates(prev => new Set(prev).add(type.id));
+  const confirmRefreshTemplate = async () => {
+    if (!typeToRefresh) return;
+
+    setShowRefreshConfirmModal(false);
+    setRefreshingTemplates(prev => new Set(prev).add(typeToRefresh.id));
     setRefreshLogs([]);
     setShowRefreshModal(true);
     setError(null);
@@ -517,7 +527,7 @@ export const DesktopTypesManager: React.FC = () => {
           'Content-Type': 'application/json',
           'X-Session-ID': localStorage.getItem('session_id') || '',
         },
-        body: JSON.stringify({ image_name: type.docker_image })
+        body: JSON.stringify({ image_name: typeToRefresh.docker_image })
       });
       const data = await response.json();
 
@@ -528,7 +538,7 @@ export const DesktopTypesManager: React.FC = () => {
       setError(t('desktopTypes.refreshTemplateFailed', { error: err.message || t('errors.unknownError') }));
       setRefreshingTemplates(prev => {
         const next = new Set(prev);
-        next.delete(type.id);
+        next.delete(typeToRefresh.id);
         return next;
       });
     }
@@ -895,6 +905,59 @@ export const DesktopTypesManager: React.FC = () => {
                 disabled={refreshingTemplates.size > 0}
               >
                 {refreshingTemplates.size > 0 ? t('desktopTypes.refreshInProgress') : t('desktopTypes.close')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && typeToDelete && (
+        <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2>{t('desktopTypes.deleteTitle')}</h2>
+            <p>{t('desktopTypes.deleteConfirmation', { name: typeToDelete.name })}</p>
+            <div className="modal-actions">
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                onClick={() => setShowDeleteModal(false)}
+              >
+                {t('common.cancel')}
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-danger" 
+                onClick={confirmDelete}
+              >
+                {t('common.delete')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Refresh Template Confirmation Modal */}
+      {showRefreshConfirmModal && typeToRefresh && (
+        <div className="modal-overlay" onClick={() => setShowRefreshConfirmModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2>{t('desktopTypes.refreshTemplateTitle')}</h2>
+            <p>{t('desktopTypes.refreshTemplateMessage')}</p>
+            <p className="modal-warning">{t('desktopTypes.refreshTemplateWarning')}</p>
+            <div className="modal-actions">
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                onClick={() => setShowRefreshConfirmModal(false)}
+              >
+                {t('common.cancel')}
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-primary" 
+                onClick={confirmRefreshTemplate}
+              >
+                {t('common.confirm')}
               </button>
             </div>
           </div>

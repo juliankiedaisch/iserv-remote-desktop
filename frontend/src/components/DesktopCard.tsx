@@ -41,6 +41,7 @@ export const DesktopCard: React.FC<DesktopCardProps> = ({
   const [showResetModal, setShowResetModal] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const handleStart = () => {
     if (!isLoading) {
@@ -81,8 +82,7 @@ export const DesktopCard: React.FC<DesktopCardProps> = ({
       const result = await apiService.resetConfig(desktopType.docker_image);
       if (result.success) {
         setShowResetModal(false);
-        // Show success message (you may want to add a toast notification here)
-        alert(t('desktopCard.configResetSuccess'));
+        setShowSuccessModal(true);
       } else {
         setResetError(result.error || t('desktopCard.configResetFailed'));
       }
@@ -173,7 +173,7 @@ export const DesktopCard: React.FC<DesktopCardProps> = ({
       {showResetModal && (
         <div className="modal-overlay" onClick={cancelResetConfig}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>{t('desktopCard.resetConfigTitle')}</h3>
+            <h2>{t('desktopCard.resetConfigTitle')}</h2>
             <p>{t('desktopCard.resetConfigMessage')}</p>
             <p className="warning">{t('desktopCard.resetConfigWarning')}</p>
             {resetError && (
@@ -193,6 +193,24 @@ export const DesktopCard: React.FC<DesktopCardProps> = ({
                 disabled={isResetting}
               >
                 {isResetting ? t('common.processing') : t('common.confirm')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Modal */}
+      {showSuccessModal && (
+        <div className="modal-overlay" onClick={() => setShowSuccessModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2>{t('common.success')}</h2>
+            <p>{t('desktopCard.configResetSuccess')}</p>
+            <div className="modal-actions">
+              <button 
+                className="btn btn-primary" 
+                onClick={() => setShowSuccessModal(false)}
+              >
+                {t('common.ok')}
               </button>
             </div>
           </div>

@@ -21,6 +21,7 @@ export const ThemeEditor: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [showResetModal, setShowResetModal] = useState(false);
 
   const colorFields = [
     { key: 'color-primary', label: t('theme.colorPrimary'), description: t('theme.colorPrimaryDesc') },
@@ -93,9 +94,11 @@ export const ThemeEditor: React.FC = () => {
   };
 
   const handleReset = async () => {
-    if (!window.confirm(t('theme.resetConfirmation'))) {
-      return;
-    }
+    setShowResetModal(true);
+  };
+
+  const confirmReset = async () => {
+    setShowResetModal(false);
 
     try {
       setSaving(true);
@@ -435,6 +438,32 @@ export const ThemeEditor: React.FC = () => {
         <div className="loading-overlay">
           <div className="loading-content">
             <Loading message={t('theme.saving')} />
+          </div>
+        </div>
+      )}
+
+      {/* Reset Confirmation Modal */}
+      {showResetModal && (
+        <div className="modal-overlay" onClick={() => setShowResetModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2>{t('theme.resetTitle')}</h2>
+            <p>{t('theme.resetConfirmation')}</p>
+            <div className="modal-actions">
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                onClick={() => setShowResetModal(false)}
+              >
+                {t('common.cancel')}
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-danger" 
+                onClick={confirmReset}
+              >
+                {t('common.confirm')}
+              </button>
+            </div>
           </div>
         </div>
       )}

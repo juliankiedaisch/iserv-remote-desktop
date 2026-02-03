@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Container, DesktopType, ContainerStatusUpdate, ContainerCreatedEvent, ContainerErrorEvent } from '../types';
+import { Container, DesktopType, ContainerStatusUpdate } from '../types';
 import { apiService } from '../services/api';
 import { wsService } from '../services/websocket';
 
@@ -110,7 +110,7 @@ export function useContainers() {
         console.log('Container creation queued, waiting for WebSocket notification...');
         
         // Wait for container_created or container_error event via WebSocket
-        const containerCreated = await new Promise<{ container_id: string; container_name: string }>((resolve, reject) => {
+        await new Promise<{ container_id: string; container_name: string }>((resolve, reject) => {
           const timeout = setTimeout(() => {
             unsubscribe();
             reject(new Error('Timeout waiting for container creation'));

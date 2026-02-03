@@ -26,7 +26,10 @@
     "upload": "Hochladen",
     "create": "Erstellen",
     "update": "Aktualisieren",
-    "NA": "N/V"
+    "NA": "N/V",
+    "success": "Erfolg",
+    "ok": "OK",
+    "error": "Fehler"
   },
   "auth": {
     "loginWithIServ": "Login mit IServ",
@@ -191,6 +194,7 @@
     "failedToExportTheme": "Design konnte nicht exportiert werden",
     "failedToResetTheme": "Design konnte nicht zurückgesetzt werden",
     "invalidThemeFile": "Ungültiges Design-Dateiformat",
+    "resetTitle": "Design auf Standard zurücksetzen",
     "resetConfirmation": "Design auf Standard zurücksetzen? Dies verwirft alle Änderungen.",
     "favicon": "Favicon",
     "faviconUpload": "Favicon hochladen",
@@ -286,6 +290,7 @@
     "pulling": "⏳ Wird gepullt...",
     "edit": "Bearbeiten",
     "delete": "Löschen",
+    "deleteTitle": "Desktop-Typ löschen",
     "deleteConfirmation": "Desktop-Typ \"{{name}}\" löschen? Dies entfernt alle Zuweisungen.",
     "created": "Desktop-Typ erfolgreich erstellt",
     "updated": "Desktop-Typ erfolgreich aktualisiert",
