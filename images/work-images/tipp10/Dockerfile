@@ -7,6 +7,9 @@ ENV HOME /home/kasm-default-profile
 ENV STARTUPDIR /dockerstartup
 ENV INST_SCRIPTS $STARTUPDIR/install
 ENV DONT_PROMPT_WSL_INSTALL "No_Prompt_please"
+ENV LANG=de_DE.UTF-8
+ENV LANGUAGE=de_DE:de
+ENV LC_ALL=de_DE.UTF-8
 WORKDIR $HOME
 
 ######### Customize Container Here ###########

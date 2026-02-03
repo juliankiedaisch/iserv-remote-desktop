@@ -53,8 +53,8 @@ else
     apt-get install -y openssh-client --no-install-recommends
   fi
 
-  echo "generate locales for en_US.UTF-8"
-  locale-gen en_US.UTF-8
+  echo "generate locales for ${LANG}"
+  locale-gen ${LANG}
 fi
 
 if [ "$DISTRO" = "ubuntu" ] && ! grep -q "24.04" /etc/os-release; then
