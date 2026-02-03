@@ -66,6 +66,8 @@ export const AssignmentManager: React.FC = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
   const [assignmentToDelete, setAssignmentToDelete] = useState<Assignment | null>(null);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string>('');
 
   // Form state
   const [formData, setFormData] = useState({
@@ -152,7 +154,8 @@ export const AssignmentManager: React.FC = () => {
       resetForm();
       loadData();
     } catch (err: any) {
-      alert(err.response?.data?.error || t('assignments.failedToCreate'));
+      setErrorMessage(err.response?.data?.error || t('assignments.failedToCreate'));
+      setShowErrorModal(true);
     }
   };
 
@@ -170,7 +173,8 @@ export const AssignmentManager: React.FC = () => {
       resetForm();
       loadData();
     } catch (err: any) {
-      alert(err.response?.data?.error || t('assignments.failedToUpdate'));
+      setErrorMessage(err.response?.data?.error || t('assignments.failedToUpdate'));
+      setShowErrorModal(true);
     }
   };
 
@@ -188,7 +192,8 @@ export const AssignmentManager: React.FC = () => {
       setAssignmentToDelete(null);
       loadData();
     } catch (err: any) {
-      alert(err.response?.data?.error || t('assignments.failedToDelete'));
+      setErrorMessage(err.response?.data?.error || t('assignments.failedToDelete'));
+      setShowErrorModal(true);
     }
   };
 
@@ -669,6 +674,25 @@ export const AssignmentManager: React.FC = () => {
                 onClick={confirmDeleteAssignment}
               >
                 {t('assignments.deleteAssignment')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error Modal */}
+      {showErrorModal && (
+        <div className="modal-overlay" onClick={() => setShowErrorModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2>{t('common.error')}</h2>
+            <p>{errorMessage}</p>
+            <div className="modal-actions">
+              <button 
+                type="button" 
+                className="btn btn-primary" 
+                onClick={() => setShowErrorModal(false)}
+              >
+                {t('common.ok')}
               </button>
             </div>
           </div>

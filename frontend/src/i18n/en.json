@@ -26,7 +26,10 @@
     "upload": "Upload",
     "create": "Create",
     "update": "Update",
-    "NA": "N/A"
+    "NA": "N/A",
+    "success": "Success",
+    "ok": "OK",
+    "error": "Error"
   },
   "auth": {
     "loginWithIServ": "Login with IServ",
@@ -191,6 +194,7 @@
     "failedToExportTheme": "Failed to export theme",
     "failedToResetTheme": "Failed to reset theme",
     "invalidThemeFile": "Invalid theme file format",
+    "resetTitle": "Reset Theme to Default",
     "resetConfirmation": "Reset theme to default? This will discard all your changes.",
     "favicon": "Favicon",
     "faviconUpload": "Upload Favicon",
@@ -286,6 +290,7 @@
     "pulling": "⏳ Pulling...",
     "edit": "Edit",
     "delete": "Delete",
+    "deleteTitle": "Delete Desktop Type",
     "deleteConfirmation": "Delete desktop type \"{{name}}\"? This will remove all assignments.",
     "created": "Desktop type created successfully",
     "updated": "Desktop type updated successfully",

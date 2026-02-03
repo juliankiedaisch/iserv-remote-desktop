@@ -41,6 +41,7 @@ export const DesktopCard: React.FC<DesktopCardProps> = ({
   const [showResetModal, setShowResetModal] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const handleStart = () => {
     if (!isLoading) {
@@ -81,8 +82,7 @@ export const DesktopCard: React.FC<DesktopCardProps> = ({
       const result = await apiService.resetConfig(desktopType.docker_image);
       if (result.success) {
         setShowResetModal(false);
-        // Show success message (you may want to add a toast notification here)
-        alert(t('desktopCard.configResetSuccess'));
+        setShowSuccessModal(true);
       } else {
         setResetError(result.error || t('desktopCard.configResetFailed'));
       }
@@ -193,6 +193,24 @@ export const DesktopCard: React.FC<DesktopCardProps> = ({
                 disabled={isResetting}
               >
                 {isResetting ? t('common.processing') : t('common.confirm')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Modal */}
+      {showSuccessModal && (
+        <div className="modal-overlay" onClick={() => setShowSuccessModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3>{t('common.success')}</h3>
+            <p>{t('desktopCard.configResetSuccess')}</p>
+            <div className="modal-actions">
+              <button 
+                className="btn btn-primary" 
+                onClick={() => setShowSuccessModal(false)}
+              >
+                {t('common.ok')}
               </button>
             </div>
           </div>

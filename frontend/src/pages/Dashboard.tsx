@@ -41,8 +41,6 @@ export const Dashboard: React.FC = () => {
         if (container?.proxy_path) {
           console.log('Opening viewer for proxy path:', container.proxy_path);
           window.open(`/viewer/${container.proxy_path}`, '_blank');
-        } else {
-          setStartError(t('dashboard.failedToStart'));
         }
         setStartingProgress(null);
       } else {
