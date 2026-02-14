@@ -301,6 +301,7 @@ class DockerManager:
                 status='creating',
                 container_port=container_port,
                 host_port=host_port,
+                audio_port=audio_host_port,
                 proxy_path=proxy_path
             )
             db.session.add(container_record)
@@ -681,18 +682,17 @@ class DockerManager:
         
         # Use row-level locking (SELECT FOR UPDATE) to prevent race conditions
         # This ensures only one thread can allocate a port at a time
-        # Use skip_locked to prevent blocking if another transaction has the lock
-        from sqlalchemy import text
+        # Do NOT use skip_locked so concurrent requests wait for each other
         
         # Get all currently used ports from database with row-level lock
         used_ports = set(exclude_ports)  # Start with excluded ports
         containers = Container.query.filter(
-            Container.status.in_(['running', 'creating']),
+            Container.status.in_(['running', 'creating', 'stopped', 'error']),
             or_(
                 Container.host_port.isnot(None),
                 Container.audio_port.isnot(None)
             )
-        ).with_for_update(skip_locked=True).all()
+        ).with_for_update().all()
         
         for container in containers:
             # Add both VNC and audio ports from database
@@ -701,8 +701,13 @@ class DockerManager:
             if container.audio_port:
                 used_ports.add(container.audio_port)
         
+        # Use a random offset to reduce collisions when multiple requests arrive simultaneously
+        port_range = end_port - start_port
+        offset = random.randint(0, port_range - 1)
+        
         # Find available port by checking both database and actual port availability
-        for port in range(start_port, end_port):
+        for i in range(port_range):
+            port = start_port + (offset + i) % port_range
             # Skip if already in database or excluded
             if port in used_ports:
                 continue
@@ -729,18 +734,29 @@ class DockerManager:
         if exclude_ports is None:
             exclude_ports = []
         
-        # Get all currently used ports from database
+        # Get all currently used ports from database (both VNC and audio)
         used_ports = set(exclude_ports)  # Start with excluded ports
         containers = Container.query.filter(
-            Container.status.in_(['running', 'creating']),
-            Container.host_port.isnot(None)
+            Container.status.in_(['running', 'creating', 'stopped', 'error']),
+            or_(
+                Container.host_port.isnot(None),
+                Container.audio_port.isnot(None)
+            )
         ).all()
         
         for container in containers:
-            used_ports.add(container.host_port)
+            if container.host_port:
+                used_ports.add(container.host_port)
+            if container.audio_port:
+                used_ports.add(container.audio_port)
+        
+        # Use a random offset to reduce collisions when multiple requests arrive simultaneously
+        port_range = end_port - start_port
+        offset = random.randint(0, port_range - 1)
         
         # Find available port by checking both database and actual port availability
-        for port in range(start_port, end_port):
+        for i in range(port_range):
+            port = start_port + (offset + i) % port_range
             # Skip if already in database or excluded
             if port in used_ports:
                 continue
@@ -762,9 +778,8 @@ class DockerManager:
             True if port is available, False otherwise
         """
         try:
-            # Try to bind to the port with timeout
+            # Try to bind to the port without SO_REUSEADDR to accurately detect in-use ports
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 s.settimeout(1.0)  # 1 second timeout
                 s.bind(('0.0.0.0', port))
                 return True
