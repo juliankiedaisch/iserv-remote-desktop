@@ -33,10 +33,6 @@ export const Dashboard: React.FC = () => {
     try {
       const result = await startContainer(desktopType);
       if (result) {
-        setStartingProgress(t('dashboard.openingDesktop'));
-        // Use the URL returned from startContainer
-        console.log('Opening viewer with URL:', result);
-        window.open(result, '_blank');
         setStartingProgress(null);
       } else {
         setStartError(t('dashboard.failedToStart'));
