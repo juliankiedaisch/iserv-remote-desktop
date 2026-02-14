@@ -59,6 +59,7 @@ export function useContainers() {
           loading: false,
           error: null,
         }));
+        return response.containers; // Return containers for immediate use
       } else {
         throw new Error(response.error || 'Failed to load containers');
       }
@@ -69,6 +70,7 @@ export function useContainers() {
         loading: false,
         error: error.message || 'Failed to load containers',
       }));
+      throw error; // Re-throw to handle in caller
     }
   }, []);
 
@@ -133,10 +135,13 @@ export function useContainers() {
         await new Promise(resolve => setTimeout(resolve, 500));
 
         // Reload containers to get updated status
-        await loadContainers();
+        const containers = await loadContainers();
 
-        // Get the container URL
-        const container = getContainerByType(desktopType);
+        // Get the container URL - use freshly loaded containers instead of state
+        const container = containers.find(c => c.desktop_type === desktopType && c.status === 'running') 
+                       || containers.filter(c => c.desktop_type === desktopType)
+                                    .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0];
+        
         if (!container || !container.proxy_path) {
           throw new Error('Container created but proxy path not available');
         }
@@ -186,7 +191,7 @@ export function useContainers() {
       await new Promise(resolve => setTimeout(resolve, 500));
 
       // Reload containers to get updated status
-      await loadContainers();
+      const containers = await loadContainers();
 
       // Poll for container readiness
       const maxAttempts = 30;
@@ -228,7 +233,7 @@ export function useContainers() {
       }));
       return null;
     }
-  }, [loadContainers, getContainerByType]);
+  }, [loadContainers]);
 
   // Stop container
   const stopContainer = useCallback(async (desktopType: string): Promise<boolean> => {
