@@ -10,3 +10,6 @@
 - Multiple Assignments with the same image -> different spaces -> teacher should be visible as assignment description
 - Docker system prune from within the admin page
 - Anbindung von IServ Dateien
+- Admin-Panel -> checkout all assignments and manage them
+- teacher assignment -> show all assignments but only the own assignments are changable
+- user -> show assignment name and multiple assignments with the same image should be possible
