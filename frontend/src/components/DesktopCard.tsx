@@ -9,7 +9,7 @@ interface DesktopCardProps {
   container?: Container;
   onStart: (desktopType: string) => void;
   onStop: (desktopType: string) => void;
-  onOpen: (url: string) => void;
+  onOpen: (proxyPath: string) => void;
   isStarting: boolean;
   isStopping: boolean;
 }
