@@ -58,8 +58,8 @@ export const DesktopCard: React.FC<DesktopCardProps> = ({
 
   const handleOpen = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (container?.url) {
-      onOpen(container.url);
+    if (container?.proxy_path) {
+      onOpen(container.proxy_path);
     }
   };
 

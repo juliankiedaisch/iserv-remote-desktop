@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Header, DesktopCard, Loading, Alert } from '../components';
 import { useAuth } from '../hooks/useAuth';
@@ -9,6 +10,7 @@ import './Dashboard.css';
 export const Dashboard: React.FC = () => {
   const { user, isAdmin, isTeacher, logout, loading: authLoading } = useAuth();
   const { themeData } = useTheme();
+  const navigate = useNavigate();
   const { t } = useTranslation();
   const {
     desktopTypes,
@@ -63,10 +65,10 @@ export const Dashboard: React.FC = () => {
     setContainerToStop(null);
   }, []);
 
-  const handleOpen = useCallback((url: string) => {
-    // Open container URL in new tab
-    window.open(url, '_blank');
-  }, []);
+  const handleOpen = useCallback((proxyPath: string) => {
+    // Navigate to Viewer page which embeds VNC and connects audio WebSocket
+    navigate(`/viewer/${proxyPath}`);
+  }, [navigate]);
 
   if (authLoading) {
     return (
