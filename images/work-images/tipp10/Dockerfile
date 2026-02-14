@@ -10,6 +10,10 @@ ENV DONT_PROMPT_WSL_INSTALL "No_Prompt_please"
 ENV LANG=de_DE.UTF-8
 ENV LANGUAGE=de_DE:de
 ENV LC_ALL=de_DE.UTF-8
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=$LANG \
+    LANGUAGE=$LANGUAGE \
+    LC_ALL=$LC_ALL
 WORKDIR $HOME
 
 ######### Customize Container Here ###########
@@ -20,9 +24,16 @@ RUN usermod -a -G sudo kasm-user
 
 # Install Filius
 #COPY ./src/filius_2.9.4_all.deb $INST_SCRIPTS/filius_2.9.4_all.deb
-RUN apt-get update
-#RUN apt-get update && apt-get -y install default-jre
-#RUN dpkg -i $INST_SCRIPTS/filius_2.9.4_all.deb
+
+# Generate and configure German locale
+RUN apt-get update && apt-get -y install locales
+RUN locale-gen de_DE.UTF-8
+RUN update-locale LANG=de_DE.UTF-8
+
+# Install German language pack
+RUN apt-get -y install language-pack-de
+
+# Install tipp10 (should now detect German locale)
 RUN apt-get -y install tipp10
 
 COPY ./src/custom_startup.sh $STARTUPDIR/custom_startup.sh
