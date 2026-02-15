@@ -28,7 +28,7 @@ echo "=========================================="
 # Start the backend (Flask on port 5021)
 echo "[backend]  Starting Flask server on http://localhost:5021 ..."
 cd "$SCRIPT_DIR/backend"
-python run.py &
+.venv/bin/python run.py &
 BACKEND_PID=$!
 
 # Start the frontend (Vite on port 3000)

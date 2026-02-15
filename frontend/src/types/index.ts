@@ -60,6 +60,7 @@ export interface Container {
   container_name: string;
   image_name: string;
   desktop_type: string;
+  assignment_id?: number;
   status: 'creating' | 'running' | 'stopped' | 'error';
   host_port?: number;
   container_port: number;

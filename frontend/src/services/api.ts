@@ -110,9 +110,13 @@ class ApiService {
     return response.data;
   }
 
-  async startContainer(desktopType: string): Promise<ContainerStartResponse> {
+  async startContainer(desktopType: string, assignmentId?: number): Promise<ContainerStartResponse> {
+    const params = new URLSearchParams({ desktop_type: desktopType });
+    if (assignmentId !== undefined) {
+      params.append('assignment_id', assignmentId.toString());
+    }
     const response = await this.client.post<ContainerStartResponse>(
-      `/api/container/start?desktop_type=${encodeURIComponent(desktopType)}`
+      `/api/container/start?${params.toString()}`
     );
     return response.data;
   }

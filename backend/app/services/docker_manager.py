@@ -50,7 +50,7 @@ class DockerManager:
             current_app.logger.error(f"Failed to connect to Docker: {str(e)}")
             raise
     
-    def create_container(self, user_id, session_id, username, desktop_type=None, desktop_image_id=None, max_retries=3):
+    def create_container(self, user_id, session_id, username, desktop_type=None, desktop_image_id=None, assignment_id=None, max_retries=3):
         """
         Create and start a Kasm workspace container for a user
         
@@ -60,6 +60,7 @@ class DockerManager:
             username: User's username
             desktop_type: Type of desktop to create (name from desktop_types table)
             desktop_image_id: ID of the desktop image (for access control)
+            assignment_id: ID of the assignment this container belongs to
             max_retries: Maximum number of retries on port conflicts (default: 3)
             
         Returns:
@@ -69,7 +70,7 @@ class DockerManager:
         last_error = None
         for attempt in range(max_retries):
             try:
-                return self._create_container_internal(user_id, session_id, username, desktop_type, desktop_image_id)
+                return self._create_container_internal(user_id, session_id, username, desktop_type, desktop_image_id, assignment_id)
             except APIError as e:
                 error_msg = str(e)
                 if 'port is already allocated' in error_msg or 'address already in use' in error_msg:
@@ -90,7 +91,7 @@ class DockerManager:
         # If we exhausted all retries, raise the last error
         raise last_error if last_error else Exception("Failed to create container after retries")
     
-    def _create_container_internal(self, user_id, session_id, username, desktop_type=None, desktop_image_id=None):
+    def _create_container_internal(self, user_id, session_id, username, desktop_type=None, desktop_image_id=None, assignment_id=None):
         """
         Internal method to create container (called by create_container with retry logic)
         """
@@ -130,13 +131,13 @@ class DockerManager:
             access_token = secrets.token_urlsafe(12)
             proxy_path = f"{username_safe}-{desktop_type}-{access_token}"
             
-            # Check if container already exists for this user and desktop type (regardless of session)
-            # We want only ONE container per user per desktop_type
+            # Check if container already exists for this user, desktop type, and assignment
+            # We want only ONE container per user per desktop_type per assignment
             # Use row-level locking to prevent concurrent creation attempts
-            existing = Container.query.filter_by(
-                user_id=user_id,
-                desktop_type=desktop_type
-            ).with_for_update(skip_locked=False).first()
+            query_filters = {'user_id': user_id, 'desktop_type': desktop_type}
+            if assignment_id is not None:
+                query_filters['assignment_id'] = assignment_id
+            existing = Container.query.filter_by(**query_filters).with_for_update(skip_locked=False).first()
             
             if existing:
                 # If it's running, update session_id and return it
@@ -298,6 +299,7 @@ class DockerManager:
                 image_name=kasm_image,
                 desktop_type=desktop_type,
                 desktop_image_id=desktop_image_id,
+                assignment_id=assignment_id,
                 status='creating',
                 container_port=container_port,
                 host_port=host_port,

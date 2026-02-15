@@ -15,6 +15,7 @@ class Container(db.Model):
     
     # Desktop image reference
     desktop_image_id = db.Column(db.Integer, db.ForeignKey('desktop_images.id'), nullable=True)
+    assignment_id = db.Column(db.Integer, db.ForeignKey('desktop_assignments.id'), nullable=True)  # Which assignment this container was created for
     
     # Docker container details
     container_id = db.Column(db.String(128), nullable=True)  # Docker container ID
@@ -70,6 +71,7 @@ class Container(db.Model):
             'container_name': self.container_name,
             'desktop_type': self.desktop_type,
             'desktop_image_id': self.desktop_image_id,
+            'assignment_id': self.assignment_id,
             'status': self.status,
             'host_port': self.host_port,
             'proxy_path': self.proxy_path,

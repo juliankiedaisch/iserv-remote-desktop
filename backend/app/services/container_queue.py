@@ -22,6 +22,7 @@ class ContainerCreationRequest:
     def __init__(self, user_id: int, session_id: int, username: str, 
                  desktop_type: Optional[str] = None, 
                  desktop_image_id: Optional[int] = None,
+                 assignment_id: Optional[int] = None,
                  callback: Optional[Callable] = None,
                  error_callback: Optional[Callable] = None):
         """
@@ -33,6 +34,7 @@ class ContainerCreationRequest:
             username: User's username
             desktop_type: Type of desktop to create
             desktop_image_id: ID of the desktop image
+            assignment_id: ID of the assignment this container belongs to
             callback: Function to call on success with container as argument
             error_callback: Function to call on error with exception as argument
         """
@@ -41,6 +43,7 @@ class ContainerCreationRequest:
         self.username = username
         self.desktop_type = desktop_type
         self.desktop_image_id = desktop_image_id
+        self.assignment_id = assignment_id
         self.callback = callback
         self.error_callback = error_callback
         self.timestamp = datetime.now()
@@ -244,7 +247,8 @@ class ContainerQueue:
                                 session_id=request.session_id,
                                 username=request.username,
                                 desktop_type=request.desktop_type,
-                                desktop_image_id=request.desktop_image_id
+                                desktop_image_id=request.desktop_image_id,
+                                assignment_id=request.assignment_id
                             )
                             logger.info(f"Container created successfully: {container.id if container else 'None'}")
                             
