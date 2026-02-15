@@ -177,7 +177,7 @@ export function useContainers() {
         }
 
         // Construct the URL from the proxy path
-        const containerPrefix = process.env.REACT_APP_CONTAINER_PREFIX || 'desktop';
+        const containerPrefix = import.meta.env.VITE_CONTAINER_PREFIX || 'desktop';
         const url = `https://${containerPrefix}-${container.proxy_path}.hub.mdg-hamburg.de`;
         return url;
       }

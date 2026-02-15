@@ -31,7 +31,7 @@ export const Viewer: React.FC = () => {
   // compression=0 disables compression for best quality
   // resize=scale enables client-side scaling for better quality on high-DPI displays
   // anti_aliasing=1 enables edge smoothing for crisp text and graphics
-  const containerPrefix = process.env.REACT_APP_CONTAINER_PREFIX || 'desktop';
+  const containerPrefix = import.meta.env.VITE_CONTAINER_PREFIX || 'desktop';
   
   const vncUrl = `https://${containerPrefix}-${proxyPath}.hub.mdg-hamburg.de/?resize=remote&autoconnect=true&reconnect=true&reconnect_delay=2000&show_control_bar=true&quality=9&compression=0&anti_aliasing=1&view_only=false`;
 
