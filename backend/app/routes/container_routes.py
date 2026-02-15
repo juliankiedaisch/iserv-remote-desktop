@@ -364,25 +364,32 @@ def get_available_desktop_types(user_dict):
         
         available_types = []
         for desktop_type in all_types:
-            # Check if user has access
-            has_access, assignment = DesktopAssignment.check_access(desktop_type.id, user.id, user_group_ids)
-            if has_access:
-                desktop_data = {
-                    'id': desktop_type.id,
-                    'name': desktop_type.name,
-                    'docker_image': desktop_type.docker_image,
-                    'description': desktop_type.description,
-                    'icon': desktop_type.icon
-                }
-                
-                # Include assignment info if available
-                if assignment:
-                    desktop_data['assignment'] = {
-                        'folder_path': assignment.assignment_folder_path,
-                        'folder_name': assignment.assignment_folder_name
+            # Get ALL assignments for this user/image combination
+            user_assignments = DesktopAssignment.get_user_assignments(
+                user.id, user_group_ids
+            )
+            image_assignments = [a for a in user_assignments if a.desktop_image_id == desktop_type.id]
+            
+            if image_assignments:
+                for assignment in image_assignments:
+                    desktop_data = {
+                        'id': desktop_type.id,
+                        'name': desktop_type.name,
+                        'docker_image': desktop_type.docker_image,
+                        'description': desktop_type.description,
+                        'icon': desktop_type.icon,
+                        'assignment': {
+                            'id': assignment.id,
+                            'folder_path': assignment.assignment_folder_path,
+                            'folder_name': assignment.assignment_folder_name,
+                            'description': assignment.description,
+                            'teacher': {
+                                'id': assignment.teacher.id,
+                                'username': assignment.teacher.username
+                            } if assignment.teacher else None
+                        }
                     }
-                
-                available_types.append(desktop_data)
+                    available_types.append(desktop_data)
         
         return jsonify({
             'success': True,

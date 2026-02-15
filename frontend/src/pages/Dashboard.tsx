@@ -118,9 +118,9 @@ export const Dashboard: React.FC = () => {
       ) : (
         <div className="desktop-grid">
           {desktopTypes.length > 0 ? (
-            desktopTypes.map((dt) => (
+            desktopTypes.map((dt, index) => (
               <DesktopCard
-                key={dt.name}
+                key={dt.assignment?.id ? `assignment-${dt.assignment.id}` : `${dt.name}-${index}`}
                 desktopType={dt}
                 container={getContainerByType(dt.name)}
                 onStart={handleStart}

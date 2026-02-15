@@ -163,25 +163,17 @@ def create_assignment(user):
                 return jsonify({'success': False, 'error': get_message('folder_not_exist', lang)}), 404
         
         created_assignments = []
-        skipped = []
+        
+        # Get description
+        description = data.get('description', '').strip() if data.get('description') else None
         
         # Create assignments for each group
         for group_id in group_ids:
-            # Check for duplicate
-            existing = DesktopAssignment.query.filter_by(
-                desktop_image_id=data['desktop_image_id'],
-                group_id=group_id
-            ).first()
-            
-            if existing:
-                group = Group.query.get(group_id)
-                skipped.append(f"Group: {group.name if group else group_id} (already exists)")
-                continue
-            
             assignment = DesktopAssignment(
                 desktop_image_id=data['desktop_image_id'],
                 group_id=group_id,
                 user_id=None,
+                description=description,
                 assignment_folder_path=folder_path if folder_path else None,
                 assignment_folder_name=folder_name,
                 created_by=user['user_id']
@@ -191,21 +183,11 @@ def create_assignment(user):
         
         # Create assignments for each user
         for user_id in user_ids:
-            # Check for duplicate
-            existing = DesktopAssignment.query.filter_by(
-                desktop_image_id=data['desktop_image_id'],
-                user_id=user_id
-            ).first()
-            
-            if existing:
-                assigned_user = User.query.get(user_id)
-                skipped.append(f"User: {assigned_user.username if assigned_user else user_id} (already exists)")
-                continue
-            
             assignment = DesktopAssignment(
                 desktop_image_id=data['desktop_image_id'],
                 group_id=None,
                 user_id=user_id,
+                description=description,
                 assignment_folder_path=folder_path if folder_path else None,
                 assignment_folder_name=folder_name,
                 created_by=user['user_id']
@@ -228,9 +210,6 @@ def create_assignment(user):
             'created': len(reloaded_assignments),
             'assignments': [a.to_dict(include_relations=True) for a in reloaded_assignments]
         }
-        
-        if skipped:
-            response['skipped'] = skipped
         
         return jsonify(response), 201
         
@@ -283,6 +262,10 @@ def update_assignment(user, assignment_id):
         
         data = request.json
         
+        # Update description
+        if 'description' in data:
+            assignment.description = data['description'].strip() if data['description'] else None
+        
         # Update folder path
         if 'assignment_folder_path' in data:
             folder_path = data['assignment_folder_path'].strip() if data['assignment_folder_path'] else None
@@ -295,6 +278,36 @@ def update_assignment(user, assignment_id):
         # Update folder name
         if 'assignment_folder_name' in data:
             assignment.assignment_folder_name = data['assignment_folder_name']
+        
+        # Update group_ids if provided
+        if 'group_ids' in data:
+            new_group_ids = data.get('group_ids', [])
+            new_user_ids = data.get('user_ids', [])
+            
+            if not new_group_ids and not new_user_ids:
+                return jsonify({'success': False, 'error': get_message('at_least_one_group_or_user', lang)}), 400
+            
+            # For simplicity, update the existing assignment's target
+            # If multiple groups/users provided, keep first in this assignment
+            if new_group_ids:
+                assignment.group_id = new_group_ids[0]
+                assignment.user_id = None
+            elif new_user_ids:
+                assignment.user_id = new_user_ids[0]
+                assignment.group_id = None
+        elif 'user_ids' in data:
+            new_user_ids = data.get('user_ids', [])
+            new_group_ids = data.get('group_ids', [])
+            
+            if not new_group_ids and not new_user_ids:
+                return jsonify({'success': False, 'error': get_message('at_least_one_group_or_user', lang)}), 400
+            
+            if new_user_ids:
+                assignment.user_id = new_user_ids[0]
+                assignment.group_id = None
+            elif new_group_ids:
+                assignment.group_id = new_group_ids[0]
+                assignment.user_id = None
         
         db.session.commit()
         
