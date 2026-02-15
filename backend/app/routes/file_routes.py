@@ -197,13 +197,19 @@ def upload_file(user_dict):
             # Try to create the directory if it doesn't exist
             # This handles the case where an assigned folder path exists in DB but not on filesystem
             try:
-                os.makedirs(target_dir, exist_ok=True)
-                # Set proper permissions on the created directory
-                uid = current_app.config.get('CONTAINER_USER_ID', 1000)
-                gid = current_app.config.get('CONTAINER_GROUP_ID', 1000)
-                os.chown(target_dir, uid, gid)
-                os.chmod(target_dir, 0o755)
+                # Create directory with mode set atomically to avoid race conditions
+                os.makedirs(target_dir, mode=0o755, exist_ok=True)
                 current_app.logger.info(f"Created missing directory for upload: {target_dir}")
+                
+                # Set ownership - this may fail if not running with appropriate privileges
+                try:
+                    uid = current_app.config.get('CONTAINER_USER_ID', 1000)
+                    gid = current_app.config.get('CONTAINER_GROUP_ID', 1000)
+                    os.chown(target_dir, uid, gid)
+                except PermissionError as pe:
+                    current_app.logger.warning(f"Could not set ownership on {target_dir} (insufficient privileges): {str(pe)}")
+                except OSError as ose:
+                    current_app.logger.warning(f"Could not set ownership on {target_dir}: {str(ose)}")
             except Exception as e:
                 current_app.logger.error(f"Failed to create directory {target_dir}: {str(e)}")
                 return jsonify({
