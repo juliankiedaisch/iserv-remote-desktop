@@ -191,12 +191,25 @@ def upload_file(user_dict):
                 'error': get_message('invalid_path', lang)
             }), 403
         
-        # Validate that parent directory exists (no implicit directory creation)
+        # Validate that target directory exists
+        # Note: Users can upload to their own assigned folders since they own them
         if not os.path.exists(target_dir):
-            return jsonify({
-                'success': False,
-                'error': get_message('upload_directory_not_exist', lang)
-            }), 400
+            # Try to create the directory if it doesn't exist
+            # This handles the case where an assigned folder path exists in DB but not on filesystem
+            try:
+                os.makedirs(target_dir, exist_ok=True)
+                # Set proper permissions on the created directory
+                uid = current_app.config.get('CONTAINER_USER_ID', 1000)
+                gid = current_app.config.get('CONTAINER_GROUP_ID', 1000)
+                os.chown(target_dir, uid, gid)
+                os.chmod(target_dir, 0o755)
+                current_app.logger.info(f"Created missing directory for upload: {target_dir}")
+            except Exception as e:
+                current_app.logger.error(f"Failed to create directory {target_dir}: {str(e)}")
+                return jsonify({
+                    'success': False,
+                    'error': get_message('upload_directory_not_exist', lang)
+                }), 400
         
         # Secure the filename
         filename = secure_filename(file.filename)
