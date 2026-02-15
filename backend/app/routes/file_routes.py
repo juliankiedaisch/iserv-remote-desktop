@@ -198,6 +198,8 @@ def upload_file(user_dict):
             # This handles the case where an assigned folder path exists in DB but not on filesystem
             try:
                 # Create directory with mode set atomically to avoid race conditions
+                # exist_ok=True is intentional: if another process creates the directory concurrently,
+                # we want the upload to succeed (not fail), as long as the directory is accessible
                 os.makedirs(target_dir, mode=0o755, exist_ok=True)
                 current_app.logger.info(f"Created missing directory for upload: {target_dir}")
             except PermissionError as pe:
@@ -218,6 +220,7 @@ def upload_file(user_dict):
             try:
                 # Use configured container user/group IDs (default 1000:1000 matches typical kasm-user)
                 # These defaults are safe as they match the standard Kasm workspace container user
+                # Configuration values are set by administrators and validated at application startup
                 uid = current_app.config.get('CONTAINER_USER_ID', 1000)
                 gid = current_app.config.get('CONTAINER_GROUP_ID', 1000)
                 os.chown(target_dir, uid, gid)
