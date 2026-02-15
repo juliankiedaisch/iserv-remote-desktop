@@ -42,7 +42,8 @@ done
 log "Syncing visible files to private directory..."
 
 # Sync ALL non-hidden files and folders from home directory
-find "$HOME_DIR" -maxdepth 1 ! -name ".*" ! -name "kasm-user" -print0 | while IFS= read -r -d '' item; do
+# Exclude the Public folder - it contains read-only mounted assignment folders
+find "$HOME_DIR" -maxdepth 1 ! -name ".*" ! -name "kasm-user" ! -name "Public" -print0 | while IFS= read -r -d '' item; do
     basename=$(basename "$item")
     dest="$PRIVATE_DIR/$basename"
     
