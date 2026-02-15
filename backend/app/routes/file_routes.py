@@ -200,22 +200,33 @@ def upload_file(user_dict):
                 # Create directory with mode set atomically to avoid race conditions
                 os.makedirs(target_dir, mode=0o755, exist_ok=True)
                 current_app.logger.info(f"Created missing directory for upload: {target_dir}")
-                
-                # Set ownership - this may fail if not running with appropriate privileges
-                try:
-                    uid = current_app.config.get('CONTAINER_USER_ID', 1000)
-                    gid = current_app.config.get('CONTAINER_GROUP_ID', 1000)
-                    os.chown(target_dir, uid, gid)
-                except PermissionError as pe:
-                    current_app.logger.warning(f"Could not set ownership on {target_dir} (insufficient privileges): {str(pe)}")
-                except OSError as ose:
-                    current_app.logger.warning(f"Could not set ownership on {target_dir}: {str(ose)}")
-            except Exception as e:
-                current_app.logger.error(f"Failed to create directory {target_dir}: {str(e)}")
+            except PermissionError as pe:
+                current_app.logger.error(f"Permission denied creating directory {target_dir}: {str(pe)}")
+                return jsonify({
+                    'success': False,
+                    'error': get_message('permission_denied', lang)
+                }), 403
+            except OSError as ose:
+                current_app.logger.error(f"Failed to create directory {target_dir}: {str(ose)}")
                 return jsonify({
                     'success': False,
                     'error': get_message('upload_directory_not_exist', lang)
                 }), 400
+            
+            # Set ownership on the newly created directory
+            # Note: This may fail if not running with appropriate privileges, but upload can still succeed
+            try:
+                # Use configured container user/group IDs (default 1000:1000 matches typical kasm-user)
+                # These defaults are safe as they match the standard Kasm workspace container user
+                uid = current_app.config.get('CONTAINER_USER_ID', 1000)
+                gid = current_app.config.get('CONTAINER_GROUP_ID', 1000)
+                os.chown(target_dir, uid, gid)
+            except PermissionError:
+                # Ownership change failed due to insufficient privileges - this is non-fatal
+                current_app.logger.warning(f"Could not set ownership on {target_dir} (insufficient privileges)")
+            except OSError as ose:
+                # Other OS error during ownership change - this is non-fatal
+                current_app.logger.warning(f"Could not set ownership on {target_dir}: {str(ose)}")
         
         # Secure the filename
         filename = secure_filename(file.filename)
