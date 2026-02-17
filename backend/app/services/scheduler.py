@@ -117,6 +117,7 @@ def check_idle_containers():
     """Background task to check and stop idle containers"""
     from app.services.docker_manager import DockerManager
     from flask import current_app
+    import time
     
     try:
         # Get idle timeout from config (default: 1.5 hours = 90 minutes)
@@ -126,16 +127,18 @@ def check_idle_containers():
             f"[Scheduler] Checking for idle containers (timeout: {idle_hours} hours)"
         )
         
+        start_time = time.time()
         docker_manager = DockerManager()
         stopped_count = docker_manager.stop_idle_containers(idle_hours=idle_hours)
+        elapsed = time.time() - start_time
         
         if stopped_count > 0:
             current_app.logger.info(
-                f"[Scheduler] Stopped {stopped_count} idle containers"
+                f"[Scheduler] Stopped {stopped_count} idle containers in {elapsed:.2f}s"
             )
         else:
             current_app.logger.debug(
-                f"[Scheduler] No idle containers to stop"
+                f"[Scheduler] No idle containers to stop (checked in {elapsed:.2f}s)"
             )
     except Exception as e:
         current_app.logger.error(f"[Scheduler] Failed to check idle containers: {str(e)}")

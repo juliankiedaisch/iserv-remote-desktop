@@ -15,6 +15,8 @@ from app.models.users import User
 import tarfile
 import io
 import shutil
+from gevent.pool import Pool as GPool
+import time
 # Import WebSocket event emitters (lazy import to avoid circular dependencies)
 def _emit_container_created(container, user_id):
     try:
@@ -498,28 +500,47 @@ class DockerManager:
                 )
                 return
             
-            container = self.client.containers.get(container_record.container_id)
-            container.stop(timeout=10)
-            
-            container_record.status = 'stopped'
-            container_record.stopped_at = datetime.now(timezone.utc)
+            # Step 1: Set status to 'stopping' and release database lock
+            container_record.status = 'stopping'
             db.session.commit()
             
-            current_app.logger.info(
-                f"Container {container_record.container_name} stopped"
-            )
+            # Step 2: Stop Docker container (potentially slow operation)
+            try:
+                container = self.client.containers.get(container_record.container_id)
+                # Reduced timeout from 10 to 5 seconds to be less blocking
+                container.stop(timeout=10)
+                
+                # Step 3: Update to 'stopped' on success
+                container_record.status = 'stopped'
+                container_record.stopped_at = datetime.now(timezone.utc)
+                db.session.commit()
+                
+                current_app.logger.info(
+                    f"Container {container_record.container_name} stopped"
+                )
+                
+                # Emit WebSocket event for real-time updates
+                _emit_container_stopped(container_record, user_id)
+                
+            except NotFound:
+                # Container doesn't exist in Docker - mark as stopped anyway
+                current_app.logger.warning(
+                    f"Container {container_record.container_id} not found in Docker"
+                )
+                container_record.status = 'stopped'
+                db.session.commit()
+                # Still emit the event
+                _emit_container_stopped(container_record, user_id)
+                
+            except Exception as docker_error:
+                # Docker operation failed - mark as error
+                current_app.logger.error(
+                    f"Failed to stop Docker container {container_record.container_name}: {str(docker_error)}"
+                )
+                container_record.status = 'error'
+                db.session.commit()
+                raise
             
-            # Emit WebSocket event for real-time updates
-            _emit_container_stopped(container_record, user_id)
-            
-        except NotFound:
-            current_app.logger.warning(
-                f"Container {container_record.container_id} not found in Docker"
-            )
-            container_record.status = 'stopped'
-            db.session.commit()
-            # Still emit the event
-            _emit_container_stopped(container_record, container_record.user_id)
         except Exception as e:
             current_app.logger.error(f"Failed to stop container: {str(e)}")
             db.session.rollback()
@@ -641,8 +662,20 @@ class DockerManager:
                 )
             ).all()
             
+            if not idle_containers:
+                return 0
+            
+            current_app.logger.info(
+                f"Found {len(idle_containers)} idle containers to stop"
+            )
+            
+            # Stop containers in parallel using gevent pool to avoid blocking
+            # Limit to 5 concurrent stops to avoid overwhelming the system
+            pool = GPool(5)
             stopped_count = 0
-            for container in idle_containers:
+            
+            def stop_single_container(container):
+                """Helper function to stop a single container"""
                 try:
                     # Initialize last_accessed if it's NULL (for backwards compatibility)
                     if container.last_accessed is None:
@@ -656,16 +689,21 @@ class DockerManager:
                     status_info = self.get_container_status(container)
                     if status_info.get('status') == 'running':
                         self.stop_container(container)
-                        stopped_count += 1
                         current_app.logger.info(
                             f"Stopped idle container {container.container_name} "
                             f"(last accessed: {container.last_accessed}, cutoff: {cutoff_time})"
                         )
+                        return 1
+                    return 0
                 except Exception as e:
                     current_app.logger.error(
                         f"Failed to stop idle container {container.container_name}: {str(e)}"
                     )
-                    continue
+                    return 0
+            
+            # Use gevent pool to stop containers in parallel
+            results = pool.map(stop_single_container, idle_containers)
+            stopped_count = sum(results)
             
             if stopped_count > 0:
                 current_app.logger.info(
