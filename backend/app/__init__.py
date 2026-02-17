@@ -109,7 +109,7 @@ def create_app(debug=False):
     # Sync database with Docker every 5 minutes
     scheduler.add_task(sync_database_with_docker, interval_seconds=300, name='sync_database')
     # Check for idle containers every 30 minutes
-    scheduler.add_task(check_idle_containers, interval_seconds=1800, name='check_idle_containers')
+    scheduler.add_task(check_idle_containers, interval_seconds=300, name='check_idle_containers')
     # Note: cleanup_old_containers is NOT scheduled - containers are kept so users can restart them
     # Only manually cleanup old containers if needed via admin panel
 

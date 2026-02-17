@@ -94,6 +94,47 @@ def register_handlers():
         if container_id:
             leave_room(f"container_{container_id}")
             current_app.logger.debug(f"WebSocket: Unsubscribed from container_{container_id}")
+    
+    @socketio.on('container_heartbeat')
+    def handle_container_heartbeat(data):
+        """
+        Handle heartbeat from viewer to track container activity.
+        Updates the container's last_accessed timestamp to prevent idle shutdown.
+        
+        Args:
+            data: Dict containing 'proxy_path' or 'container_id'
+        """
+        try:
+            from app.models.containers import Container
+            from app import db
+            
+            proxy_path = data.get('proxy_path')
+            container_id = data.get('container_id')
+            
+            if not proxy_path and not container_id:
+                current_app.logger.warning("WebSocket heartbeat without proxy_path or container_id")
+                return
+            
+            # Find container by proxy_path or container_id
+            if proxy_path:
+                container = Container.query.filter_by(proxy_path=proxy_path).first()
+            else:
+                container = Container.query.filter_by(id=container_id).first()
+            
+            if not container:
+                current_app.logger.warning(f"WebSocket heartbeat: Container not found (proxy_path={proxy_path}, id={container_id})")
+                return
+            
+            # Update last_accessed timestamp
+            container.last_accessed = datetime.now(timezone.utc)
+            db.session.commit()
+            
+            current_app.logger.debug(f"Container heartbeat: Updated last_accessed for {container.container_name}")
+            
+        except Exception as e:
+            current_app.logger.error(f"Error handling container heartbeat: {str(e)}")
+            from app import db
+            db.session.rollback()
 
 
 def emit_container_status(container, user_id=None):

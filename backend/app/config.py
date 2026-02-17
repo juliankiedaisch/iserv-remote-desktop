@@ -35,7 +35,8 @@ class Config:
     EXTERN_SHARED_DIR = os.environ.get('EXTERN_SHARED_DIR', '/data/shared/public')
     
     # Container idle timeout (in hours) - containers inactive for this duration will be stopped
-    CONTAINER_IDLE_TIMEOUT_HOURS = int(os.environ.get('CONTAINER_IDLE_TIMEOUT_HOURS', 6))
+    # Default: 1.5 hours = 90 minutes
+    CONTAINER_IDLE_TIMEOUT_HOURS = float(os.environ.get('CONTAINER_IDLE_TIMEOUT_HOURS', 1.5))
 
     POSTGRES_USER = os.environ.get('POSTGRES_USER')
     POSTGRES_PASSWORD = os.environ.get('POSTGRES_PASSWORD')

@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 // @ts-ignore
 import JSMpeg from '@cycjimmy/jsmpeg-player';
+import { wsService } from '../services/websocket';
 import './Viewer.css';
 
 /**
@@ -93,6 +94,29 @@ export const Viewer: React.FC = () => {
       }
     };
   }, [proxyPath, containerPrefix]);
+
+  // Send periodic heartbeat to keep container alive
+  useEffect(() => {
+    if (!proxyPath) return;
+
+    // Ensure WebSocket is connected
+    wsService.connect();
+
+    // Send initial heartbeat
+    wsService.sendContainerHeartbeat(proxyPath);
+    console.log('Sent initial container heartbeat');
+
+    // Send heartbeat every 60 seconds to update last_accessed timestamp
+    const heartbeatInterval = setInterval(() => {
+      wsService.sendContainerHeartbeat(proxyPath);
+      console.log('Sent container heartbeat');
+    }, 60000); // 60 seconds
+
+    // Cleanup
+    return () => {
+      clearInterval(heartbeatInterval);
+    };
+  }, [proxyPath]);
 
   return (
     <div className="viewer-container">

@@ -44,6 +44,10 @@ class BackgroundScheduler:
             'last_run': None
         }
         self.tasks.append(task)
+        
+        # Always print to console for visibility
+        print(f"Scheduled task: {task['name']} (every {interval_seconds}s)")
+        
         # Log only when app context is available
         if self.app:
             with self.app.app_context():
@@ -52,16 +56,18 @@ class BackgroundScheduler:
     def start(self):
         """Start the scheduler in a background thread"""
         if self.running:
+            print("Background scheduler already running")
             return
         
         self.running = True
         self.thread = threading.Thread(target=self._run, daemon=True)
         self.thread.start()
         
+        print(f"Background scheduler started with {len(self.tasks)} tasks")
         # Log only when app context is available
         if self.app:
             with self.app.app_context():
-                current_app.logger.info("Background scheduler started")
+                current_app.logger.info(f"Background scheduler started with {len(self.tasks)} tasks")
     
     def stop(self):
         """Stop the scheduler"""
@@ -86,12 +92,18 @@ class BackgroundScheduler:
                     try:
                         # Run task in app context
                         with self.app.app_context():
+                            current_app.logger.debug(f"[Scheduler] Running task: {task['name']}")
                             task['func']()
                             task['last_run'] = now
                     except Exception as e:
-                        current_app.logger.error(
-                            f"Error running scheduled task {task['name']}: {str(e)}"
-                        )
+                        # Use print to ensure errors are visible even if logging fails
+                        print(f"ERROR in scheduled task {task['name']}: {str(e)}")
+                        if self.app:
+                            with self.app.app_context():
+                                current_app.logger.error(
+                                    f"Error running scheduled task {task['name']}: {str(e)}",
+                                    exc_info=True
+                                )
             
             # Sleep for a short time before checking again
             time.sleep(60)  # Check every minute
@@ -107,8 +119,12 @@ def check_idle_containers():
     from flask import current_app
     
     try:
-        # Get idle timeout from config (default: 6 hours)
-        idle_hours = current_app.config.get('CONTAINER_IDLE_TIMEOUT_HOURS', 6)
+        # Get idle timeout from config (default: 1.5 hours = 90 minutes)
+        idle_hours = current_app.config.get('CONTAINER_IDLE_TIMEOUT_HOURS', 1.5)
+        
+        current_app.logger.info(
+            f"[Scheduler] Checking for idle containers (timeout: {idle_hours} hours)"
+        )
         
         docker_manager = DockerManager()
         stopped_count = docker_manager.stop_idle_containers(idle_hours=idle_hours)
@@ -116,6 +132,10 @@ def check_idle_containers():
         if stopped_count > 0:
             current_app.logger.info(
                 f"[Scheduler] Stopped {stopped_count} idle containers"
+            )
+        else:
+            current_app.logger.debug(
+                f"[Scheduler] No idle containers to stop"
             )
     except Exception as e:
         current_app.logger.error(f"[Scheduler] Failed to check idle containers: {str(e)}")

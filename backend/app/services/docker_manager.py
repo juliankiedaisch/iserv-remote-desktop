@@ -616,12 +616,12 @@ class DockerManager:
             current_app.logger.error(f"Failed to cleanup containers: {str(e)}")
             db.session.rollback()
     
-    def stop_idle_containers(self, idle_hours=6):
+    def stop_idle_containers(self, idle_hours=1.5):
         """
         Stop containers that haven't been accessed for the specified time
         
         Args:
-            idle_hours: Number of hours of inactivity before stopping (default: 6)
+            idle_hours: Number of hours of inactivity before stopping (default: 1.5 = 90 minutes)
         """
         try:
             from datetime import timedelta
@@ -630,14 +630,26 @@ class DockerManager:
             cutoff_time = datetime.now(timezone.utc) - timedelta(hours=idle_hours)
             
             # Get all running containers that haven't been accessed recently
+            # Use OR condition to catch containers with NULL last_accessed (treat as very old)
             idle_containers = Container.query.filter(
                 Container.status == 'running',
-                Container.last_accessed < cutoff_time
+                or_(
+                    Container.last_accessed < cutoff_time,
+                    Container.last_accessed.is_(None)
+                )
             ).all()
             
             stopped_count = 0
             for container in idle_containers:
                 try:
+                    # Initialize last_accessed if it's NULL (for backwards compatibility)
+                    if container.last_accessed is None:
+                        container.last_accessed = container.started_at or container.created_at or datetime.now(timezone.utc)
+                        db.session.commit()
+                        current_app.logger.info(
+                            f"Initialized last_accessed for container {container.container_name}"
+                        )
+                    
                     # Verify it's still running in Docker before stopping
                     status_info = self.get_container_status(container)
                     if status_info.get('status') == 'running':
@@ -645,7 +657,7 @@ class DockerManager:
                         stopped_count += 1
                         current_app.logger.info(
                             f"Stopped idle container {container.container_name} "
-                            f"(last accessed: {container.last_accessed})"
+                            f"(last accessed: {container.last_accessed}, cutoff: {cutoff_time})"
                         )
                 except Exception as e:
                     current_app.logger.error(

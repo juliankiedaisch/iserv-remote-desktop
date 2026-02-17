@@ -199,6 +199,13 @@ class WebSocketService {
       this.socket.emit('unsubscribe', { container_id: containerId });
     }
   }
+
+  // Send heartbeat to keep container alive
+  sendContainerHeartbeat(proxyPath: string): void {
+    if (this.socket?.connected) {
+      this.socket.emit('container_heartbeat', { proxy_path: proxyPath });
+    }
+  }
 }
 
 // Export singleton instance
