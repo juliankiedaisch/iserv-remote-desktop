@@ -11,7 +11,7 @@ import {
 
 // Get API base URL from environment or use current origin for absolute URLs
 // This fixes 421 Misdirected Request errors on iOS/Safari by ensuring proper SNI
-const API_BASE_URL = process.env.REACT_APP_API_URL || window.location.origin;
+const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
 
 class ApiService {
   private client: AxiosInstance;
@@ -110,9 +110,13 @@ class ApiService {
     return response.data;
   }
 
-  async startContainer(desktopType: string): Promise<ContainerStartResponse> {
+  async startContainer(desktopType: string, assignmentId?: number): Promise<ContainerStartResponse> {
+    const params = new URLSearchParams({ desktop_type: desktopType });
+    if (assignmentId !== undefined) {
+      params.append('assignment_id', assignmentId.toString());
+    }
     const response = await this.client.post<ContainerStartResponse>(
-      `/api/container/start?desktop_type=${encodeURIComponent(desktopType)}`
+      `/api/container/start?${params.toString()}`
     );
     return response.data;
   }

@@ -99,12 +99,12 @@ The application uses a **separated frontend-backend architecture**:
 3. Configure environment (optional):
    ```bash
    cp .env.example .env
-   # Edit .env to set REACT_APP_API_URL if backend is on different host
+   # Edit .env to set VITE_API_URL if backend is on different host
    ```
 
 4. For development:
    ```bash
-   npm start
+   npm run dev
    ```
 
 5. For production build:

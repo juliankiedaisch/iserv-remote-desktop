@@ -109,7 +109,19 @@ export const DesktopCard: React.FC<DesktopCardProps> = ({
           )}
         </div>
         <div className="desktop-name">{desktopType.name}</div>
-        <div className="desktop-description">{desktopType.description || ''}</div>
+        <div className="desktop-description">{desktopType.assignment?.description || desktopType.description || ''}</div>
+        
+        {desktopType.assignment?.teacher && (
+          <div className="desktop-teacher">
+            👨‍🏫 {desktopType.assignment.teacher.username}
+          </div>
+        )}
+        
+        {desktopType.assignment?.folder_name && (
+          <div className="desktop-folder">
+            📁 {desktopType.assignment.folder_name}
+          </div>
+        )}
         
         <div className="desktop-status">
           <span className={`status-indicator ${isRunning ? 'running' : 'stopped'}`}></span>

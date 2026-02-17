@@ -74,10 +74,15 @@ export function useContainers() {
     }
   }, []);
 
-    // Get container by desktop type
-  const getContainerByType = useCallback((desktopType: string): Container | undefined => {
+    // Get container by desktop type and optional assignment ID
+  const getContainerByType = useCallback((desktopType: string, assignmentId?: number): Container | undefined => {
     // Get all containers for this desktop type
-    const matchingContainers = state.containers.filter(c => c.desktop_type === desktopType);
+    let matchingContainers = state.containers.filter(c => c.desktop_type === desktopType);
+    
+    // If assignment ID is provided, filter by it
+    if (assignmentId !== undefined) {
+      matchingContainers = matchingContainers.filter(c => c.assignment_id === assignmentId);
+    }
     
     if (matchingContainers.length === 0) {
       return undefined;
@@ -97,11 +102,11 @@ export function useContainers() {
     })[0];
   }, [state.containers]);
   // Start container with health polling
-  const startContainer = useCallback(async (desktopType: string): Promise<string | null> => {
+  const startContainer = useCallback(async (desktopType: string, assignmentId?: number): Promise<string | null> => {
     setState(prev => ({ ...prev, starting: desktopType, error: null }));
 
     try {
-      const response = await apiService.startContainer(desktopType);
+      const response = await apiService.startContainer(desktopType, assignmentId);
       
       if (!response.success) {
         throw new Error(response.error || 'Failed to start container');
@@ -177,7 +182,7 @@ export function useContainers() {
         }
 
         // Construct the URL from the proxy path
-        const containerPrefix = process.env.REACT_APP_CONTAINER_PREFIX || 'desktop';
+        const containerPrefix = import.meta.env.VITE_CONTAINER_PREFIX || 'desktop';
         const url = `https://${containerPrefix}-${container.proxy_path}.hub.mdg-hamburg.de`;
         return url;
       }

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import './VersionFooter.css';
 
 // Import version directly - will be bundled at build time
-const FRONTEND_VERSION = process.env.REACT_APP_VERSION || '1.0.1';
+const FRONTEND_VERSION = import.meta.env.VITE_VERSION || '1.0.1';
 
 const VersionFooter: React.FC = () => {
   const [backendVersion, setBackendVersion] = useState<string>('...');

@@ -40,6 +40,16 @@ export interface DesktopType {
   docker_image: string;
   description?: string;
   icon?: string;
+  assignment?: {
+    id: number;
+    folder_path?: string;
+    folder_name?: string;
+    description?: string;
+    teacher?: {
+      id: string;
+      username: string;
+    };
+  };
 }
 
 export interface Container {
@@ -50,6 +60,7 @@ export interface Container {
   container_name: string;
   image_name: string;
   desktop_type: string;
+  assignment_id?: number;
   status: 'creating' | 'running' | 'stopped' | 'error';
   host_port?: number;
   container_port: number;

@@ -32,6 +32,7 @@ interface Assignment {
   desktop_image_id: number;
   group_id: number | null;
   user_id: string | null;
+  description: string | null;
   assignment_folder_path: string | null;
   assignment_folder_name: string | null;
   created_by: string;
@@ -69,11 +70,16 @@ export const AssignmentManager: React.FC = () => {
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
 
+  // Search/filter state for multi-select
+  const [groupSearch, setGroupSearch] = useState('');
+  const [userSearch, setUserSearch] = useState('');
+
   // Form state
   const [formData, setFormData] = useState({
     desktop_image_id: '',
     group_ids: [] as number[],
     user_ids: [] as string[],
+    description: '',
     assignment_folder_path: '',
     assignment_folder_name: '',
   });
@@ -145,6 +151,7 @@ export const AssignmentManager: React.FC = () => {
         desktop_image_id: parseInt(formData.desktop_image_id),
         group_ids: formData.group_ids,
         user_ids: formData.user_ids,
+        description: formData.description || null,
         assignment_folder_path: selectedFolder,
         assignment_folder_name: selectedFolder ? selectedFolder.split('/').pop() : null,
       };
@@ -165,6 +172,9 @@ export const AssignmentManager: React.FC = () => {
 
     try {
       await apiService.put(`/api/teacher/assignments/${selectedAssignment.id}`, {
+        description: formData.description || null,
+        group_ids: formData.group_ids,
+        user_ids: formData.user_ids,
         assignment_folder_path: selectedFolder,
         assignment_folder_name: selectedFolder ? selectedFolder.split('/').pop() : null,
       });
@@ -209,12 +219,14 @@ export const AssignmentManager: React.FC = () => {
       desktop_image_id: assignment.desktop_image_id.toString(),
       group_ids: assignment.group_id ? [assignment.group_id] : [],
       user_ids: assignment.user_id ? [assignment.user_id] : [],
+      description: assignment.description || '',
       assignment_folder_path: assignment.assignment_folder_path || '',
       assignment_folder_name: assignment.assignment_folder_name || '',
     });
     if (assignment.assignment_folder_path) {
       setSelectedFolder(assignment.assignment_folder_path);
     }
+    loadUsers();
     setShowEditModal(true);
   };
 
@@ -223,13 +235,44 @@ export const AssignmentManager: React.FC = () => {
       desktop_image_id: '',
       group_ids: [],
       user_ids: [],
+      description: '',
       assignment_folder_path: '',
       assignment_folder_name: '',
     });
     setSelectedFolder(null);
     setCurrentBrowserPath('');
     setBrowserFiles([]);
+    setGroupSearch('');
+    setUserSearch('');
   };
+
+  // Toggle helpers for chip selection
+  const toggleGroup = (groupId: number) => {
+    setFormData(prev => ({
+      ...prev,
+      group_ids: prev.group_ids.includes(groupId)
+        ? prev.group_ids.filter(id => id !== groupId)
+        : [...prev.group_ids, groupId]
+    }));
+  };
+
+  const toggleUser = (userId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      user_ids: prev.user_ids.includes(userId)
+        ? prev.user_ids.filter(id => id !== userId)
+        : [...prev.user_ids, userId]
+    }));
+  };
+
+  const filteredGroups = groups.filter(g =>
+    g.name.toLowerCase().includes(groupSearch.toLowerCase())
+  );
+
+  const filteredUsers = users.filter(u =>
+    u.username.toLowerCase().includes(userSearch.toLowerCase()) ||
+    u.email.toLowerCase().includes(userSearch.toLowerCase())
+  );
 
 
 
@@ -274,8 +317,10 @@ export const AssignmentManager: React.FC = () => {
             <thead>
               <tr>
                 <th>{t('assignments.desktopImage')}</th>
+                <th>{t('assignments.description')}</th>
                 <th>{t('assignments.assignedTo')}</th>
                 <th>{t('assignments.folder')}</th>
+                <th>{t('assignments.teacher')}</th>
                 <th>{t('assignments.created')}</th>
                 <th>{t('assignments.actions')}</th>
               </tr>
@@ -290,6 +335,13 @@ export const AssignmentManager: React.FC = () => {
                       <span className="icon">{assignment.desktop_image?.icon}</span>
                     )}
                     {assignment.desktop_image?.name}
+                  </td>
+                  <td>
+                    {assignment.description ? (
+                      <span>{assignment.description}</span>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
                   </td>
                   <td>
                     {assignment.group ? (
@@ -309,6 +361,13 @@ export const AssignmentManager: React.FC = () => {
                       </div>
                     ) : (
                       <span className="text-muted">{t('assignments.noFolder')}</span>
+                    )}
+                  </td>
+                  <td>
+                    {assignment.teacher ? (
+                      <span>👨‍🏫 {assignment.teacher.username}</span>
+                    ) : (
+                      <span className="text-muted">—</span>
                     )}
                   </td>
                   <td>{new Date(assignment.created_at).toLocaleDateString()}</td>
@@ -335,7 +394,7 @@ export const AssignmentManager: React.FC = () => {
       {/* Create Assignment Modal */}
       {showCreateModal && (
         <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content modal-large" onClick={(e) => e.stopPropagation()}>
             <h2>{t('assignments.createNew')}</h2>
             <form onSubmit={handleCreateAssignment}>
               <div className="form-group">
@@ -355,46 +414,93 @@ export const AssignmentManager: React.FC = () => {
               </div>
 
               <div className="form-group">
+                <label>{t('assignments.description')}</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder={t('assignments.descriptionPlaceholder')}
+                  rows={2}
+                  className="form-textarea"
+                />
+                <small className="help-text">{t('assignments.descriptionHint')}</small>
+              </div>
+
+              <div className="form-group">
                 <label>{t('assignments.assignToGroups')}</label>
-                <select
-                  multiple
-                  value={formData.group_ids.map(String)}
-                  onChange={(e) => {
-                    const selected = Array.from(e.target.selectedOptions).map(opt => parseInt(opt.value));
-                    setFormData({ ...formData, group_ids: selected });
-                  }}
-                  size={5}
-                  style={{ minHeight: '100px' }}
-                >
-                  {groups.map((group) => (
-                    <option key={group.id} value={group.id}>
-                      {group.name}
-                    </option>
+                {formData.group_ids.length > 0 && (
+                  <div className="chip-container">
+                    {formData.group_ids.map(gid => {
+                      const group = groups.find(g => g.id === gid);
+                      return group ? (
+                        <span key={gid} className="chip chip-group">
+                          👥 {group.name}
+                          <button type="button" className="chip-remove" onClick={() => toggleGroup(gid)}>✕</button>
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
+                )}
+                <input
+                  type="text"
+                  value={groupSearch}
+                  onChange={(e) => setGroupSearch(e.target.value)}
+                  placeholder={t('assignments.searchGroups')}
+                  className="search-input"
+                />
+                <div className="selectable-list">
+                  {filteredGroups.map((group) => (
+                    <div
+                      key={group.id}
+                      className={`selectable-item ${formData.group_ids.includes(group.id) ? 'selected' : ''}`}
+                      onClick={() => toggleGroup(group.id)}
+                    >
+                      <span className="selectable-check">{formData.group_ids.includes(group.id) ? '☑' : '☐'}</span>
+                      <span>👥 {group.name}</span>
+                    </div>
                   ))}
-                </select>
-                <small className="help-text">{t('assignments.multiSelectGroupsHint')}</small>
+                  {filteredGroups.length === 0 && (
+                    <div className="selectable-empty">{t('assignments.noGroupsFound')}</div>
+                  )}
+                </div>
               </div>
 
               <div className="form-group">
                 <label>{t('assignments.assignToUsers')}</label>
-                <select
-                  multiple
-                  value={formData.user_ids}
-                  onChange={(e) => {
-                    const selected = Array.from(e.target.selectedOptions).map(opt => opt.value);
-                    setFormData({ ...formData, user_ids: selected });
-                  }}
-                  onFocus={() => users.length === 0 && loadUsers()}
-                  size={5}
-                  style={{ minHeight: '100px' }}
-                >
-                  {users.map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {user.username} ({user.email})
-                    </option>
+                {formData.user_ids.length > 0 && (
+                  <div className="chip-container">
+                    {formData.user_ids.map(uid => {
+                      const u = users.find(u => u.id === uid);
+                      return u ? (
+                        <span key={uid} className="chip chip-user">
+                          👤 {u.username}
+                          <button type="button" className="chip-remove" onClick={() => toggleUser(uid)}>✕</button>
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
+                )}
+                <input
+                  type="text"
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  placeholder={t('assignments.searchUsers')}
+                  className="search-input"
+                />
+                <div className="selectable-list">
+                  {filteredUsers.map((u) => (
+                    <div
+                      key={u.id}
+                      className={`selectable-item ${formData.user_ids.includes(u.id) ? 'selected' : ''}`}
+                      onClick={() => toggleUser(u.id)}
+                    >
+                      <span className="selectable-check">{formData.user_ids.includes(u.id) ? '☑' : '☐'}</span>
+                      <span>👤 {u.username} ({u.email})</span>
+                    </div>
                   ))}
-                </select>
-                <small className="help-text">{t('assignments.multiSelectUsersHint')}</small>
+                  {filteredUsers.length === 0 && (
+                    <div className="selectable-empty">{t('assignments.noUsersFound')}</div>
+                  )}
+                </div>
               </div>
 
               <div className="form-group">
@@ -450,7 +556,7 @@ export const AssignmentManager: React.FC = () => {
       {/* Edit Assignment Modal */}
       {showEditModal && selectedAssignment && (
         <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content modal-large" onClick={(e) => e.stopPropagation()}>
             <h2>{t('assignments.editAssignment')}</h2>
             <form onSubmit={handleUpdateAssignment}>
               <div className="form-group">
@@ -466,9 +572,91 @@ export const AssignmentManager: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label>{t('assignments.assignedToLabel')}</label>
-                <div className="readonly-field">
-                  {selectedAssignment.group?.name || selectedAssignment.assigned_user?.username}
+                <label>{t('assignments.description')}</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder={t('assignments.descriptionPlaceholder')}
+                  rows={2}
+                  className="form-textarea"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>{t('assignments.assignToGroups')}</label>
+                {formData.group_ids.length > 0 && (
+                  <div className="chip-container">
+                    {formData.group_ids.map(gid => {
+                      const group = groups.find(g => g.id === gid);
+                      return group ? (
+                        <span key={gid} className="chip chip-group">
+                          👥 {group.name}
+                          <button type="button" className="chip-remove" onClick={() => toggleGroup(gid)}>✕</button>
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
+                )}
+                <input
+                  type="text"
+                  value={groupSearch}
+                  onChange={(e) => setGroupSearch(e.target.value)}
+                  placeholder={t('assignments.searchGroups')}
+                  className="search-input"
+                />
+                <div className="selectable-list">
+                  {filteredGroups.map((group) => (
+                    <div
+                      key={group.id}
+                      className={`selectable-item ${formData.group_ids.includes(group.id) ? 'selected' : ''}`}
+                      onClick={() => toggleGroup(group.id)}
+                    >
+                      <span className="selectable-check">{formData.group_ids.includes(group.id) ? '☑' : '☐'}</span>
+                      <span>👥 {group.name}</span>
+                    </div>
+                  ))}
+                  {filteredGroups.length === 0 && (
+                    <div className="selectable-empty">{t('assignments.noGroupsFound')}</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>{t('assignments.assignToUsers')}</label>
+                {formData.user_ids.length > 0 && (
+                  <div className="chip-container">
+                    {formData.user_ids.map(uid => {
+                      const u = users.find(u => u.id === uid);
+                      return u ? (
+                        <span key={uid} className="chip chip-user">
+                          👤 {u.username}
+                          <button type="button" className="chip-remove" onClick={() => toggleUser(uid)}>✕</button>
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
+                )}
+                <input
+                  type="text"
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  placeholder={t('assignments.searchUsers')}
+                  className="search-input"
+                />
+                <div className="selectable-list">
+                  {filteredUsers.map((u) => (
+                    <div
+                      key={u.id}
+                      className={`selectable-item ${formData.user_ids.includes(u.id) ? 'selected' : ''}`}
+                      onClick={() => toggleUser(u.id)}
+                    >
+                      <span className="selectable-check">{formData.user_ids.includes(u.id) ? '☑' : '☐'}</span>
+                      <span>👤 {u.username} ({u.email})</span>
+                    </div>
+                  ))}
+                  {filteredUsers.length === 0 && (
+                    <div className="selectable-empty">{t('assignments.noUsersFound')}</div>
+                  )}
                 </div>
               </div>
 

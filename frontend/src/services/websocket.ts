@@ -31,7 +31,7 @@ class WebSocketService {
     }
 
     // Get WebSocket URL from environment or default to current origin
-    const wsUrl = process.env.REACT_APP_WS_URL || window.location.origin;
+    const wsUrl = import.meta.env.VITE_WS_URL || window.location.origin;
 
     this.socket = io(wsUrl, {
       path: '/ws',

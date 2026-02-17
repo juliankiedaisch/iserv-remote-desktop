@@ -46,6 +46,9 @@ class DesktopAssignment(db.Model):
     group_id = db.Column(db.Integer, db.ForeignKey('groups.id'), nullable=True)
     user_id = db.Column(db.String(128), db.ForeignKey('users.id'), nullable=True)  # Specific user
     
+    # Description (optional) - helps distinguish multiple assignments with the same image
+    description = db.Column(db.Text, nullable=True)
+    
     # Folder assignments (optional)
     # Path relative to container's /home/kasm-user/public/ directory
     assignment_folder_path = db.Column(db.String(512), nullable=True)  # e.g., "assignments/math101"
@@ -67,6 +70,7 @@ class DesktopAssignment(db.Model):
             'desktop_image_id': self.desktop_image_id,
             'group_id': self.group_id,
             'user_id': self.user_id,
+            'description': self.description,
             'assignment_folder_path': self.assignment_folder_path,
             'assignment_folder_name': self.assignment_folder_name,
             'created_by': self.created_by,

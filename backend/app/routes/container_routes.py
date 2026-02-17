@@ -26,9 +26,12 @@ def start_container(user_dict):
         
         # Get desktop_type from query params or request body
         desktop_type = request.args.get('desktop_type')
+        assignment_id = request.args.get('assignment_id', type=int)
         if not desktop_type:
             data = request.get_json() or {}
             desktop_type = data.get('desktop_type', 'ubuntu-desktop')
+            if not assignment_id:
+                assignment_id = data.get('assignment_id')
         
         # Check desktop type permissions
         desktop_type_record = DesktopImage.query.filter_by(name=desktop_type).first()
@@ -50,12 +53,15 @@ def start_container(user_dict):
                 }), 403
         # If desktop_type_record is None, it's a legacy desktop type - allow for backward compatibility
         
-        # Check if user already has a running container for this desktop type
-        existing = Container.query.filter_by(
-            session_id=oauth_session.id,
-            desktop_type=desktop_type,
-            status='running'
-        ).first()
+        # Check if user already has a running container for this desktop type and assignment
+        query_filters = {
+            'session_id': oauth_session.id,
+            'desktop_type': desktop_type,
+            'status': 'running'
+        }
+        if assignment_id is not None:
+            query_filters['assignment_id'] = assignment_id
+        existing = Container.query.filter_by(**query_filters).first()
         
         if existing:
             docker_manager = DockerManager()
@@ -112,6 +118,7 @@ def start_container(user_dict):
                 username=user.username,
                 desktop_type=desktop_type,
                 desktop_image_id=desktop_type_record.id if desktop_type_record else None,
+                assignment_id=assignment_id,
                 callback=on_success,
                 error_callback=on_error
             )
@@ -135,7 +142,8 @@ def start_container(user_dict):
                 session_id=oauth_session.id,
                 username=user.username,
                 desktop_type=desktop_type,
-                desktop_image_id=desktop_type_record.id if desktop_type_record else None
+                desktop_image_id=desktop_type_record.id if desktop_type_record else None,
+                assignment_id=assignment_id
             )
             
             url = docker_manager.get_container_url(container)
@@ -364,25 +372,32 @@ def get_available_desktop_types(user_dict):
         
         available_types = []
         for desktop_type in all_types:
-            # Check if user has access
-            has_access, assignment = DesktopAssignment.check_access(desktop_type.id, user.id, user_group_ids)
-            if has_access:
-                desktop_data = {
-                    'id': desktop_type.id,
-                    'name': desktop_type.name,
-                    'docker_image': desktop_type.docker_image,
-                    'description': desktop_type.description,
-                    'icon': desktop_type.icon
-                }
-                
-                # Include assignment info if available
-                if assignment:
-                    desktop_data['assignment'] = {
-                        'folder_path': assignment.assignment_folder_path,
-                        'folder_name': assignment.assignment_folder_name
+            # Get ALL assignments for this user/image combination
+            user_assignments = DesktopAssignment.get_user_assignments(
+                user.id, user_group_ids
+            )
+            image_assignments = [a for a in user_assignments if a.desktop_image_id == desktop_type.id]
+            
+            if image_assignments:
+                for assignment in image_assignments:
+                    desktop_data = {
+                        'id': desktop_type.id,
+                        'name': desktop_type.name,
+                        'docker_image': desktop_type.docker_image,
+                        'description': desktop_type.description,
+                        'icon': desktop_type.icon,
+                        'assignment': {
+                            'id': assignment.id,
+                            'folder_path': assignment.assignment_folder_path,
+                            'folder_name': assignment.assignment_folder_name,
+                            'description': assignment.description,
+                            'teacher': {
+                                'id': assignment.teacher.id,
+                                'username': assignment.teacher.username
+                            } if assignment.teacher else None
+                        }
                     }
-                
-                available_types.append(desktop_data)
+                    available_types.append(desktop_data)
         
         return jsonify({
             'success': True,

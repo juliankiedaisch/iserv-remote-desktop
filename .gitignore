@@ -33,6 +33,7 @@ flask_session/
 
 # Frontend build artifacts (keep source, ignore build output)
 frontend/build/
+frontend/dist/
 frontend/node_modules/
 
 # SSL certificates (use your own certificates, don't commit them)

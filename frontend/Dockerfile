@@ -12,7 +12,7 @@ RUN npm install
 # Copy source code
 COPY . .
 
-# Build the React app
+# Build the React app with Vite
 RUN npm run build
 
 # Production stage - serve with nginx
