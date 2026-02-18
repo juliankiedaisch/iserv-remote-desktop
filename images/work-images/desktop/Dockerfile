@@ -6,6 +6,9 @@ USER root
 ENV HOME /home/kasm-default-profile
 ENV STARTUPDIR /dockerstartup
 ENV INST_SCRIPTS $STARTUPDIR/install
+ENV LANG de_DE.UTF-8
+ENV LANGUAGE de_DE:de
+ENV LC_ALL de_DE.UTF-8
 WORKDIR $HOME
 
 ######### Customize Container Here ###########
@@ -30,7 +33,8 @@ RUN bash $INST_SCRIPTS/firefox/install_firefox.sh  && rm -rf $INST_SCRIPTS/firef
 #Install Gimp
 RUN apt-get update && apt-get -y install gimp
 #Install LibreOffice
-RUN apt-get update && apt-get -y install libreoffice
+COPY ./src $INST_SCRIPTS/libre_office/
+RUN bash $INST_SCRIPTS/libre_office/install_libre_office.sh  && rm -rf $INST_SCRIPTS/libre_office/
 ######### End Customizations ###########
 
 RUN chown 1000:0 $HOME

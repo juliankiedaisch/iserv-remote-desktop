@@ -213,9 +213,9 @@ LABEL "com.kasmweb.gpu_acceleration_egl"="nvidia"
 ### Environment config
 ARG DISTRO=ubuntu
 ARG EXTRA_SH=noop.sh
-ARG LANG='de_DE.UTF-8'
-ARG LANGUAGE='de_DE:de'
-ARG LC_ALL='de_DE.UTF-8'
+ENV LANG de_DE.UTF-8
+ENV LANGUAGE de_DE:de
+ENV LC_ALL de_DE.UTF-8
 ARG START_PULSEAUDIO=1
 ARG START_XFCE4=1
 ARG TZ='Etc/UTC'

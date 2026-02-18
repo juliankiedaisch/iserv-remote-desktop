@@ -17,6 +17,13 @@ chmod +x $HOME/Desktop/code.desktop
 chown 1000:1000 $HOME/Desktop/code.desktop
 rm vs_code.deb
 
+# Install German language pack for VS Code
+runuser -l kasm-user -c 'code --install-extension MS-CEINTL.vscode-language-pack-de --force'
+# Set German as the display language
+mkdir -p $HOME/.config/Code/User
+echo '{"locale":"de"}' > $HOME/.config/Code/User/locale.json
+chown -R 1000:1000 $HOME/.config
+
 # Conveniences for python development
 apt-get update
 apt-get install -y python3-setuptools \

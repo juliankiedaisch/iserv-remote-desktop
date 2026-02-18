@@ -6,6 +6,9 @@ USER root
 ENV HOME /home/kasm-default-profile
 ENV STARTUPDIR /dockerstartup
 ENV INST_SCRIPTS $STARTUPDIR/install
+ENV LANG de_DE.UTF-8
+ENV LANGUAGE de_DE:de
+ENV LC_ALL de_DE.UTF-8
 WORKDIR $HOME
 
 ######### Customize Container Here ###########
@@ -13,9 +16,6 @@ WORKDIR $HOME
 # Set Password
 RUN echo "kasm-user:password" | chpasswd
 RUN usermod -a -G sudo kasm-user
-
-RUN apt-get update && apt-get -y install python3-tk python3-pip python3-pygame
-
 
 COPY ./src $INST_SCRIPTS/libre_office/
 RUN bash $INST_SCRIPTS/libre_office/install_libre_office.sh  && rm -rf $INST_SCRIPTS/libre_office/
