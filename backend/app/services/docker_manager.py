@@ -669,37 +669,42 @@ class DockerManager:
                 f"Found {len(idle_containers)} idle containers to stop"
             )
             
+            # Get app reference for use in greenlets
+            app = current_app._get_current_object()
+            
             # Stop containers in parallel using gevent pool to avoid blocking
             # Limit to 5 concurrent stops to avoid overwhelming the system
             pool = GPool(5)
             stopped_count = 0
             
             def stop_single_container(container):
-                """Helper function to stop a single container"""
-                try:
-                    # Initialize last_accessed if it's NULL (for backwards compatibility)
-                    if container.last_accessed is None:
-                        container.last_accessed = container.started_at or container.created_at or datetime.now(timezone.utc)
-                        db.session.commit()
-                        current_app.logger.info(
-                            f"Initialized last_accessed for container {container.container_name}"
+                """Helper function to stop a single container with app context"""
+                # Each greenlet needs its own app context
+                with app.app_context():
+                    try:
+                        # Initialize last_accessed if it's NULL (for backwards compatibility)
+                        if container.last_accessed is None:
+                            container.last_accessed = container.started_at or container.created_at or datetime.now(timezone.utc)
+                            db.session.commit()
+                            current_app.logger.info(
+                                f"Initialized last_accessed for container {container.container_name}"
+                            )
+                        
+                        # Verify it's still running in Docker before stopping
+                        status_info = self.get_container_status(container)
+                        if status_info.get('status') == 'running':
+                            self.stop_container(container)
+                            current_app.logger.info(
+                                f"Stopped idle container {container.container_name} "
+                                f"(last accessed: {container.last_accessed}, cutoff: {cutoff_time})"
+                            )
+                            return 1
+                        return 0
+                    except Exception as e:
+                        current_app.logger.error(
+                            f"Failed to stop idle container {container.container_name}: {str(e)}"
                         )
-                    
-                    # Verify it's still running in Docker before stopping
-                    status_info = self.get_container_status(container)
-                    if status_info.get('status') == 'running':
-                        self.stop_container(container)
-                        current_app.logger.info(
-                            f"Stopped idle container {container.container_name} "
-                            f"(last accessed: {container.last_accessed}, cutoff: {cutoff_time})"
-                        )
-                        return 1
-                    return 0
-                except Exception as e:
-                    current_app.logger.error(
-                        f"Failed to stop idle container {container.container_name}: {str(e)}"
-                    )
-                    return 0
+                        return 0
             
             # Use gevent pool to stop containers in parallel
             results = pool.map(stop_single_container, idle_containers)

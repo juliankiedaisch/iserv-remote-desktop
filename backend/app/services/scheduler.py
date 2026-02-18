@@ -22,11 +22,6 @@ class BackgroundScheduler:
     def init_app(self, app):
         """Initialize scheduler with Flask app"""
         self.app = app
-        
-        # Register cleanup on app shutdown
-        @app.teardown_appcontext
-        def shutdown_scheduler(exception=None):
-            self.stop()
     
     def add_task(self, func, interval_seconds, name=None):
         """
