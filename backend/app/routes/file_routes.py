@@ -191,12 +191,45 @@ def upload_file(user_dict):
                 'error': get_message('invalid_path', lang)
             }), 403
         
-        # Validate that parent directory exists (no implicit directory creation)
+        # Validate that target directory exists
+        # Note: Users can upload to their own assigned folders since they own them
         if not os.path.exists(target_dir):
-            return jsonify({
-                'success': False,
-                'error': get_message('upload_directory_not_exist', lang)
-            }), 400
+            # Try to create the directory if it doesn't exist
+            # This handles the case where an assigned folder path exists in DB but not on filesystem
+            try:
+                # Create directory with mode set atomically to avoid race conditions
+                # exist_ok=True is intentional: if another process creates the directory concurrently,
+                # we want the upload to succeed (not fail), as long as the directory is accessible
+                os.makedirs(target_dir, mode=0o755, exist_ok=True)
+                current_app.logger.info(f"Created missing directory for upload: {target_dir}")
+            except PermissionError as pe:
+                current_app.logger.error(f"Permission denied creating directory {target_dir}: {str(pe)}")
+                return jsonify({
+                    'success': False,
+                    'error': get_message('permission_denied', lang)
+                }), 403
+            except OSError as ose:
+                current_app.logger.error(f"Failed to create directory {target_dir}: {str(ose)}")
+                return jsonify({
+                    'success': False,
+                    'error': get_message('upload_directory_not_exist', lang)
+                }), 400
+            
+            # Set ownership on the newly created directory
+            # Note: This may fail if not running with appropriate privileges, but upload can still succeed
+            try:
+                # Use configured container user/group IDs (default 1000:1000 matches typical kasm-user)
+                # These defaults are safe as they match the standard Kasm workspace container user
+                # Configuration values are set by administrators and validated at application startup
+                uid = current_app.config.get('CONTAINER_USER_ID', 1000)
+                gid = current_app.config.get('CONTAINER_GROUP_ID', 1000)
+                os.chown(target_dir, uid, gid)
+            except PermissionError:
+                # Ownership change failed due to insufficient privileges - this is non-fatal
+                current_app.logger.warning(f"Could not set ownership on {target_dir} (insufficient privileges)")
+            except OSError as ose:
+                # Other OS error during ownership change - this is non-fatal
+                current_app.logger.warning(f"Could not set ownership on {target_dir}: {str(ose)}")
         
         # Secure the filename
         filename = secure_filename(file.filename)
