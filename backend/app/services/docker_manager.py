@@ -395,6 +395,30 @@ class DockerManager:
             # Create and start container
             current_app.logger.info(f"Creating container {container_name} from image {kasm_image}")
             
+            # Generate Traefik labels if Traefik is enabled
+            traefik_enabled = os.environ.get('TRAEFIK_ENABLED', 'false').lower() == 'true'
+            labels = {
+                'user_id': user_id,
+                'session_id': session_id,
+                'managed_by': 'iserv-remote-desktop',
+                'audio_port': str(audio_host_port)
+            }
+            
+            # Get container prefix for subdomain generation
+            prefix = os.environ.get('CONTAINER_PREFIX', 'test-desktop')
+            # Remove trailing dash if present
+            prefix = prefix.rstrip('-')
+            subdomain = f"{prefix}-{proxy_path}"
+            
+            if traefik_enabled:
+                # Add Traefik labels for automatic routing
+                traefik_labels = self._generate_traefik_labels(username, desktop_type, subdomain)
+                labels.update(traefik_labels)
+                current_app.logger.info(f"Traefik labels generated for subdomain: {subdomain}.hub.mdg-hamburg.de")
+            
+            # Determine network configuration
+            traefik_network = os.environ.get('TRAEFIK_NETWORK', 'kasm_proxy') if traefik_enabled else None
+            
             # Add startup command to merge private user space and desktop configs into /home/kasm-user
             # This implements an overlayFS-like behavior where:
             # 1. Private user files (shared across all containers) are copied first as the base layer
@@ -413,26 +437,29 @@ class DockerManager:
                 'exec /dockerstartup/kasm_default_profile.sh /dockerstartup/vnc_startup.sh\n'
             )
             
-            container = self.client.containers.run(
-                kasm_image,
-                name=container_name,
-                entrypoint=['/bin/bash', '-c', startup_script],
-                ports={
+            # Create container with appropriate network configuration
+            container_args = {
+                'image': kasm_image,
+                'name': container_name,
+                'entrypoint': ['/bin/bash', '-c', startup_script],
+                'ports': {
                     f'{container_port}/tcp': host_port,  # VNC port (6901) → 7000+
                     '4901/tcp': audio_host_port  # Audio WebSocket port (4901) → 7000+
                 },
-                environment=environment,
-                detach=True,
-                remove=False,
-                shm_size='512m',  # Increased shared memory for browser
-                volumes=volumes,
-                labels={
-                    'user_id': user_id,
-                    'session_id': session_id,
-                    'managed_by': 'iserv-remote-desktop',
-                    'audio_port': str(audio_host_port)
-                }
-            )
+                'environment': environment,
+                'detach': True,
+                'remove': False,
+                'shm_size': '512m',  # Increased shared memory for browser
+                'volumes': volumes,
+                'labels': labels
+            }
+            
+            # Add network if Traefik is enabled
+            if traefik_enabled and traefik_network:
+                container_args['network'] = traefik_network
+                current_app.logger.info(f"Connecting container to network: {traefik_network}")
+            
+            container = self.client.containers.run(**container_args)
             
             # Update container record
             container_record.container_id = container.id
@@ -721,6 +748,46 @@ class DockerManager:
             current_app.logger.error(f"Failed to check idle containers: {str(e)}")
             db.session.rollback()
             return 0
+    
+    def _generate_traefik_labels(self, username, desktop_type, subdomain):
+        """
+        Generate Traefik labels for automatic container routing
+        
+        This method creates labels that enable Traefik to automatically discover
+        and route traffic to containers based on their subdomain.
+        
+        Args:
+            username: User's username
+            desktop_type: Desktop type identifier
+            subdomain: Full subdomain (e.g., "test-desktop-user-token")
+            
+        Returns:
+            dict: Dictionary of Traefik labels
+        """
+        # Create a safe service name for Traefik labels
+        # Replace dots and underscores with hyphens to ensure DNS compatibility
+        label_base = f"kasm_{username}_{desktop_type}"
+        safe_name = label_base.replace('.', '-').replace('_', '-')
+        
+        # Get domain from environment (default to hub.mdg-hamburg.de)
+        domain = os.environ.get('TRAEFIK_DOMAIN', 'hub.mdg-hamburg.de')
+        full_domain = f"{subdomain}.{domain}"
+        
+        return {
+            # Enable Traefik for this container
+            "traefik.enable": "true",
+            
+            # Router configuration - matches requests by hostname
+            f"traefik.http.routers.{safe_name}.rule": f"Host(`{full_domain}`)",
+            f"traefik.http.routers.{safe_name}.entrypoints": "web",
+            f"traefik.http.routers.{safe_name}.service": safe_name,
+            
+            # Service configuration - Kasm VNC uses port 6901
+            f"traefik.http.services.{safe_name}.loadbalancer.server.port": "6901",
+            
+            # Network configuration
+            "traefik.docker.network": "kasm_proxy",
+        }
     
     def _find_available_port_locked(self, start_port=7000, end_port=10000, exclude_ports=None):
         """
@@ -1528,7 +1595,8 @@ class DockerManager:
         """
         Get the URL to access the container via subdomain routing
         
-        Apache routes subdomains directly to containers using RewriteMap.
+        With Traefik routing (Variante 3), the proxy server handles authentication
+        and forwards to Traefik on the Docker server, which routes based on hostname.
         
         Args:
             container_record: Container model instance
@@ -1540,11 +1608,13 @@ class DockerManager:
             return None
         
         # Get host from environment
-        prefix = os.environ.get('CONTAINER_PREFIX', 'desktop')
+        prefix = os.environ.get('CONTAINER_PREFIX', 'test-desktop')
+        # Remove trailing dash if present
+        prefix = prefix.rstrip('-')
         
-        # Use subdomain routing: desktop-container-name.hub.mdg-hamburg.de
+        # Use subdomain routing: test-desktop-{proxy_path}.hub.mdg-hamburg.de
         # Format matches wildcard SSL cert *.hub.mdg-hamburg.de
-        # Apache's RewriteMap queries Flask API to get container IP:port
+        # Traefik routes requests based on Host header using container labels
         return f"https://{prefix}-{container_record.proxy_path}.hub.mdg-hamburg.de/"
     
     def pull_image(self, image_name, emit_callback=None):
